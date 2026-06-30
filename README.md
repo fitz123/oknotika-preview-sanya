@@ -1,40 +1,19 @@
-# Oknotika site V1
+# Oknotika site V2 preview
 
-Статический прототип главной страницы ОКНОТИКИ.
+Static V2 preview for the new ОКНОТИКА website.
 
-## Файлы
+Published via GitHub Pages:
 
-- `index.html` — главная
-- `style.css` — весь дизайн
-- `script.js` — куки-баннер и мелкие эффекты
-- `img/logo-oknotika.svg` — логотип из старой Qwen-ветки
-- `img/products/*.svg` — сгенерированные абстрактные иллюстрации без чужих фото
-- `docs/oknotika-requisites.pdf` — сюда положить карточку предприятия
+https://fitz123.github.io/oknotika-preview-sanya/
 
-## Фото команды
+## Current V2 content
 
-Положить JPG-файлы в такие пути:
+- Engineering-integrator positioning
+- Product shelf: ФУТУРУСС, glass taxonomy, Carbon Glass, Stoller, Thermo Pad, Protectapeel
+- Cases/proof: Рубикон, Ботанический сад, Ресторан Шаляпин, атриумное остекление, Парк Горького / Thermo Pad
+- Team grid with current available portraits
+- SRO / NOSTROY proof block
 
-- `img/team/zolotukhin.jpg`
-- `img/team/blagochevsky.jpg`
-- `img/team/tsvetkov.jpg`
-- `img/team/zhalnin.jpg`
-- `img/team/vodyanov.jpg`
-- `img/team/skopina.jpg`
-- `img/team/rychkova.jpg`
-- `img/team/makarov.jpg`
+## Notes
 
-Лучше фото: портрет по пояс/грудь, нормальный свет, без жёстких фильтров, лицо крупно, фон спокойный или объект/стройка/офис.
-
-## Как быстро выложить
-
-### Netlify Drop
-
-1. Открой https://app.netlify.com/drop
-2. Перетащи папку `oknotika-site-v1` целиком.
-3. Netlify даст временный адрес.
-4. После проверки подключаем домен.
-
-### Cloudflare Pages / GitHub Pages
-
-Можно залить как обычный статический сайт: корень проекта = эта папка, build command не нужен.
+This is still a preview, not final production. Some case names, photos, warranty/legal wording, team portraits and final contact/requisites should be confirmed before replacing the real site.
