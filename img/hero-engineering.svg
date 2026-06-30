@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" fill="none">
+  <rect width="1600" height="1000" fill="#0A0D10"/>
+  <radialGradient id="g1" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1160 220) rotate(135) scale(760 520)">
+    <stop stop-color="#4FD1C5" stop-opacity="0.22"/>
+    <stop offset="1" stop-color="#4FD1C5" stop-opacity="0"/>
+  </radialGradient>
+  <radialGradient id="g2" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(430 790) rotate(-25) scale(650 380)">
+    <stop stop-color="#C8A66A" stop-opacity="0.18"/>
+    <stop offset="1" stop-color="#C8A66A" stop-opacity="0"/>
+  </radialGradient>
+  <rect width="1600" height="1000" fill="url(#g1)"/>
+  <rect width="1600" height="1000" fill="url(#g2)"/>
+  <g opacity="0.55" stroke="#E9EDF0" stroke-width="1.2">
+    <path d="M230 830V170h820v660H230Z"/>
+    <path d="M300 830V245h680v585"/>
+    <path d="M230 360h820M230 540h820M230 710h820"/>
+    <path d="M420 170v660M620 170v660M820 170v660"/>
+    <path d="M1050 830 1375 670V240L1050 170"/>
+    <path d="M1050 360 1375 240M1050 540 1375 465M1050 710 1375 670"/>
+    <path d="M1185 800V205M1285 752V225" opacity="0.65"/>
+  </g>
+  <g opacity="0.22" stroke="#4FD1C5" stroke-width="1">
+    <path d="M120 900H1480"/>
+    <path d="M130 918H1470"/>
+    <path d="M155 936H1445"/>
+  </g>
+</svg>
