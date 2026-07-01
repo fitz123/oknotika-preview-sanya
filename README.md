@@ -1,12 +1,12 @@
 # Oknotika site V2 preview
 
-Static V2.17 preview for the new ОКНОТИКА website.
+Static V2.18 preview for the new ОКНОТИКА website.
 
 Published via GitHub Pages:
 
 https://fitz123.github.io/oknotika-preview-sanya/
 
-## Current V2.17 content
+## Current V2.18 content
 
 - Positioning: ОКНОТИКА as an engineering-integrator СПК company
 - Hero facts: SRO, all materials, 500,000+ m² montage experience, product solutions under any concept
@@ -85,3 +85,11 @@ This is still a preview, not final production. Some case names, photos, personal
 - Fixed mobile homepage smart-window card: mobile now uses the full landscape window photo instead of the tight crop, so the window is not cut off.
 - Desktop keeps the tighter crop where it reads better.
 - Replaced one remaining `архитектурного эффекта` wording with `архитектурного решения`.
+
+
+## V2.18 update
+
+- Added broader voice-assistant positioning for OKNOTIKA automation: panel, remote, smartphone, and voice.
+- Dedicated automation page now names Alice, Siri, Google Assistant, Alexa and other ecosystems through compatible platforms, gateways, or BMS.
+- Kept a technical qualifier: the concrete assistant depends on the selected controller/integration scheme.
+- Homepage visible marker updated to V2.18.
