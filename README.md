@@ -1,12 +1,12 @@
 # Oknotika site V2 preview
 
-Static V2.15 preview for the new ОКНОТИКА website.
+Static V2.16 preview for the new ОКНОТИКА website.
 
 Published via GitHub Pages:
 
 https://fitz123.github.io/oknotika-preview-sanya/
 
-## Current V2.15 content
+## Current V2.16 content
 
 - Positioning: ОКНОТИКА as an engineering-integrator СПК company
 - Hero facts: SRO, all materials, 500,000+ m² montage experience, product solutions under any concept
@@ -72,3 +72,9 @@ This is still a preview, not final production. Some case names, photos, personal
 
 - Reworked automation-page size block: no longer calls 633–1650 mm “big possibilities”.
 - New framing: current working range of the first automation version; team is working to increase height, width, and sash mass.
+
+
+## V2.16 update
+
+- Added tighter crop `oknotika-window-demo-tight.jpg` so the real smart window/control-screen visual does not look too small inside the page.
+- Homepage smart-window card and automation-page hero/control visual now use the tighter crop.
