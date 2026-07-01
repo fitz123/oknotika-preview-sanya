@@ -1,12 +1,12 @@
 # Oknotika site V2 preview
 
-Static V2.13 preview for the new ОКНОТИКА website.
+Static V2.14 preview for the new ОКНОТИКА website.
 
 Published via GitHub Pages:
 
 https://fitz123.github.io/oknotika-preview-sanya/
 
-## Current V2.13 content
+## Current V2.14 content
 
 - Positioning: ОКНОТИКА as an engineering-integrator СПК company
 - Hero facts: SRO, all materials, 500,000+ m² montage experience, product solutions under any concept
@@ -58,3 +58,11 @@ This is still a preview, not final production. Some case names, photos, personal
 - Added dedicated first-draft automation page: `oknotika-smart-window/`.
 - Linked the OKNOTIKA smart-window product card to the automation page.
 - Page structure follows Evgeny’s ТЗ but rewrites copy around the stronger thesis: hidden automation inside the СПК system, not a drive bolted onto a frame.
+
+
+## V2.14 update
+
+- Downloaded final smart-window/control-screen stills from Sanya’s Yandex Disk link and added optimized assets.
+- Replaced the homepage smart-window SVG with the real OKNOTIKA window/screen still.
+- Replaced automation-page hero visual with the real window/screen still.
+- Added control visual pair: window with local screen + control-panel interface.
