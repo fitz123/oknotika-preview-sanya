@@ -209,12 +209,3 @@ dd { margin: 0; font-weight: 850; }
   .footer p + p { margin-top: 12px; }
 }
 
-.partners { background: linear-gradient(180deg, rgba(116,215,223,.055), rgba(255,255,255,0)); }
-.partner-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
-.partner-card { min-height: 300px; padding: 28px; border: 1px solid var(--line); border-radius: var(--radius); background: linear-gradient(180deg, rgba(255,255,255,.075), rgba(255,255,255,.035)); box-shadow: 0 22px 72px rgba(0,0,0,.16); }
-.partner-card span { display: inline-flex; margin-bottom: 46px; color: var(--accent); text-transform: uppercase; letter-spacing: .13em; font-size: 12px; font-weight: 900; }
-.partner-card p { margin: 0; color: var(--muted); }
-
-@media (max-width: 1180px) {
-  .partner-grid { grid-template-columns: 1fr; }
-}
