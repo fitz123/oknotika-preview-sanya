@@ -1,17 +1,17 @@
 # Oknotika site V2 preview
 
-Static V2.10 preview for the new ОКНОТИКА website.
+Static V2.11 preview for the new ОКНОТИКА website.
 
 Published via GitHub Pages:
 
 https://fitz123.github.io/oknotika-preview-sanya/
 
-## Current V2.10 content
+## Current V2.11 content
 
 - Positioning: ОКНОТИКА as an engineering-integrator СПК company
 - Hero facts: SRO, all materials, 500,000+ m² montage experience, product solutions under any concept
 - Process: ТЗ → variants → risk comparison → handover
-- Product shelf: OKNOTIKA smart window, ФУТУРУСС, glass taxonomy, Carbon Glass, Stoller, Ралюма, Рубикон, Thermo Pad, Protectapeel; no separate partners block
+- Product shelf: OKNOTIKA smart window, ФУТУРУСС, glass taxonomy, Carbon Glass, Stoller, Ралюма, one restrained Рубикон card, Thermo Pad, Protectapeel; no separate partners block
 - Cases/proof: montage contractor network, named project examples, Botanical Garden, Restaurant Shalyapin, atrium glazing, Gorky Park / Thermo Pad
 - Team grid with public roles and Telegram CTAs for the business-facing leads
 - SRO / NOSTROY proof block
@@ -38,3 +38,10 @@ This is still a preview, not final production. Some case names, photos, personal
 - Kept Ралюма as the frameless glazing product card.
 - Added Рубикон to the product shelf as нестандартные СПК / узлы примыкания / реализация смелых запросов.
 - Reverted the proof/cases block to less Rubikon-heavy wording.
+
+
+## V2.11 update
+
+- Changed cases eyebrow from `Доказательства` to `Кейсы`.
+- Softened cases headline to `Реальные объекты и монтажные объёмы`.
+- Removed Рубикон from the product-shelf intro list and image alt; left one restrained product card.
