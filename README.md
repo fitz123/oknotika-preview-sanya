@@ -1,12 +1,12 @@
 # Oknotika site V2 preview
 
-Static V2.4 preview for the new ОКНОТИКА website.
+Static V2.5 preview for the new ОКНОТИКА website.
 
 Published via GitHub Pages:
 
 https://fitz123.github.io/oknotika-preview-sanya/
 
-## Current V2.4 content
+## Current V2.5 content
 
 - Positioning: ОКНОТИКА as an engineering-integrator СПК company
 - Hero facts: SRO, all materials, 500,000+ m² montage experience, product solutions under any concept
