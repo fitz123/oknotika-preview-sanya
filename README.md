@@ -1,12 +1,12 @@
 # Oknotika site V2 preview
 
-Static V2.7 preview for the new ОКНОТИКА website.
+Static V2.8 preview for the new ОКНОТИКА website.
 
 Published via GitHub Pages:
 
 https://fitz123.github.io/oknotika-preview-sanya/
 
-## Current V2.7 content
+## Current V2.8 content
 
 - Positioning: ОКНОТИКА as an engineering-integrator СПК company
 - Hero facts: SRO, all materials, 500,000+ m² montage experience, product solutions under any concept
@@ -19,3 +19,8 @@ https://fitz123.github.io/oknotika-preview-sanya/
 ## Notes
 
 This is still a preview, not final production. Some case names, photos, personal Telegram links, warranty/legal wording, team portraits and final contact/requisites should be confirmed before replacing the real site.
+
+
+## V2.8 update
+
+- Protectapeel card uses real application video from Sanya: `img/products/protectapeel-application.mp4` with poster `img/products/protectapeel-application.jpg`.
