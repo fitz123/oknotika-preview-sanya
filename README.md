@@ -1,17 +1,17 @@
 # Oknotika site V2 preview
 
-Static V2.5 preview for the new ОКНОТИКА website.
+Static V2.6 preview for the new ОКНОТИКА website.
 
 Published via GitHub Pages:
 
 https://fitz123.github.io/oknotika-preview-sanya/
 
-## Current V2.5 content
+## Current V2.6 content
 
 - Positioning: ОКНОТИКА as an engineering-integrator СПК company
 - Hero facts: SRO, all materials, 500,000+ m² montage experience, product solutions under any concept
 - Process: ТЗ → variants → risk comparison → handover
-- Product shelf: OKNOTIKA smart window, ФУТУРУСС, glass taxonomy, Carbon Glass, Stoller, Thermo Pad, Protectapeel
+- Product shelf: OKNOTIKA smart window, ФУТУРУСС, glass taxonomy, Carbon Glass, Stoller, Ролюма/ETS Group, Thermo Pad, Protectapeel
 - Cases/proof: montage contractor network, named project examples, Рубикон attribution inside case cards, Botanical Garden, Restaurant Shalyapin, atrium glazing, Gorky Park / Thermo Pad
 - Team grid with public roles and Telegram CTAs for the business-facing leads
 - SRO / NOSTROY proof block
