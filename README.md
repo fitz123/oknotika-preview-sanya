@@ -94,11 +94,27 @@ This is still a preview, not final production. Some case names, photos, personal
 - Kept a technical qualifier: the concrete assistant depends on the selected controller/integration scheme.
 - Homepage visible marker updated to V2.18.
 
+## V2.20 local team update — 2026-07-09
 
-## V2.21 update — revert to pre-presentation site
+- Added **Сергей Бешенцев** to the public team block: `Руководитель проекта «Умное окно»`.
+- Added **Иван Рябоконь** to the public team block: `Менеджер проектов`.
+- Added optimized team portraits:
+  - `img/team/beshentsev.jpg`
+  - `img/team/ryabokon.jpg`
+- Team intro now mentions product directions.
+- This local package includes homepage + dedicated smart-window page; it has not been pushed to GitHub preview in this step.
 
-- Reverted homepage and smart-window page back to the pre-presentation V2.18 structure/content direction.
-- Kept only the new team additions requested by Sanya:
-  - Сергей Бешенцев — Руководитель проекта «Умное окно»;
-  - Иван Рябоконь — Менеджер проектов.
-- Removed presentation-experiment product assets from the preview commit.
+## V2.25 multipage preview — 2026-07-09
+
+- Rebuilt homepage as shorter product hub.
+- Added separate pages:
+  - `/aluminum/`
+  - `/pvc/`
+  - `/wood-stoller/`
+  - `/carbon-glass/`
+  - `/glass/`
+  - `/protectapeel/`
+  - `/articles/`
+- Kept `/oknotika-smart-window/` and updated its header navigation for multipage mode.
+- Added homepage `Факт недели` block and first article about Al Bahr Towers dynamic facade.
+- Aluminum page separates Schüco as its own system philosophy; Alutech and Alumark are combined as practical/object aluminum options.
