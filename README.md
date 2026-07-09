@@ -93,3 +93,13 @@ This is still a preview, not final production. Some case names, photos, personal
 - Dedicated automation page now names Alice, Siri, Google Assistant, Alexa and other ecosystems through compatible platforms, gateways, or BMS.
 - Kept a technical qualifier: the concrete assistant depends on the selected controller/integration scheme.
 - Homepage visible marker updated to V2.18.
+
+## V2.20 local team update — 2026-07-09
+
+- Added **Сергей Бешенцев** to the public team block: `Руководитель проекта «Умное окно»`.
+- Added **Иван Рябоконь** to the public team block: `Менеджер проектов`.
+- Added optimized team portraits:
+  - `img/team/beshentsev.jpg`
+  - `img/team/ryabokon.jpg`
+- Team intro now mentions product directions.
+- This local package includes homepage + dedicated smart-window page; it has not been pushed to GitHub preview in this step.
