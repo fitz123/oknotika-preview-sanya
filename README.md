@@ -118,3 +118,14 @@ This is still a preview, not final production. Some case names, photos, personal
 - Kept `/oknotika-smart-window/` and updated its header navigation for multipage mode.
 - Added homepage `Факт недели` block and first article about Al Bahr Towers dynamic facade.
 - Aluminum page separates Schüco as its own system philosophy; Alutech and Alumark are combined as practical/object aluminum options.
+
+
+## V2.26 visual product pages — 2026-07-10
+
+- Added production-safe thematic Pexels backgrounds to PVC and glass pages.
+- Added approved real project/material imagery to Carbon Glass, Stoller and Protectapeel pages.
+- Avoided the Carbon image previously flagged as potentially AI.
+- Added visual background treatment to product feature cards.
+- Added three-image galleries to PVC, Stoller, Carbon Glass and glass pages.
+- Added real looping Protectapeel application video block.
+- Added `IMAGE_SOURCES.md` with source/provenance links.
