@@ -17,3 +17,12 @@ These images are used as thematic backgrounds and visual references, not as clai
 - Carbon Glass images under `img/products/carbon-*.jpg` — received Carbon materials; real/approved site prototype images per Sanya. Avoided the image previously flagged as possibly AI.
 - Stoller images under `img/products/stoller-*.jpg` — received Stoller materials; approved for site/prototype use per Sanya.
 - Protectapeel images/video under `img/products/protectapeel-*` — received Protectapeel application/removal materials.
+
+## Original aluminum facade graphics
+
+These are abstract OKNOTIKA graphics, not Schüco product drawings, renders, photos, or logos. They were created in-house from geometric primitives and contain no third-party media.
+
+- `img/aluminum/schueco-facade-grid.webp` — original abstract facade-grid composition; © 2026 ООО «ОКНОТИКА», all rights reserved; provenance and SHA-256: `ALUMINUM_SOURCES.md`.
+- `img/aluminum/schueco-design-path.webp` — original abstract design-path composition; © 2026 ООО «ОКНОТИКА», all rights reserved; provenance and SHA-256: `ALUMINUM_SOURCES.md`.
+
+Official Schüco pages are used only as factual references for paraphrased product claims. No Schüco logo, photo, render, screenshot, or drawing is republished.

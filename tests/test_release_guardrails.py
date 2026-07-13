@@ -24,6 +24,8 @@ def load_script(name: str):
 local_refs = load_script("check_local_refs")
 allowlist = load_script("check_v227_allowlist")
 team = load_script("check_team_dom")
+aluminum = load_script("check_aluminum_sources")
+public_claims = load_script("check_public_claims")
 
 
 class LocalReferenceTests(unittest.TestCase):
@@ -131,6 +133,57 @@ class TeamReleaseTests(unittest.TestCase):
             evidence_path.write_text(json.dumps(evidence, ensure_ascii=False), encoding="utf-8")
             errors = team.validate(REPO / "index.html", evidence_path, REPO)
             self.assertTrue(any("hash mismatch" in error for error in errors))
+
+
+class AluminumReleaseTests(unittest.TestCase):
+    def test_current_aluminum_claims_and_materials_are_valid(self) -> None:
+        errors = aluminum.validate(
+            REPO / "ALUMINUM_SOURCES.md",
+            REPO / "aluminum/index.html",
+            REPO,
+        )
+        self.assertEqual(errors, [])
+
+    def test_generalized_drainage_claim_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            html = Path(directory) / "index.html"
+            html.write_text(
+                (REPO / "aluminum/index.html").read_text(encoding="utf-8").replace(
+                    "</main>",
+                    "<p>Скрытый дренаж есть у всех фасадов.</p></main>",
+                ),
+                encoding="utf-8",
+            )
+            errors = aluminum.validate(REPO / "ALUMINUM_SOURCES.md", html, REPO)
+            self.assertTrue(any("drainage" in error for error in errors))
+
+    def test_undocumented_claim_id_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            sources = Path(directory) / "ALUMINUM_SOURCES.md"
+            sources.write_text(
+                (REPO / "ALUMINUM_SOURCES.md").read_text(encoding="utf-8").replace(
+                    '"id": "schueco-fws50"',
+                    '"id": "undocumented-fws50"',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            errors = aluminum.validate(sources, REPO / "aluminum/index.html", REPO)
+            self.assertTrue(any("undocumented claim ids" in error for error in errors))
+
+    def test_current_public_claims_are_safe(self) -> None:
+        self.assertEqual(public_claims.validate(REPO), [])
+
+    def test_unverified_schueco_relationship_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "aluminum").mkdir()
+            (root / "aluminum/index.html").write_text(
+                '<main data-claim-scope="aws-75-pd-si">Schüco — официальный дилер. Скрытый дренаж AWS 75 PD.SI.</main>',
+                encoding="utf-8",
+            )
+            errors = public_claims.validate(root)
+            self.assertTrue(any("relationship" in error for error in errors))
 
 
 if __name__ == "__main__":
