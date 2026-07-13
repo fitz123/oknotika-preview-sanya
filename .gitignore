@@ -2,6 +2,11 @@ __pycache__/
 *.py[cod]
 admin-app/node_modules/
 admin-app/var/
+admin-app/.env
+.env
+.env.*
+!.env.example
+!admin-app/.env.example
 var/
 *.sqlite
 *.sqlite-wal

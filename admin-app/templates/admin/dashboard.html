@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="csrf-token" content="{{csrfToken}}">
+  <title>Факт недели · редактор</title>
+  <script src="/admin.js" defer></script>
+</head>
+<body>
+  <header>
+    <p>ОКНОТИКА · закрытый редактор</p>
+    <form id="logout"><button type="submit">Выйти</button></form>
+  </header>
+  <main>
+    <h1>Факт недели</h1>
+    <p id="status" role="status"></p>
+    <form id="article-form">
+      <input type="hidden" name="articleId">
+      <input type="hidden" name="expectedRevisionId">
+      <input type="hidden" name="coverAssetId">
+      <p><label>Заголовок <input name="title" required></label></p>
+      <p><label>Дата публикации <input name="publicationDate" type="date" required></label></p>
+      <p><label>Лид <textarea name="lead" required></textarea></label></p>
+      <p><label>Текст Markdown <textarea name="bodyMarkdown" rows="12" required></textarea></label></p>
+      <p><label>Обложка JPEG/PNG/WebP до 10 MB <input name="cover" type="file" accept="image/jpeg,image/png,image/webp"></label></p>
+      <p><label>Alt обложки <input name="coverAlt" required></label></p>
+      <p><label>Источник HTTPS (необязательно) <input name="sourceUrl" type="url"></label></p>
+      <p><button type="submit">Сохранить черновик</button> <button type="reset">Очистить</button></p>
+    </form>
+
+    <h2>Материалы</h2>
+    <table>
+      <thead><tr><th>Заголовок</th><th>Статус</th><th>Slug</th><th>Действия</th></tr></thead>
+      <tbody>{{rows}}</tbody>
+    </table>
+
+    <h2>Operational rollback</h2>
+    <ul>{{releases}}</ul>
+  </main>
+</body>
+</html>

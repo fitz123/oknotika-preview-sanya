@@ -225,22 +225,22 @@ systemd-analyze verify deploy/systemd/oknotika-admin.service
 - Create: `admin-app/.env.example`
 - Modify: `.gitignore`
 
-- [ ] на первом шаге проверить official Telegram discovery metadata, issuer, endpoints, `S256`, token auth method и signing algorithms и сохранить conformance fixture;
-- [ ] реализовать server-side Authorization Code Flow с exact redirect URI и server-bound одноразовыми `state`, `nonce`, PKCE verifier с TTL;
-- [ ] валидировать JWKS signature, pinned allowed algorithm, `iss`, `sub`, `aud`, `exp`, `iat`, `nonce` и `azp` только если применим;
-- [ ] при unknown `kid` выполнить один bounded JWKS refresh и fail closed;
-- [ ] разрешать вход только одному configured allowlisted `(issuer, subject)` и отложить editor CRUD/RBAC;
-- [ ] добавить out-of-band enrollment procedure для первого verified subject;
-- [ ] создать opaque server sessions с `__Host-` Secure HttpOnly SameSite=Lax cookie;
-- [ ] добавить idle/absolute timeout, logout и revocation при отключении редактора;
-- [ ] добавить CSRF token, exact Origin и Fetch Metadata checks;
-- [ ] реализовать черновик, preview, publish, withdraw и rollback с явным подтверждением;
-- [ ] добавить optimistic revision checks и audit events;
-- [ ] валидировать actual signature/MIME JPEG/PNG/WebP до 10 MB и 40 MP, применять decoder CPU/memory/time limits, re-encode, strip EXIF, random private filenames и запретить SVG/GIF;
-- [ ] держать originals и unpublished derivatives вне public root и копировать в release только validated published derivatives;
-- [ ] запретить raw HTML и unsafe/non-HTTPS source URL; никогда не загружать source URL сервером;
-- [ ] написать auth/security/upload/XSS/CSRF/replay/non-allowlist tests;
-- [ ] запустить lint, tests и security tests.
+- [x] на первом шаге проверить official Telegram discovery metadata, issuer, endpoints, `S256`, token auth method и signing algorithms и сохранить conformance fixture;
+- [x] реализовать server-side Authorization Code Flow с exact redirect URI и server-bound одноразовыми `state`, `nonce`, PKCE verifier с TTL;
+- [x] валидировать JWKS signature, pinned allowed algorithm, `iss`, `sub`, `aud`, `exp`, `iat`, `nonce` и `azp` только если применим;
+- [x] при unknown `kid` выполнить один bounded JWKS refresh и fail closed;
+- [x] разрешать вход только одному configured allowlisted `(issuer, subject)` и отложить editor CRUD/RBAC;
+- [x] добавить out-of-band enrollment procedure для первого verified subject;
+- [x] создать opaque server sessions с `__Host-` Secure HttpOnly SameSite=Lax cookie;
+- [x] добавить idle/absolute timeout, logout и revocation при отключении редактора;
+- [x] добавить CSRF token, exact Origin и Fetch Metadata checks;
+- [x] реализовать черновик, preview, publish, withdraw и rollback с явным подтверждением;
+- [x] добавить optimistic revision checks и audit events;
+- [x] валидировать actual signature/MIME JPEG/PNG/WebP до 10 MB и 40 MP, применять decoder CPU/memory/time limits, re-encode, strip EXIF, random private filenames и запретить SVG/GIF;
+- [x] держать originals и unpublished derivatives вне public root и копировать в release только validated published derivatives;
+- [x] запретить raw HTML и unsafe/non-HTTPS source URL; никогда не загружать source URL сервером;
+- [x] написать auth/security/upload/XSS/CSRF/replay/non-allowlist tests;
+- [x] запустить lint, tests и security tests.
 
 ### Task 6: Подготовить nginx/systemd/backup пакет для Жени [HIGH]
 

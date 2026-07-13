@@ -39,10 +39,23 @@ export function createContentService(db, { clock = () => new Date() } = {}) {
       const result = db.prepare(`
         INSERT INTO configured_editors (issuer, subject, enabled, created_at)
         VALUES (?, ?, 1, ?)
-        ON CONFLICT (issuer, subject) DO UPDATE SET enabled = 1
+        ON CONFLICT (issuer, subject) DO UPDATE SET enabled = 1, disabled_at = NULL
         RETURNING id
       `).get(issuer, subject, timestamp);
       return Number(result.id);
+    },
+
+    disableEditor(editorId) {
+      const result = db.prepare(`
+        UPDATE configured_editors SET enabled = 0, disabled_at = ?
+        WHERE id = ? AND enabled = 1
+      `).run(now(clock), editorId);
+      if (result.changes !== 1) throw new Error('Enabled editor not found');
+      db.prepare(`
+        UPDATE admin_sessions SET revoked_at = ?, revocation_reason = 'editor-disabled'
+        WHERE editor_id = ? AND revoked_at IS NULL
+      `).run(now(clock), editorId);
+      insertAudit(db, { type: 'editor.disabled', editorId }, clock);
     },
 
     registerAsset({ privatePath, mediaType, width = null, height = null }) {
@@ -75,13 +88,14 @@ export function createContentService(db, { clock = () => new Date() } = {}) {
       });
     },
 
-    reviseArticle(articleId, input, editorId) {
+    reviseArticle(articleId, input, editorId, { expectedRevisionId = null } = {}) {
       assertEditor(db, editorId);
       const data = validateArticleInput(input);
       const timestamp = now(clock);
       return transaction(db, () => {
         const article = db.prepare('SELECT * FROM articles WHERE id = ?').get(articleId);
         if (!article) throw new Error('Article not found');
+        assertExpectedRevision(article, expectedRevisionId);
         const revisionId = insertRevision(db, articleId, data, editorId, timestamp);
         db.prepare(`UPDATE articles SET current_revision_id = ?, state = 'draft', updated_at = ? WHERE id = ?`)
           .run(revisionId, timestamp, articleId);
@@ -90,9 +104,15 @@ export function createContentService(db, { clock = () => new Date() } = {}) {
       });
     },
 
-    publishRevision(articleId, revisionId, editorId) {
+    publishRevision(articleId, revisionId, editorId, { expectedRevisionId = null } = {}) {
       assertEditor(db, editorId);
       return transaction(db, () => {
+        const article = db.prepare('SELECT * FROM articles WHERE id = ?').get(articleId);
+        if (!article) throw new Error('Article not found');
+        assertExpectedRevision(article, expectedRevisionId);
+        if (Number(article.current_revision_id) !== Number(revisionId)) {
+          throw new Error('Only the current revision can be published');
+        }
         const revision = db.prepare('SELECT * FROM article_revisions WHERE id = ? AND article_id = ?')
           .get(revisionId, articleId);
         if (!revision) throw new Error('Revision not found for article');
@@ -102,11 +122,12 @@ export function createContentService(db, { clock = () => new Date() } = {}) {
       });
     },
 
-    withdrawArticle(articleId, editorId) {
+    withdrawArticle(articleId, editorId, { expectedRevisionId = null } = {}) {
       assertEditor(db, editorId);
       return transaction(db, () => {
         const article = db.prepare("SELECT * FROM articles WHERE id = ? AND state = 'published'").get(articleId);
         if (!article) throw new Error('Only a published article can be withdrawn');
+        assertExpectedRevision(article, expectedRevisionId);
         db.prepare(`UPDATE articles SET state = 'withdrawn', updated_at = ? WHERE id = ?`)
           .run(now(clock), articleId);
         insertAudit(db, {
@@ -115,10 +136,13 @@ export function createContentService(db, { clock = () => new Date() } = {}) {
       });
     },
 
-    restoreRevision(articleId, sourceRevisionId, editorId) {
+    restoreRevision(articleId, sourceRevisionId, editorId, { expectedRevisionId = null } = {}) {
       assertEditor(db, editorId);
       const timestamp = now(clock);
       return transaction(db, () => {
+        const article = db.prepare('SELECT * FROM articles WHERE id = ?').get(articleId);
+        if (!article) throw new Error('Article not found');
+        assertExpectedRevision(article, expectedRevisionId);
         const source = db.prepare('SELECT * FROM article_revisions WHERE id = ? AND article_id = ?')
           .get(sourceRevisionId, articleId);
         if (!source) throw new Error('Revision not found for article');
@@ -149,6 +173,13 @@ export function createContentService(db, { clock = () => new Date() } = {}) {
       return db.prepare('SELECT * FROM articles WHERE id = ?').get(articleId);
     },
   };
+}
+
+function assertExpectedRevision(article, expectedRevisionId) {
+  if (expectedRevisionId === null) return;
+  if (!Number.isInteger(expectedRevisionId) || Number(article.current_revision_id) !== expectedRevisionId) {
+    throw new Error('Revision conflict: the article changed after the form was loaded');
+  }
 }
 
 function nextRevisionNumber(db, articleId) {
