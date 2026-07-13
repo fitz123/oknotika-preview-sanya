@@ -1,2 +1,8 @@
 __pycache__/
 *.py[cod]
+admin-app/node_modules/
+admin-app/var/
+var/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm

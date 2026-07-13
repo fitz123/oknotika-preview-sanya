@@ -26,6 +26,10 @@
       "img/team/*-2026-07.jpg",
       "img/team/*-2026-07.webp",
       "js/latest-fact.js",
+      "articles/assets/*.jpg",
+      "articles/assets/*.png",
+      "articles/assets/*.webp",
+      "articles/latest.json",
       "release/**",
       "release-evidence/baseline/**",
       "release-evidence/previews/**",
@@ -62,6 +66,7 @@
     "articles/index.html": [
       {"tag": "title"},
       {"tag": "meta", "attributes": {"name": "description"}},
+      {"tag": "meta", "attributes": {"name": "robots"}},
       {"tag": "meta", "attribute_prefixes": {"property": "og:"}},
       {"tag": "link", "attributes": {"rel": "canonical"}},
       {"tag": "main", "id": "top"}
@@ -69,7 +74,9 @@
     "articles/al-bahr-towers-dynamic-facade/index.html": [
       {"tag": "title"},
       {"tag": "meta", "attributes": {"name": "description"}},
+      {"tag": "meta", "attributes": {"name": "robots"}},
       {"tag": "meta", "attribute_prefixes": {"property": "og:"}},
+      {"tag": "meta", "attributes": {"property": "article:published_time"}},
       {"tag": "link", "attributes": {"rel": "canonical"}},
       {"tag": "main", "id": "top"}
     ]

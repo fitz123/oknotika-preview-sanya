@@ -1,0 +1,24 @@
+{
+  "name": "oknotika-admin",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <27"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "test": "node --test --test-reporter=spec tests/*.test.js",
+    "test:security": "node --test --test-reporter=spec tests/content-security.test.js",
+    "build": "node scripts/build.js",
+    "render:fixture": "node src/render/fixture.js"
+  },
+  "dependencies": {
+    "markdown-it": "14.3.0",
+    "sanitize-html": "2.17.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.2",
+    "eslint": "9.39.2"
+  }
+}

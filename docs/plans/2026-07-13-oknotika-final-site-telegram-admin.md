@@ -194,22 +194,22 @@ systemd-analyze verify deploy/systemd/oknotika-admin.service
 - Modify: `articles/al-bahr-towers-dynamic-facade/index.html`
 - Create: `js/latest-fact.js`
 
-- [ ] определить SQLite schema для одного configured editor, articles, immutable revisions, assets, releases и audit events;
-- [ ] реализовать зафиксированные required/optional fields, UTC storage и `Europe/Moscow` display;
-- [ ] реализовать immutable slug, collision suffix и неизменяемость URL при смене title;
-- [ ] реализовать ограниченный Markdown без raw HTML и серверную sanitation;
-- [ ] хранить source URL без server-side fetch, допуская только валидный `https:`;
-- [ ] импортировать Al Bahr как первую опубликованную ревизию и защитить URL/content/metadata/style golden-render test;
-- [ ] генерировать единый immutable release: `/articles/index.html`, `/articles/latest.json`, detail HTML, 410 pages и hashed cover derivatives;
-- [ ] генерировать canonical и Open Graph metadata;
-- [ ] встроить latest fact на главную с сохранением статического fallback;
-- [ ] держать drafts/previews/unpublished assets вне public root; preview — authenticated, unguessable, `no-store`, `noindex`;
-- [ ] реализовать single-publisher lock, same-filesystem staging и полный manifest validation;
-- [ ] реализовать atomic active-symlink switch, publish-complete DB ordering и startup reconciliation от active manifest;
-- [ ] реализовать `no-cache`/revalidation для HTML/JSON и immutable cache только для hashed assets;
-- [ ] разделить editorial revision restore и operational whole-release rollback;
-- [ ] написать failure-injection tests до/после каждого publish boundary, draft visibility, slug, withdrawal/410, latest fallback и rollback;
-- [ ] запустить tests и fixture-render.
+- [x] определить SQLite schema для одного configured editor, articles, immutable revisions, assets, releases и audit events;
+- [x] реализовать зафиксированные required/optional fields, UTC storage и `Europe/Moscow` display;
+- [x] реализовать immutable slug, collision suffix и неизменяемость URL при смене title;
+- [x] реализовать ограниченный Markdown без raw HTML и серверную sanitation;
+- [x] хранить source URL без server-side fetch, допуская только валидный `https:`;
+- [x] импортировать Al Bahr как первую опубликованную ревизию и защитить URL/content/metadata/style golden-render test;
+- [x] генерировать единый immutable release: `/articles/index.html`, `/articles/latest.json`, detail HTML, 410 pages и hashed cover derivatives;
+- [x] генерировать canonical и Open Graph metadata;
+- [x] встроить latest fact на главную с сохранением статического fallback;
+- [x] держать drafts/previews/unpublished assets вне public root; preview — authenticated, unguessable, `no-store`, `noindex`;
+- [x] реализовать single-publisher lock, same-filesystem staging и полный manifest validation;
+- [x] реализовать atomic active-symlink switch, publish-complete DB ordering и startup reconciliation от active manifest;
+- [x] реализовать `no-cache`/revalidation для HTML/JSON и immutable cache только для hashed assets;
+- [x] разделить editorial revision restore и operational whole-release rollback;
+- [x] написать failure-injection tests до/после каждого publish boundary, draft visibility, slug, withdrawal/410, latest fallback и rollback;
+- [x] запустить tests и fixture-render.
 
 ### Task 5: Добавить Telegram OIDC и закрытую админку [HIGH]
 
