@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import {
+  chmodSync,
   copyFileSync,
   mkdirSync,
   readFileSync,
@@ -54,7 +55,10 @@ export function renderRelease({
     const filename = `${actualHash.slice(0, 24)}${extension}`;
     const destination = resolve(articleRoot, 'assets', filename);
     mkdirSync(dirname(destination), { recursive: true });
-    if (!assets.has(filename)) copyFileSync(article.private_path, destination);
+    if (!assets.has(filename)) {
+      copyFileSync(article.private_path, destination);
+      chmodSync(destination, 0o640);
+    }
     assets.set(filename, { sha256: actualHash, sourceAssetId: article.asset_id });
     article.cover_filename = filename;
   }

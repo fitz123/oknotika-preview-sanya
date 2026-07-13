@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync } from 'node:fs';
+import { chmodSync, mkdirSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname } from 'node:path';
 import { fetchTelegramDiscovery } from '../auth/conformance.js';
@@ -11,6 +11,7 @@ import { createPublisher } from '../render/publisher.js';
 import { createAdminActions } from './admin-actions.js';
 import { createAdminHandler } from './handler.js';
 import { createUploadStore } from './uploads.js';
+import { assertTrustedProxyHeaders } from './security.js';
 
 const config = loadConfiguration();
 for (const directory of [
@@ -62,6 +63,7 @@ const handler = createAdminHandler({
 
 const server = createServer(async (incoming, outgoing) => {
   try {
+    assertTrustedProxyHeaders(incoming.headers, config.adminOrigin);
     const body = ['GET', 'HEAD'].includes(incoming.method) ? undefined : await readRequestBody(incoming);
     const request = new Request(`${config.adminOrigin}${incoming.url}`, {
       method: incoming.method,
@@ -84,7 +86,7 @@ const server = createServer(async (incoming, outgoing) => {
 });
 
 rmSync(config.listenSocket, { force: true });
-server.listen(config.listenSocket);
+server.listen(config.listenSocket, () => chmodSync(config.listenSocket, 0o660));
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.once(signal, () => server.close(() => {

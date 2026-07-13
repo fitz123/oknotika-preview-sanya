@@ -1,4 +1,4 @@
-import { realpathSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 
 export function loadConfiguration(env = process.env) {
@@ -25,8 +25,8 @@ export function loadConfiguration(env = process.env) {
     adminOrigin,
     publicOrigin,
     redirectUri,
-    clientId: requireValue(env, 'TELEGRAM_OIDC_CLIENT_ID'),
-    clientSecret: requireValue(env, 'TELEGRAM_OIDC_CLIENT_SECRET'),
+    clientId: requireSecret(env, 'TELEGRAM_OIDC_CLIENT_ID'),
+    clientSecret: requireSecret(env, 'TELEGRAM_OIDC_CLIENT_SECRET'),
     signingAlgorithm,
     databasePath,
     uploadsRoot,
@@ -72,4 +72,21 @@ function requireValue(env, name) {
   const value = env[name];
   if (typeof value !== 'string' || value.trim() === '') throw new Error(`${name} is required`);
   return value.trim();
+}
+
+function requireSecret(env, name) {
+  const direct = env[name];
+  const filename = env[`${name}_FILE`];
+  if (direct && filename) throw new Error(`${name} and ${name}_FILE are mutually exclusive`);
+  if (filename) {
+    let value;
+    try {
+      value = readFileSync(filename, 'utf8').trim();
+    } catch {
+      throw new Error(`${name}_FILE must point to a readable systemd credential`);
+    }
+    if (!value) throw new Error(`${name}_FILE contains an empty credential`);
+    return value;
+  }
+  return requireValue(env, name);
 }

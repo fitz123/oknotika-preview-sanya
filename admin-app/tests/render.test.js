@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 import { AL_BAHR_FIXTURE, importAlBahr } from '../src/content/al-bahr.js';
@@ -54,7 +54,10 @@ test('one release contains listing, latest, canonical/OG, detail and only publis
   assert.match(detail, new RegExp(`<link rel="canonical" href="${latest.url}"`));
   assert.match(detail, /property="og:title"/);
   assert.equal(manifest.articles.length, 1);
-  assert.ok(Object.keys(manifest.files).some((path) => /^articles\/assets\/[a-f0-9]{24}\.png$/.test(path)));
+  const publicAsset = Object.keys(manifest.files)
+    .find((path) => /^articles\/assets\/[a-f0-9]{24}\.png$/.test(path));
+  assert.ok(publicAsset);
+  assert.equal(statSync(resolve(outputDirectory, publicAsset)).mode & 0o777, 0o640);
   assert.doesNotMatch(JSON.stringify(manifest), new RegExp(harness.privateRoot));
 });
 

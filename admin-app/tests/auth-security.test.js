@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import test from 'node:test';
 import { assertTelegramConformance } from '../src/auth/conformance.js';
 import { loadConfiguration } from '../src/auth/config.js';
@@ -57,6 +57,33 @@ test('production configuration pins canonical origins, exact callback and privat
   assert.throws(() => loadConfiguration({
     ...env, OKNOTIKA_UPLOADS_ROOT: '/srv/oknotika/current/private',
   }), /outside the public/);
+});
+
+test('production configuration reads OIDC secrets from systemd credential files', (t) => {
+  const harness = createHarness(t);
+  const clientIdFile = `${harness.root}/client-id`;
+  const clientSecretFile = `${harness.root}/client-secret`;
+  writeFileSync(clientIdFile, '123456789\n', { mode: 0o600 });
+  writeFileSync(clientSecretFile, 'credential-secret\n', { mode: 0o600 });
+  const config = loadConfiguration({
+    OKNOTIKA_ADMIN_ORIGIN: 'https://admin.oknotika.ru',
+    OKNOTIKA_PUBLIC_ORIGIN: 'https://oknotika.ru',
+    TELEGRAM_OIDC_CLIENT_ID_FILE: clientIdFile,
+    TELEGRAM_OIDC_CLIENT_SECRET_FILE: clientSecretFile,
+    TELEGRAM_OIDC_REDIRECT_URI: 'https://admin.oknotika.ru/auth/callback',
+    OKNOTIKA_DATABASE_PATH: `${harness.root}/db/admin.sqlite`,
+    OKNOTIKA_UPLOADS_ROOT: `${harness.root}/uploads`,
+    OKNOTIKA_PREVIEWS_ROOT: `${harness.root}/previews`,
+    OKNOTIKA_ARTICLE_RELEASES_ROOT: `${harness.root}/article-releases`,
+    OKNOTIKA_PUBLIC_ROOT: `${harness.root}/public`,
+  });
+  assert.equal(config.clientId, '123456789');
+  assert.equal(config.clientSecret, 'credential-secret');
+  assert.throws(() => loadConfiguration({
+    ...configEnvironment(harness.root),
+    TELEGRAM_OIDC_CLIENT_ID: 'direct',
+    TELEGRAM_OIDC_CLIENT_ID_FILE: clientIdFile,
+  }), /mutually exclusive/);
 });
 
 test('authorization code flow binds exact redirect, state, nonce and S256 verifier then consumes state once', async (t) => {
@@ -261,6 +288,21 @@ function claims(overrides = {}) {
     exp: now + 3600,
     nonce: 'nonce',
     ...overrides,
+  };
+}
+
+function configEnvironment(root) {
+  return {
+    OKNOTIKA_ADMIN_ORIGIN: 'https://admin.oknotika.ru',
+    OKNOTIKA_PUBLIC_ORIGIN: 'https://oknotika.ru',
+    TELEGRAM_OIDC_CLIENT_ID: '123456789',
+    TELEGRAM_OIDC_CLIENT_SECRET: 'secret',
+    TELEGRAM_OIDC_REDIRECT_URI: 'https://admin.oknotika.ru/auth/callback',
+    OKNOTIKA_DATABASE_PATH: `${root}/db/admin.sqlite`,
+    OKNOTIKA_UPLOADS_ROOT: `${root}/uploads`,
+    OKNOTIKA_PREVIEWS_ROOT: `${root}/previews`,
+    OKNOTIKA_ARTICLE_RELEASES_ROOT: `${root}/article-releases`,
+    OKNOTIKA_PUBLIC_ROOT: `${root}/public`,
   };
 }
 

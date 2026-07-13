@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "runtime": {
+    "nodeMajor": 24,
+    "nodeVersion": "24.18.0",
+    "nodeReleaseLine": "Krypton LTS",
+    "nodeInstallRoot": "/opt/node-v24.18.0",
+    "sqliteProvider": "node:sqlite",
+    "sqliteVersion": "3.53.1",
+    "packageLockVersion": 3,
+    "packageLockSha256": "98d4ec4e8579353fcc272920ad5fd74bfbfc9fd4cade42e82e9e4af9109339d9"
+  },
+  "layout": {
+    "applicationReleases": "/opt/oknotika-admin/releases/<sha>",
+    "applicationCurrent": "/opt/oknotika-admin/current",
+    "database": "/var/lib/oknotika-admin/db/admin.sqlite",
+    "uploads": "/var/lib/oknotika-admin/uploads",
+    "previews": "/var/lib/oknotika-admin/previews",
+    "articleReleases": "/var/lib/oknotika-admin/article-releases",
+    "socket": "/run/oknotika-admin/app.sock",
+    "serviceUser": "oknotika-admin",
+    "serviceGroup": "www-data",
+    "socketMode": "0660"
+  },
+  "dependencyPolicy": {
+    "application": "admin-app/package-lock.json is authoritative and npm ci is mandatory",
+    "sqlite": "SQLite is bundled with the exact Node.js patch and verified by preflight"
+  },
+  "backup": {
+    "engine": "restic",
+    "retention": {
+      "daily": 7,
+      "weekly": 8,
+      "monthly": 12
+    },
+    "rpoHours": 24,
+    "rtoHours": 2,
+    "afterPublishTrigger": "oknotika-admin-backup.path"
+  }
+}

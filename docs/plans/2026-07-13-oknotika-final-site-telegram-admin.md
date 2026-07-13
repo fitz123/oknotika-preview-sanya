@@ -252,20 +252,20 @@ systemd-analyze verify deploy/systemd/oknotika-admin.service
 - Create: `deploy/scripts/`
 - Create: `deploy/README_ZHENYA.md`
 
-- [ ] зафиксировать runtime layout: `/opt/oknotika-admin/releases/<sha>`, `/var/lib/oknotika-admin/{db,uploads,previews,article-releases}`, `/run/oknotika-admin/app.sock`, service user `oknotika-admin`;
-- [ ] pin Node 24 LTS major и exact patch в release manifest; pin SQLite/library versions lockfile-ом;
-- [ ] подготовить public nginx mapping для одного active immutable `/articles/` release;
-- [ ] подготовить `admin.oknotika.ru` reverse proxy только к Unix socket с владельцем/группой `oknotika-admin:www-data` и режимом `0660`;
-- [ ] доверять forwarded headers только от локального nginx и валидировать configured canonical origins;
-- [ ] добавить no-store, CSP, HSTS, nosniff, frame-ancestors, rate limits и upload limit;
-- [ ] подготовить hardened systemd unit под отдельным непривилегированным пользователем;
-- [ ] добавить sample config только с placeholders; production secrets подавать через systemd credentials/секрет-хранилище и описать rotation;
-- [ ] выбрать restic для encrypted off-host backup; ключ хранить в секрет-хранилище, retention 7 daily / 8 weekly / 12 monthly;
-- [ ] backup-set включает SQLite online snapshot, private originals, release manifests/required derivatives и audit state; RPO 24 часа плюс backup после publish, RTO 2 часа;
-- [ ] применять backward-compatible migrations; перед каждой migration делать verified backup и тестировать application downgrade с DB restore при breaking change;
-- [ ] добавить restore drill, first-editor enrollment/removal и emergency-disable runbook;
-- [ ] добавить раздельные content, marketing и application rollback procedures;
-- [ ] добавить локальные template/static checks; `nginx -t`, systemd и live smoke tests оставить обязательным production gate в runbook.
+- [x] зафиксировать runtime layout: `/opt/oknotika-admin/releases/<sha>`, `/var/lib/oknotika-admin/{db,uploads,previews,article-releases}`, `/run/oknotika-admin/app.sock`, service user `oknotika-admin`;
+- [x] pin Node 24 LTS major и exact patch в release manifest; pin SQLite/library versions lockfile-ом;
+- [x] подготовить public nginx mapping для одного active immutable `/articles/` release;
+- [x] подготовить `admin.oknotika.ru` reverse proxy только к Unix socket с владельцем/группой `oknotika-admin:www-data` и режимом `0660`;
+- [x] доверять forwarded headers только от локального nginx и валидировать configured canonical origins;
+- [x] добавить no-store, CSP, HSTS, nosniff, frame-ancestors, rate limits и upload limit;
+- [x] подготовить hardened systemd unit под отдельным непривилегированным пользователем;
+- [x] добавить sample config только с placeholders; production secrets подавать через systemd credentials/секрет-хранилище и описать rotation;
+- [x] выбрать restic для encrypted off-host backup; ключ хранить в секрет-хранилище, retention 7 daily / 8 weekly / 12 monthly;
+- [x] backup-set включает SQLite online snapshot, private originals, release manifests/required derivatives и audit state; RPO 24 часа плюс backup после publish, RTO 2 часа;
+- [x] применять backward-compatible migrations; перед каждой migration делать verified backup и тестировать application downgrade с DB restore при breaking change;
+- [x] добавить restore drill, first-editor enrollment/removal и emergency-disable runbook;
+- [x] добавить раздельные content, marketing и application rollback procedures;
+- [x] добавить локальные template/static checks; `nginx -t`, systemd и live smoke tests оставить обязательным production gate в runbook.
 
 ### Task 7: Провести beta rehearsal и собрать итоговый релиз [HIGH]
 

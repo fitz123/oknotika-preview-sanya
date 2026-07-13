@@ -21,8 +21,33 @@ export function assertSameOriginNavigation(request, adminOrigin) {
   if (site !== null && !['same-origin', 'none'].includes(site)) throw httpError(403, 'Fetch Metadata check failed');
 }
 
+export function assertTrustedProxyHeaders(headers, adminOrigin) {
+  const canonical = new URL(adminOrigin);
+  const expected = {
+    host: canonical.host,
+    'x-forwarded-host': canonical.host,
+    'x-forwarded-proto': 'https',
+  };
+  for (const [name, value] of Object.entries(expected)) {
+    const actual = readHeader(headers, name);
+    if (actual !== value || actual.includes(',')) {
+      throw httpError(400, `Trusted proxy header ${name} does not match the canonical admin origin`);
+    }
+  }
+  const forwardedFor = readHeader(headers, 'x-forwarded-for');
+  if (!forwardedFor || forwardedFor.includes(',')) {
+    throw httpError(400, 'Trusted proxy must replace X-Forwarded-For with one client address');
+  }
+}
+
 export function httpError(status, message) {
   const error = new Error(message);
   error.status = status;
   return error;
+}
+
+function readHeader(headers, name) {
+  const value = typeof headers?.get === 'function' ? headers.get(name) : headers?.[name];
+  if (Array.isArray(value) || typeof value !== 'string') return '';
+  return value.trim();
 }

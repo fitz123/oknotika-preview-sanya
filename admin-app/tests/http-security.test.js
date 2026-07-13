@@ -3,10 +3,31 @@ import test from 'node:test';
 import { createSessionService, sessionCookie } from '../src/auth/sessions.js';
 import { createAdminActions } from '../src/http/admin-actions.js';
 import { createAdminHandler } from '../src/http/handler.js';
-import { assertMutationRequest } from '../src/http/security.js';
+import { assertMutationRequest, assertTrustedProxyHeaders } from '../src/http/security.js';
 import { articleInput, createHarness } from './helpers.js';
 
 const ADMIN_ORIGIN = 'https://admin.oknotika.ru';
+
+test('Unix-socket proxy headers must be single-valued and match the canonical origin', () => {
+  const valid = new Headers({
+    host: 'admin.oknotika.ru',
+    'x-forwarded-host': 'admin.oknotika.ru',
+    'x-forwarded-proto': 'https',
+    'x-forwarded-for': '203.0.113.17',
+  });
+  assert.doesNotThrow(() => assertTrustedProxyHeaders(valid, ADMIN_ORIGIN));
+  for (const changed of [
+    { host: 'evil.example' },
+    { 'x-forwarded-host': 'evil.example' },
+    { 'x-forwarded-proto': 'http' },
+    { 'x-forwarded-for': '203.0.113.17, 127.0.0.1' },
+  ]) {
+    assert.throws(
+      () => assertTrustedProxyHeaders(new Headers({ ...Object.fromEntries(valid), ...changed }), ADMIN_ORIGIN),
+      /Trusted proxy/,
+    );
+  }
+});
 
 test('mutations require session-bound CSRF, exact Origin and same-origin Fetch Metadata', (t) => {
   const harness = createHarness(t);
