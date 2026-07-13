@@ -1,0 +1,12 @@
+{
+  "baseline": "v227-baseline.json",
+  "comparison": {
+    "color_space": "sRGB",
+    "per_channel_tolerance": 12,
+    "protected_pixel_diff_ratio_max": 0.005,
+    "full_page_pixel_diff_ratio_max": 0.18,
+    "dimension_delta_px_max": 4
+  },
+  "rationale": "Protected composition must remain effectively pixel-stable. The broader full-page ceiling accommodates approved portrait, aluminum-card and latest-fact content changes; those page-scoped regions must be masked when enforcing the protected threshold.",
+  "viewports": [1440, 1280, 1180, 768, 760, 390]
+}

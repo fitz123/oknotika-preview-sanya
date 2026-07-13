@@ -1,0 +1,23 @@
+{
+  "checked_at": "2026-07-13T21:45:19Z",
+  "baseline_commit": "5364ff160ffa9b8e9f2d0998a5eef1cf6cd3f5ed",
+  "baseline_tree": "1025debb9c1d76f41fad3ed9d2ded8b3afa71d7b",
+  "results": [
+    {"check": "exact commit and tree identity", "status": "pass"},
+    {"check": "tracked-file SHA-256 manifest against baseline Git blobs", "status": "pass", "files": 73},
+    {"check": "path, protected DOM and protected CSS allowlist", "status": "pass", "changed_paths": 20},
+    {"check": "public local references", "status": "pass", "references": 276},
+    {"check": "guardrail unit tests", "status": "pass", "tests": 6},
+    {"check": "Python bytecode compilation", "status": "pass"},
+    {"check": "script.js syntax", "status": "pass"},
+    {"check": "baseline screenshot SHA-256 integrity", "status": "pass", "screenshots": 6},
+    {"check": "git diff whitespace validation", "status": "pass"},
+    {"check": "desktop/mobile visual inspection", "status": "pass", "viewports": [1440, 1280, 1180, 768, 760, 390]}
+  ],
+  "visual_thresholds": {
+    "per_channel_tolerance": 12,
+    "protected_pixel_diff_ratio_max": 0.005,
+    "full_page_pixel_diff_ratio_max": 0.18,
+    "dimension_delta_px_max": 4
+  }
+}

@@ -126,12 +126,12 @@ systemd-analyze verify deploy/systemd/oknotika-admin.service
 - Create: `release-evidence/baseline/`
 - Create: `scripts/check_local_refs.py`
 
-- [ ] подтвердить exact tree commit `5364ff1` и сохранить manifest tracked-файлов и их hashes;
-- [ ] снять baseline-скриншоты pinned Chromium-версией на 1440, 1280, 1180, 768, 760 и 390 px;
-- [ ] определить exact path/DOM allowlist и page-scoped CSS selectors; запретить unrelated cleanup;
-- [ ] реализовать `scripts/check_v227_allowlist.py`, сравнивающий final tree непосредственно с `5364ff1`;
-- [ ] добавить проверку локальных ссылок без изменения существующих страниц;
-- [ ] запустить baseline checks и сохранить результаты и допустимый visual-diff threshold.
+- [x] подтвердить exact tree commit `5364ff1` и сохранить manifest tracked-файлов и их hashes;
+- [x] снять baseline-скриншоты pinned Chromium-версией на 1440, 1280, 1180, 768, 760 и 390 px;
+- [x] определить exact path/DOM allowlist и page-scoped CSS selectors; запретить unrelated cleanup;
+- [x] реализовать `scripts/check_v227_allowlist.py`, сравнивающий final tree непосредственно с `5364ff1`;
+- [x] добавить проверку локальных ссылок без изменения существующих страниц;
+- [x] запустить baseline checks и сохранить результаты и допустимый visual-diff threshold.
 
 ### Task 2: Подготовить финальные восемь карточек команды [HIGH]
 

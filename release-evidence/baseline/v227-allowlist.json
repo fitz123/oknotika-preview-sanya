@@ -1,0 +1,97 @@
+{
+  "baseline": {
+    "label": "V2.27",
+    "commit": "5364ff160ffa9b8e9f2d0998a5eef1cf6cd3f5ed",
+    "tree": "1025debb9c1d76f41fad3ed9d2ded8b3afa71d7b",
+    "tracked_manifest": "release-evidence/baseline/v227-tracked-files.sha256"
+  },
+  "paths": {
+    "allow_modify": [
+      "IMAGE_SOURCES.md",
+      "README.md",
+      "aluminum/index.html",
+      "articles/al-bahr-towers-dynamic-facade/index.html",
+      "articles/index.html",
+      "index.html",
+      "style.css"
+    ],
+    "allow_add": [
+      ".gitignore",
+      "ALUMINUM_SOURCES.md",
+      "admin-app/**",
+      "deploy/**",
+      "docs/adr/**",
+      "docs/plans/2026-07-13-oknotika-final-site-telegram-admin.md",
+      "img/aluminum/schueco-*.webp",
+      "img/team/*-2026-07.jpg",
+      "img/team/*-2026-07.webp",
+      "js/latest-fact.js",
+      "release/**",
+      "release-evidence/baseline/**",
+      "release-evidence/previews/**",
+      "release-evidence/qa/**",
+      "release-evidence/team-approval/**",
+      "release-evidence/team-release-evidence.json",
+      "scripts/check_*.py",
+      "scripts/capture_v227_baseline.py",
+      "tests/test_release_guardrails.py",
+      "tools/team-portraits/create_final_portraits.py"
+    ],
+    "allow_delete": []
+  },
+  "dom": {
+    "index.html": [
+      {"tag": "section", "id": "team"},
+      {"tag": "aside", "classes": ["weekly-fact"]},
+      {"tag": "a", "attributes": {"href": "aluminum/"}},
+      {"tag": "footer", "classes": ["footer"]},
+      {"tag": "script", "attributes": {"src": "js/latest-fact.js"}}
+    ],
+    "aluminum/index.html": [
+      {"tag": "title"},
+      {"tag": "meta", "attributes": {"name": "description"}},
+      {"tag": "section", "classes": ["page-hero--aluminum"]},
+      {"tag": "section", "classes": ["aluminum-systems"]},
+      {"tag": "section", "classes": ["schueco-focus"]},
+      {
+        "tag": "section",
+        "class_prefixes": ["aluminum-", "design-path", "facade-", "integration-", "schueco-", "shell-"],
+        "ancestor": {"tag": "main", "id": "top"}
+      }
+    ],
+    "articles/index.html": [
+      {"tag": "title"},
+      {"tag": "meta", "attributes": {"name": "description"}},
+      {"tag": "meta", "attribute_prefixes": {"property": "og:"}},
+      {"tag": "link", "attributes": {"rel": "canonical"}},
+      {"tag": "main", "id": "top"}
+    ],
+    "articles/al-bahr-towers-dynamic-facade/index.html": [
+      {"tag": "title"},
+      {"tag": "meta", "attributes": {"name": "description"}},
+      {"tag": "meta", "attribute_prefixes": {"property": "og:"}},
+      {"tag": "link", "attributes": {"rel": "canonical"}},
+      {"tag": "main", "id": "top"}
+    ]
+  },
+  "css": {
+    "path": "style.css",
+    "allowed_ids": ["team"],
+    "allowed_class_prefixes": [
+      "aluminum-",
+      "article-",
+      "design-path",
+      "facade-",
+      "gone-",
+      "integration-",
+      "latest-fact",
+      "person",
+      "product-link-card--accent",
+      "schueco-",
+      "shell-",
+      "system-",
+      "team",
+      "weekly-fact"
+    ]
+  }
+}
