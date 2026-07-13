@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "approval_record": {
+    "approver": "Саня",
+    "approved_at": "2026-07-13T21:34:00Z",
+    "source": "private approval-sheet reaction recorded in the implementation plan",
+    "raw_selection": "frozen by exact SHA-256 in team-release-evidence.json"
+  },
+  "capture": {
+    "playwright": "1.58.2",
+    "chromium": "145.0.7632.6",
+    "page": "/index.html#team",
+    "animations": "disabled; reveal nodes forced visible",
+    "screenshots": [
+      {
+        "filename": "team-desktop-1440.jpg",
+        "viewport_width": 1440,
+        "width": 1440,
+        "height": 1614,
+        "sha256": "863e17775a24e80e7abd854bb2fcd76fdc743239ae74b5824f221e2738d3f1b6",
+        "bytes": 266933
+      },
+      {
+        "filename": "team-mobile-390.jpg",
+        "viewport_width": 390,
+        "width": 390,
+        "height": 5258,
+        "sha256": "73ed6101cfd9a53ab3dcce1e5195a967e69915a212cd36223e600841e6559559",
+        "bytes": 299733
+      }
+    ]
+  }
+}

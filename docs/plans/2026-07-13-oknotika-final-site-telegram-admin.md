@@ -88,7 +88,7 @@ python3 "$repo/scripts/check_v227_allowlist.py" \
 
 # Статика и структурные assertions
 python3 "$repo/scripts/check_local_refs.py" "$repo"
-python3 "$repo/scripts/check_team_dom.py" "$repo/index.html" "$repo/team-release-evidence.json"
+python3 "$repo/scripts/check_team_dom.py" "$repo/index.html" "$repo/release-evidence/team-release-evidence.json"
 python3 "$repo/scripts/check_public_claims.py" "$repo"
 node --check "$repo/script.js"
 node --check "$repo/js/latest-fact.js"
@@ -144,17 +144,17 @@ systemd-analyze verify deploy/systemd/oknotika-admin.service
 - Create: `img/team/*-2026-07.webp`
 - Create: `release-evidence/team-approval/`
 
-- [ ] исправить роль Жалнина на `Операционный директор` во всех генераторах и метаданных;
-- [ ] сохранить утверждённые Саней raw-кадры из approval sheet, не подменяя кадр Жалнина без нового запроса;
-- [ ] нормализовать 4:5 crop, eye line и масштаб лица напрямую из утверждённых raw без изменения идентичности/выражения;
-- [ ] экспортировать шесть versioned WebP/JPEG без EXIF суммарным весом не более 900 KB;
-- [ ] обновить шесть `src`, `alt`, `width`, `height`, `loading="lazy"`, `decoding="async"`;
-- [ ] сохранить Сергея Бешенцева и Оксану Скопину без изменений;
-- [ ] создать desktop/mobile approval sheet всех восьми карточек;
-- [ ] записать `team-release-evidence.json`: raw path/hash, crop, final hash, роль, timestamp одобрения и approver;
-- [ ] зафиксировать внутреннее подтверждение web-use rights на съёмку без включения приватных документов в ZIP;
-- [ ] проверить структурным DOM/manifest-тестом восемь уникальных карточек, шесть новых hashes, два неизменённых hashes и точную роль Жалнина;
-- [ ] запустить responsive screenshots и image-reference tests.
+- [x] исправить роль Жалнина на `Операционный директор` во всех генераторах и метаданных;
+- [x] сохранить утверждённые Саней raw-кадры из approval sheet, не подменяя кадр Жалнина без нового запроса;
+- [x] нормализовать 4:5 crop, eye line и масштаб лица напрямую из утверждённых raw без изменения идентичности/выражения;
+- [x] экспортировать шесть versioned WebP/JPEG без EXIF суммарным весом не более 900 KB;
+- [x] обновить шесть `src`, `alt`, `width`, `height`, `loading="lazy"`, `decoding="async"`;
+- [x] сохранить Сергея Бешенцева и Оксану Скопину без изменений;
+- [x] создать desktop/mobile approval sheet всех восьми карточек;
+- [x] записать `team-release-evidence.json`: raw path/hash, crop, final hash, роль, timestamp одобрения и approver;
+- [x] зафиксировать внутреннее подтверждение web-use rights на съёмку без включения приватных документов в ZIP;
+- [x] проверить структурным DOM/manifest-тестом восемь уникальных карточек, шесть новых hashes, два неизменённых hashes и точную роль Жалнина;
+- [x] запустить responsive screenshots и image-reference tests.
 
 ### Task 3: Углубить алюминий и выделить фасады Schüco [HIGH]
 

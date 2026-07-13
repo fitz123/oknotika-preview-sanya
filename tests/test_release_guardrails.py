@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 import tempfile
 import unittest
@@ -22,6 +23,7 @@ def load_script(name: str):
 
 local_refs = load_script("check_local_refs")
 allowlist = load_script("check_v227_allowlist")
+team = load_script("check_team_dom")
 
 
 class LocalReferenceTests(unittest.TestCase):
@@ -90,6 +92,45 @@ class AllowlistTests(unittest.TestCase):
         patterns = ["admin-app/**", "scripts/check_*.py"]
         self.assertTrue(allowlist.path_matches("admin-app/src/auth/login.js", patterns))
         self.assertFalse(allowlist.path_matches("pvc/index.html", patterns))
+
+
+class TeamReleaseTests(unittest.TestCase):
+    def test_current_team_release_matches_dom_and_evidence(self) -> None:
+        errors = team.validate(
+            REPO / "index.html",
+            REPO / "release-evidence/team-release-evidence.json",
+            REPO,
+        )
+        self.assertEqual(errors, [])
+
+    def test_wrong_zhalnin_role_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            index = Path(directory) / "index.html"
+            index.write_text(
+                (REPO / "index.html").read_text(encoding="utf-8").replace(
+                    "Операционный директор",
+                    "Генеральный директор",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            errors = team.validate(
+                index,
+                REPO / "release-evidence/team-release-evidence.json",
+                REPO,
+            )
+            self.assertTrue(any("legacy role" in error or "wrong role" in error for error in errors))
+
+    def test_tampered_output_hash_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            evidence = json.loads(
+                (REPO / "release-evidence/team-release-evidence.json").read_text(encoding="utf-8")
+            )
+            evidence["portraits"][0]["outputs"]["webp"]["sha256"] = "0" * 64
+            evidence_path = Path(directory) / "evidence.json"
+            evidence_path.write_text(json.dumps(evidence, ensure_ascii=False), encoding="utf-8")
+            errors = team.validate(REPO / "index.html", evidence_path, REPO)
+            self.assertTrue(any("hash mismatch" in error for error in errors))
 
 
 if __name__ == "__main__":
