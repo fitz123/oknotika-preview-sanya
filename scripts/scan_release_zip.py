@@ -35,6 +35,7 @@ SECRET_PATTERNS = {
     "assigned restic password": re.compile(rb"RESTIC_PASSWORD\s*=\s*[^\s<#${][^\r\n]*"),
 }
 REQUIRED_PATHS = {
+    "CHANGED_FILES.txt",
     "README.md",
     "RELEASE_NOTES.md",
     "RELEASE_MANIFEST.json",

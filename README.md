@@ -1,131 +1,117 @@
-# Oknotika site V2 preview
+# ОКНОТИКА — финальный beta-релиз сайта
 
-Static V2.18 preview for the new ОКНОТИКА website.
+Версия `v2.28.0-beta.1` сохраняет утверждённую композицию V2.27 и добавляет согласованные изменения: шесть новых портретов в восьми карточках команды, роль Евгения Жалнина «Операционный директор», отдельный фасадный блок Schüco и закрытый Telegram OIDC-редактор рубрики «Факт недели».
 
-Published via GitHub Pages:
+Публичный сайт остаётся статическим. Node.js-сервис нужен только авторизованному редактору: он хранит черновики в SQLite, генерирует immutable article release и атомарно переключает symlink. Остановка админки не останавливает сайт и не скрывает уже опубликованные статьи.
 
-https://fitz123.github.io/oknotika-preview-sanya/
+Beta-пакет не активирует production. Реальный Telegram login, Linux-проверки nginx/systemd, DNS/TLS и encrypted off-host backup остаются обязательными gates из `deploy/README_ZHENYA.md`.
 
-## Current V2.18 content
+## Состав проекта
 
-- Positioning: ОКНОТИКА as an engineering-integrator СПК company
-- Hero facts: SRO, all materials, 500,000+ m² montage experience, product solutions under any concept
-- Process: ТЗ → variants → risk comparison → handover
-- Product shelf: OKNOTIKA smart window, ФУТУРУСС, glass taxonomy, Carbon Glass, Stoller, Ралюма, one restrained Рубикон card, Thermo Pad, Protectapeel; no separate partners block
-- Cases/proof: montage contractor network, named project examples, Botanical Garden, Restaurant Shalyapin, atrium glazing, Gorky Park / Thermo Pad
-- Team grid with public roles and Telegram CTAs for the business-facing leads
-- SRO / NOSTROY proof block
+- `index.html` и продуктовые каталоги — статический публичный сайт;
+- `articles/` — статический fallback рубрики, detail-страница Al Bahr и `latest.json` для главной;
+- `admin-app/` — Node.js 24 / SQLite редактор, Telegram OIDC, preview и publisher;
+- `deploy/` — nginx, hardened systemd units, backup/restore scripts и runbook для Жени;
+- `release-evidence/` — baseline, approval sheets и результаты beta-rehearsal;
+- `release/` — versioned secret-free ZIP, checksums, manifest, release notes и inventory изменений;
+- `ALUMINUM_SOURCES.md` — claim-level источники Schüco и provenance оригинальных визуалов;
+- `IMAGE_SOURCES.md` — источники и права на опубликованные изображения.
 
-## Notes
+Публичные разделы: `/aluminum/`, `/pvc/`, `/wood-stoller/`, `/carbon-glass/`, `/glass/`, `/protectapeel/`, `/oknotika-smart-window/` и `/articles/`. Публичной ссылки на админку нет.
 
-This is still a preview, not final production. Some case names, photos, personal Telegram links, warranty/legal wording, team portraits and final contact/requisites should be confirmed before replacing the real site.
+## Локальный просмотр
 
+Корень сайта нужно отдавать HTTP-сервером, а не открывать через `file://`, иначе загрузка `/articles/latest.json` на главной не воспроизводит production-поведение:
 
-## V2.8 update
+```bash
+python3 -m http.server 8080
+```
 
-- Protectapeel card uses real application video from Sanya: `img/products/protectapeel-application.mp4` with poster `img/products/protectapeel-application.jpg`.
+После запуска открыть `http://127.0.0.1:8080/`. Статические страницы не требуют npm-зависимостей.
 
+## Content model «Факта недели»
 
-## V2.9 update
+Рубрика фиксирована и не редактируется. У статьи обязательны title, publication date, lead, ограниченный Markdown body, cover и alt; source URL опционален, допускает только `https:` и никогда не загружается сервером. Время хранится в UTC и показывается в `Europe/Moscow`.
 
-- Homepage hero shortened: large `ОКНОТИКА`, smaller descriptor `Инженерно‑интеграционная компания · экспертиза в СПК и СМР`.
+Slug создаётся при первом сохранении из title как lowercase ASCII. Collision получает суффикс `-2`, `-3` и далее. После создания slug и публичный URL неизменяемы, даже если title изменён.
 
+Каждое сохранение создаёт immutable revision. Article state — `draft`, `published` или `withdrawn`; опубликованная revision связывается с immutable release. Снятая статья исчезает из listing и `latest.json`, её прежний detail URL отдаёт статическую 410-страницу, а latest переключается на предыдущую публикацию.
 
-## V2.10 update
+Cover принимается только как фактический JPEG, PNG или WebP до 10 MB и 40 MP. Сервис проверяет сигнатуру/MIME и decoder limits, перекодирует изображение, удаляет EXIF и хранит original и unpublished derivatives вне nginx document root. В публичный release попадают только validated hashed derivatives.
 
-- Removed the separate partners section and header link.
-- Removed the extra supplier card from the public homepage.
-- Kept Ралюма as the frameless glazing product card.
-- Added Рубикон to the product shelf as нестандартные СПК / узлы примыкания / реализация смелых запросов.
-- Reverted the proof/cases block to less Rubikon-heavy wording.
+SQLite schema находится в `admin-app/migrations/`; renderer и publisher — в `admin-app/src/render/`. Старый Al Bahr импортирован как первая опубликованная revision и защищён golden-render test.
 
+## Telegram enrollment и доступ
 
-## V2.11 update
+В MVP настроен один editor без CRUD/RBAC. Доступ определяется только точной allowlist-парой проверенных OIDC `issuer` + `sub`; username, телефон и display name не дают права входа.
 
-- Changed cases eyebrow from `Доказательства` to `Кейсы`.
-- Softened cases headline to `Реальные объекты и монтажные объёмы`.
-- Removed Рубикон from the product-shelf intro list and image alt; left one restrained product card.
+Перед включением admin vhost Женя создаёт отдельное corporate Telegram Web Login приложение, регистрирует exact production callback, получает `sub` только из полностью проверенного ID token и сверяет identity с Саней по отдельному каналу. Credentials и сам subject не записываются в Git, ZIP, Telegram, shell history или открытые evidence. Пошаговая процедура и команда обслуживания: `admin-app/ENROLLMENT.md`; production-порядок, rotation и removal: `deploy/README_ZHENYA.md`.
 
+Авторизация использует Authorization Code Flow, PKCE S256, одноразовые server-side `state`, `nonce` и verifier, pinned signing algorithm и bounded JWKS refresh. Сессия opaque и server-side; cookie — `__Host-`, Secure, HttpOnly, SameSite=Lax. Изменяющие запросы требуют CSRF, exact Origin и Fetch Metadata checks.
 
-## V2.12 update
+## Editor flow
 
-- Removed `Формулируем честно:` from the cases intro copy.
-- Corrected project spelling from `G‑Defense 3` to `G‑3`.
+1. Редактор входит через Telegram и создаёт статью с обязательными полями и cover.
+2. Сохранение создаёт новый draft/revision; optimistic revision check не даёт затереть параллельную правку.
+3. Preview открывается только в текущей authenticated session по unguessable URL, с `no-store` и `noindex`.
+4. Publish требует явного подтверждения. Publisher под single lock рендерит и валидирует полный staging release, затем атомарно переключает `article-releases/active` и только после switch завершает DB-запись.
+5. Withdraw также требует подтверждения и создаёт новый release с 410 для прежнего URL.
+6. Editorial restore копирует выбранную старую revision в новый draft. Operational rollback отдельно переключает весь active article release. Оба действия пишутся в audit log.
 
+Главная не переписывается при публикации: `js/latest-fact.js` читает `/articles/latest.json`, сохраняя статический fallback при сетевой ошибке.
 
-## V2.13 update
+## Запуск и проверка admin-app
 
-- Added dedicated first-draft automation page: `oknotika-smart-window/`.
-- Linked the OKNOTIKA smart-window product card to the automation page.
-- Page structure follows Evgeny’s ТЗ but rewrites copy around the stronger thesis: hidden automation inside the СПК system, not a drive bolted onto a frame.
+Требуется exact Node.js `24.18.0`; bundled SQLite — `3.53.1`. npm-версии закреплены в `admin-app/package-lock.json`.
 
+```bash
+cd admin-app
+npm ci
+npm run lint
+npm test
+npm run test:security
+npm run build
+npm run render:fixture
+```
 
-## V2.14 update
+Production-конфигурация обязательна и fail-closed. `admin-app/.env.example` содержит только placeholders; секреты передаются через encrypted systemd credentials. Runtime DB, uploads, previews, sessions и generated releases не должны находиться в Git или публичном document root.
 
-- Downloaded final smart-window/control-screen stills from Sanya’s Yandex Disk link and added optimized assets.
-- Replaced the homepage smart-window SVG with the real OKNOTIKA window/screen still.
-- Replaced automation-page hero visual with the real window/screen still.
-- Added control visual pair: window with local screen + control-panel interface.
+## Полная локальная валидация
 
+```bash
+git diff --check
+python3 scripts/check_v227_allowlist.py --repo . --baseline 5364ff160ffa9b8e9f2d0998a5eef1cf6cd3f5ed
+python3 scripts/check_local_refs.py .
+python3 scripts/check_team_dom.py index.html release-evidence/team-release-evidence.json
+python3 scripts/check_public_claims.py .
+python3 scripts/check_aluminum_sources.py ALUMINUM_SOURCES.md aluminum/index.html
+python3 scripts/check_deploy_package.py .
+python3 scripts/check_final_documentation.py .
+node --check script.js
+node --check js/latest-fact.js
+python3 -m unittest discover -s tests -v
+```
 
-## V2.15 update
+Generated article fixture проверяется после `npm run render:fixture`:
 
-- Reworked automation-page size block: no longer calls 633–1650 mm “big possibilities”.
-- New framing: current working range of the first automation version; team is working to increase height, width, and sash mass.
+```bash
+python3 scripts/check_generated_articles.py var/test-release
+python3 scripts/scan_release_zip.py release/oknotika-final.zip
+```
 
+Linux/production gates не заменяются локальной macOS-проверкой: перед активацией обязательны `nginx -t`, `systemd-analyze verify`, live smoke test, реальный Telegram login/logout/revocation и restore из реального encrypted off-host restic repository.
 
-## V2.16 update
+## Release и эксплуатация
 
-- Added tighter crop `oknotika-window-demo-tight.jpg` so the real smart window/control-screen visual does not look too small inside the page.
-- Homepage smart-window card and automation-page hero/control visual now use the tighter crop.
+Зафиксированный implementation SHA, baseline SHA, количество файлов и archive SHA-256 находятся в `release/release-manifest-v2.28.0-beta.1.json`. Проверяемые checksums — в `release/SHA256SUMS`; полный список отличий release payload от V2.27 — в `release/CHANGED_FILES-v2.28.0-beta.1.txt` и внутри ZIP как `CHANGED_FILES.txt`.
 
+Перед распаковкой:
 
-## V2.17 update
+```bash
+cd release
+sha256sum -c SHA256SUMS
+```
 
-- Fixed mobile homepage smart-window card: mobile now uses the full landscape window photo instead of the tight crop, so the window is not cut off.
-- Desktop keeps the tighter crop where it reads better.
-- Replaced one remaining `архитектурного эффекта` wording with `архитектурного решения`.
+Установка, runtime layout, secrets rotation, миграции, backup/restore, first-editor enrollment, emergency disable и отдельные content/marketing/application rollback описаны в `deploy/README_ZHENYA.md`. Реальный OIDC rehearsal — в `release-evidence/qa/PRODUCTION_OIDC_REHEARSAL.md`; результаты локальной проверки — в остальных файлах `release-evidence/qa/`.
 
-
-## V2.18 update
-
-- Added broader voice-assistant positioning for OKNOTIKA automation: panel, remote, smartphone, and voice.
-- Dedicated automation page now names Alice, Siri, Google Assistant, Alexa and other ecosystems through compatible platforms, gateways, or BMS.
-- Kept a technical qualifier: the concrete assistant depends on the selected controller/integration scheme.
-- Homepage visible marker updated to V2.18.
-
-## V2.20 local team update — 2026-07-09
-
-- Added **Сергей Бешенцев** to the public team block: `Руководитель проекта «Умное окно»`.
-- Added **Иван Рябоконь** to the public team block: `Менеджер проектов`.
-- Added optimized team portraits:
-  - `img/team/beshentsev.jpg`
-  - `img/team/ryabokon.jpg`
-- Team intro now mentions product directions.
-- This local package includes homepage + dedicated smart-window page; it has not been pushed to GitHub preview in this step.
-
-## V2.25 multipage preview — 2026-07-09
-
-- Rebuilt homepage as shorter product hub.
-- Added separate pages:
-  - `/aluminum/`
-  - `/pvc/`
-  - `/wood-stoller/`
-  - `/carbon-glass/`
-  - `/glass/`
-  - `/protectapeel/`
-  - `/articles/`
-- Kept `/oknotika-smart-window/` and updated its header navigation for multipage mode.
-- Added homepage `Факт недели` block and first article about Al Bahr Towers dynamic facade.
-- Aluminum page separates Schüco as its own system philosophy; Alutech and Alumark are combined as practical/object aluminum options.
-
-
-## V2.26 visual product pages — 2026-07-10
-
-- Added production-safe thematic Pexels backgrounds to PVC and glass pages.
-- Added approved real project/material imagery to Carbon Glass, Stoller and Protectapeel pages.
-- Avoided the Carbon image previously flagged as potentially AI.
-- Added visual background treatment to product feature cards.
-- Added three-image galleries to PVC, Stoller, Carbon Glass and glass pages.
-- Added real looping Protectapeel application video block.
-- Added `IMAGE_SOURCES.md` with source/provenance links.
+Архитектурный ADR намеренно не создан: план требует отдельного подтверждения пользователя до фиксации решения в `docs/adr/`.

@@ -2,10 +2,13 @@
   "schemaVersion": 1,
   "version": "v2.28.0-beta.1",
   "payloadRoot": "oknotika-final-v2.28.0-beta.1",
-  "archiveSha256": "2f5f58badd3d973cf22df909bbad7fef54bdbd15c56d5e070c5e8a134c82e92b",
-  "archiveBytes": 20208471,
-  "files": 208,
-  "uncompressedBytes": 21301542,
-  "sourceCommitBeforeTask7": "1e5188d56a717851f39761208559a25e48bf6f5b",
+  "archiveSha256": "f5670427b1d6ba34dd465efd85dbd4323d85913dcce85efde585fe8020312008",
+  "archiveBytes": 20216643,
+  "files": 210,
+  "uncompressedBytes": 21324564,
+  "implementationCommit": "13463c6c64a5ff4ddacc0cd6cb8db6f2f35f67d3",
+  "baselineCommit": "5364ff160ffa9b8e9f2d0998a5eef1cf6cd3f5ed",
+  "changedFiles": 143,
+  "changedFilesPath": "CHANGED_FILES-v2.28.0-beta.1.txt",
   "secretScan": "pass"
 }

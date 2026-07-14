@@ -17,6 +17,7 @@ from scan_release_zip import scan_archive
 
 
 VERSION = "v2.28.0-beta.1"
+BASELINE_COMMIT = "5364ff160ffa9b8e9f2d0998a5eef1cf6cd3f5ed"
 FIXED_TIMESTAMP = (2026, 7, 14, 0, 0, 0)
 TOP_LEVEL_FILES = {
     ".gitignore", "ALUMINUM_SOURCES.md", "IMAGE_SOURCES.md", "README.md", "index.html", "script.js", "style.css",
@@ -57,6 +58,38 @@ def source_paths(repo: Path) -> list[Path]:
     return sorted(paths, key=lambda path: path.as_posix())
 
 
+def changed_payload_inventory(repo: Path, paths: list[Path], implementation_commit: str) -> bytes:
+    baseline_output = subprocess.run(
+        ["git", "-C", str(repo), "ls-tree", "-r", "--name-only", "-z", BASELINE_COMMIT],
+        check=True,
+        stdout=subprocess.PIPE,
+    ).stdout
+    baseline_paths = {item.decode() for item in baseline_output.split(b"\0") if item}
+    lines = [
+        "# OKNOTIKA v2.28.0-beta.1 release payload changes",
+        f"# Baseline: {BASELINE_COMMIT}",
+        f"# Verified implementation: {implementation_commit}",
+        "# Status: A = added to payload, M = modified from baseline",
+        "A\tCHANGED_FILES.txt",
+        "A\tRELEASE_NOTES.md",
+    ]
+    for path in paths:
+        relative = path.as_posix()
+        if relative not in baseline_paths:
+            status = "A"
+        else:
+            baseline_data = subprocess.run(
+                ["git", "-C", str(repo), "show", f"{BASELINE_COMMIT}:{relative}"],
+                check=True,
+                stdout=subprocess.PIPE,
+            ).stdout
+            if baseline_data == (repo / path).read_bytes():
+                continue
+            status = "M"
+        lines.append(f"{status}\t{relative}")
+    return ("\n".join(lines) + "\n").encode()
+
+
 def zip_info(name: str, mode: int = 0o644) -> zipfile.ZipInfo:
     info = zipfile.ZipInfo(name, FIXED_TIMESTAMP)
     info.compress_type = zipfile.ZIP_DEFLATED
@@ -83,14 +116,17 @@ def main() -> int:
     paths = source_paths(repo)
     payload: dict[str, bytes] = {path.as_posix(): (repo / path).read_bytes() for path in paths}
     payload["RELEASE_NOTES.md"] = notes.read_bytes()
-    source_commit = subprocess.run(
+    implementation_commit = subprocess.run(
         ["git", "-C", str(repo), "rev-parse", "HEAD"], check=True, stdout=subprocess.PIPE, text=True
     ).stdout.strip()
+    inventory = changed_payload_inventory(repo, paths, implementation_commit)
+    payload["CHANGED_FILES.txt"] = inventory
+    (release / f"CHANGED_FILES-{version}.txt").write_bytes(inventory)
     manifest = {
         "schemaVersion": 1,
         "version": version,
-        "sourceCommitBeforeTask7": source_commit,
-        "baselineCommit": "5364ff160ffa9b8e9f2d0998a5eef1cf6cd3f5ed",
+        "implementationCommit": implementation_commit,
+        "baselineCommit": BASELINE_COMMIT,
         "generatedAt": "2026-07-14T00:00:00Z",
         "files": {
             path: {
@@ -127,7 +163,10 @@ def main() -> int:
         "archiveBytes": versioned.stat().st_size,
         "files": result["files"],
         "uncompressedBytes": result["uncompressedBytes"],
-        "sourceCommitBeforeTask7": source_commit,
+        "implementationCommit": implementation_commit,
+        "baselineCommit": BASELINE_COMMIT,
+        "changedFiles": sum(1 for line in inventory.decode().splitlines() if line[:2] in {"A\t", "M\t"}),
+        "changedFilesPath": f"CHANGED_FILES-{version}.txt",
         "secretScan": "pass",
     }
     (release / f"release-manifest-{version}.json").write_text(

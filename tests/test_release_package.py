@@ -19,12 +19,20 @@ scanner = importlib.util.module_from_spec(SPEC)
 sys.modules["scan_release_zip"] = scanner
 SPEC.loader.exec_module(scanner)
 
+DOCS_SCRIPT = REPO / "scripts/check_final_documentation.py"
+DOCS_SPEC = importlib.util.spec_from_file_location("check_final_documentation", DOCS_SCRIPT)
+assert DOCS_SPEC and DOCS_SPEC.loader
+docs_checker = importlib.util.module_from_spec(DOCS_SPEC)
+sys.modules["check_final_documentation"] = docs_checker
+DOCS_SPEC.loader.exec_module(docs_checker)
+
 
 def archive_with(extra: dict[str, bytes] | None = None) -> Path:
     directory = Path(tempfile.mkdtemp(prefix="oknotika-zip-test-"))
     filename = directory / "release.zip"
     root = "oknotika-final-test"
     files = {
+        "CHANGED_FILES.txt": b"A\tCHANGED_FILES.txt\n",
         "README.md": b"readme",
         "RELEASE_NOTES.md": b"notes",
         "index.html": b"<title>OKNOTIKA</title>",
@@ -74,6 +82,18 @@ class ReleaseZipTests(unittest.TestCase):
         result = scanner.scan_archive(str(filename))
         self.assertEqual(result["status"], "fail")
         self.assertTrue(any("duplicate" in error or "mismatch" in error for error in result["errors"]))
+
+
+class FinalDocumentationTests(unittest.TestCase):
+    def test_final_documentation_and_release_records_are_consistent(self) -> None:
+        self.assertEqual(docs_checker.validate(REPO), [])
+
+    def test_stale_preview_markers_are_rejected(self) -> None:
+        errors = docs_checker.validate_readme_text(
+            "# ОКНОТИКА — финальный beta-релиз сайта\nV2.18\nV2.25\n"
+        )
+        self.assertTrue(any("V2.18" in error for error in errors))
+        self.assertTrue(any("V2.25" in error for error in errors))
 
 
 if __name__ == "__main__":

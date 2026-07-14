@@ -1,6 +1,6 @@
-# Aluminum facade claims and material provenance
+# Источники фасадных claims и provenance материалов
 
-This register is the publication boundary for the Schüco facade section. Product claims are paraphrases of official pages retrieved on 2026-07-14. Official page copyright remains with Schüco; the pages are factual references only, and none of their text or media is copied into the site.
+This register is the publication boundary for the Schüco facade section and complements `IMAGE_SOURCES.md`. Product claims are paraphrases of official pages retrieved on 2026-07-14. Official page copyright remains with Schüco; the pages are factual references only, and none of their text or media is copied into the site.
 
 The four families are planning scenarios, not promises of availability, fitness, certification, or compliance. Those properties must be confirmed for the country, fabricator, current documentation, and project.
 
