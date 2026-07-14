@@ -1,11 +1,12 @@
 # OKNOTIKA v2.28.0-beta.1 release payload changes
 # Baseline: 5364ff160ffa9b8e9f2d0998a5eef1cf6cd3f5ed
-# Verified implementation: 702171bcd9bebbdb4836b34918e062d7b2d22238
+# Verified implementation: f8a25435e850655acfc0a39c55cc540361760948
 # Status: A = added to payload, M = modified from baseline
 A	CHANGED_FILES.txt
 A	RELEASE_NOTES.md
 A	.gitignore
 A	ALUMINUM_SOURCES.md
+A	CLAUDE.md
 M	IMAGE_SOURCES.md
 M	README.md
 A	admin-app/.env.example
@@ -13,8 +14,11 @@ A	admin-app/ENROLLMENT.md
 A	admin-app/eslint.config.js
 A	admin-app/migrations/001_content.sql
 A	admin-app/migrations/002_admin_security.sql
+A	admin-app/migrations/003_public_revision_state.sql
 A	admin-app/package-lock.json
 A	admin-app/package.json
+A	admin-app/scripts/bootstrap-content.js
+A	admin-app/scripts/bootstrap-editor.js
 A	admin-app/scripts/build.js
 A	admin-app/scripts/disable-editor.js
 A	admin-app/scripts/enroll-editor.js
@@ -46,11 +50,14 @@ A	admin-app/templates/admin/login.html
 A	admin-app/templates/public/detail.html
 A	admin-app/templates/public/gone.html
 A	admin-app/templates/public/index.html
+A	admin-app/tests/admin-client.test.js
 A	admin-app/tests/auth-security.test.js
 A	admin-app/tests/beta-rehearsal.test.js
+A	admin-app/tests/bootstrap.test.js
 A	admin-app/tests/content-security.test.js
 A	admin-app/tests/content.test.js
 A	admin-app/tests/deploy.test.js
+A	admin-app/tests/fixtures/crash-publisher.mjs
 A	admin-app/tests/fixtures/telegram-oidc-conformance.json
 A	admin-app/tests/helpers.js
 A	admin-app/tests/http-security.test.js
@@ -72,10 +79,12 @@ A	deploy/nginx/snippets/public-security-headers.conf
 A	deploy/release-manifest.json
 A	deploy/scripts/backup.sh
 A	deploy/scripts/check-templates.sh
+A	deploy/scripts/install-marketing.sh
 A	deploy/scripts/pre-migrate-backup.sh
 A	deploy/scripts/preflight.sh
 A	deploy/scripts/prepare-runtime.sh
 A	deploy/scripts/restore-drill.sh
+A	deploy/scripts/run-with-publisher-lock.mjs
 A	deploy/scripts/smoke-test.sh
 A	deploy/scripts/sqlite-online-backup.mjs
 A	deploy/scripts/verify-restored-state.mjs
