@@ -309,12 +309,12 @@ systemd-analyze verify deploy/systemd/oknotika-admin.service
 
 **Goal:** передать поддерживаемую систему без зависимости от памяти участников.
 
-- [ ] обновить `README.md` до финальной версии и убрать устаревшие V2.18/V2.25 markers;
-- [ ] обновить `IMAGE_SOURCES.md` и добавить `ALUMINUM_SOURCES.md`;
-- [ ] задокументировать content model, Telegram enrollment и editor flow;
-- [ ] задокументировать deploy, backup, restore, rollback и emergency disable;
-- [ ] записать release SHA/checksums и список изменённых файлов;
-- [ ] после отдельного подтверждения пользователя записать архитектурное решение в ADR.
+- [x] обновить `README.md` до финальной версии и убрать устаревшие V2.18/V2.25 markers;
+- [x] обновить `IMAGE_SOURCES.md` и добавить `ALUMINUM_SOURCES.md`;
+- [x] задокументировать content model, Telegram enrollment и editor flow;
+- [x] задокументировать deploy, backup, restore, rollback и emergency disable;
+- [x] записать release SHA/checksums и список изменённых файлов;
+- [x] после отдельного подтверждения пользователя записать архитектурное решение в ADR (skipped - requires separate user confirmation; ADR not created).
 
 ## Required deployment inputs later
 
