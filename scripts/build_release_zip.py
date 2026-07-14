@@ -20,7 +20,7 @@ VERSION = "v2.28.0-beta.1"
 BASELINE_COMMIT = "5364ff160ffa9b8e9f2d0998a5eef1cf6cd3f5ed"
 FIXED_TIMESTAMP = (2026, 7, 14, 0, 0, 0)
 TOP_LEVEL_FILES = {
-    ".gitignore", "ALUMINUM_SOURCES.md", "IMAGE_SOURCES.md", "README.md", "index.html", "script.js", "style.css",
+    ".gitignore", "ALUMINUM_SOURCES.md", "CLAUDE.md", "IMAGE_SOURCES.md", "README.md", "index.html", "script.js", "style.css",
 }
 TOP_LEVEL_DIRECTORIES = {
     "admin-app", "aluminum", "articles", "carbon-glass", "deploy", "docs", "glass", "img", "js",

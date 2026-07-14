@@ -16,6 +16,10 @@ lock="$state_root/backups/backup.lock"
 }
 [[ -s "$database" ]] || { echo "database does not exist: $database" >&2; exit 1; }
 
+if [[ "${OKNOTIKA_PUBLISHER_LOCK_HELD:-0}" != 1 ]]; then
+  exec node "$script_root/run-with-publisher-lock.mjs" "$state_root/article-releases" "$0" "$@"
+fi
+
 exec 9>"$lock"
 flock -n 9 || { echo "another backup is running" >&2; exit 0; }
 

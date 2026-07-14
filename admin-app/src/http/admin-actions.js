@@ -11,7 +11,8 @@ export function createAdminActions({
 } = {}) {
   function listArticles() {
     return db.prepare(`
-      SELECT a.id, a.slug, a.state, a.current_revision_id, r.revision_number,
+      SELECT a.id, a.slug, a.state, a.public_state, a.current_revision_id,
+             a.published_revision_id, r.revision_number,
              r.title, r.publication_at, r.lead, r.body_markdown, r.cover_asset_id,
              r.cover_alt, r.source_url
       FROM articles a
@@ -67,18 +68,26 @@ export function createAdminActions({
     requireConfirmation(confirmation, 'PUBLISH');
     const normalizedArticleId = integer(articleId, 'articleId');
     const normalizedRevisionId = integer(revisionId, 'revisionId');
-    contentService.publishRevision(normalizedArticleId, normalizedRevisionId, editorId, {
-      expectedRevisionId: normalizedRevisionId,
+    return publisher.publish({
+      editorId,
+      transition: {
+        type: 'publish',
+        articleId: normalizedArticleId,
+        expectedRevisionId: normalizedRevisionId,
+      },
     });
-    return publisher.publish({ editorId });
   }
 
   async function withdraw(articleId, expectedRevisionId, editorId, confirmation) {
     requireConfirmation(confirmation, 'WITHDRAW');
-    contentService.withdrawArticle(integer(articleId, 'articleId'), editorId, {
-      expectedRevisionId: integer(expectedRevisionId, 'expectedRevisionId'),
+    return publisher.publish({
+      editorId,
+      transition: {
+        type: 'withdraw',
+        articleId: integer(articleId, 'articleId'),
+        expectedRevisionId: integer(expectedRevisionId, 'expectedRevisionId'),
+      },
     });
-    return publisher.publish({ editorId });
   }
 
   async function rollbackRelease(releaseId, editorId, confirmation) {

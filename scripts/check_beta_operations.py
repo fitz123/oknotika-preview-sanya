@@ -50,10 +50,29 @@ def prepare_portable_commands(directory: Path) -> None:
     realpath.chmod(0o755)
 
 
-def create_current_database(repo: Path, filename: Path) -> None:
+def create_current_database(repo: Path, filename: Path, state: Path) -> None:
     source = f"""
 import {{ openDatabase }} from {json.dumps((repo / 'admin-app/src/content/database.js').as_uri())};
+import {{ createContentService }} from {json.dumps((repo / 'admin-app/src/content/service.js').as_uri())};
+import {{ importAlBahr }} from {json.dumps((repo / 'admin-app/src/content/al-bahr.js').as_uri())};
+import {{ createPublisher }} from {json.dumps((repo / 'admin-app/src/render/publisher.js').as_uri())};
 const db = openDatabase({json.dumps(str(filename))});
+const service = createContentService(db);
+const editorId = service.configureEditor({{ issuer: 'https://oauth.telegram.org', subject: '9988776655' }});
+const coverAssetId = service.registerAsset({{
+  privatePath: {json.dumps(str(repo / 'articles/assets/e794ac9b2fc096b47e5a406d.jpg'))},
+  mediaType: 'image/jpeg',
+}});
+const article = importAlBahr(service, {{ editorId, coverAssetId }});
+const publisher = createPublisher(db, {{
+  releasesRoot: {json.dumps(str(state / 'article-releases'))},
+  publicOrigin: 'https://oknotika.ru',
+  clock: () => new Date('2026-07-14T00:00:00.000Z'),
+}});
+await publisher.publish({{
+  editorId,
+  transition: {{ type: 'publish', articleId: article.articleId, expectedRevisionId: article.revisionId }},
+}});
 db.prepare(`INSERT INTO audit_events (event_type, details_json, created_at) VALUES ('beta.backup', '{{}}', '2026-07-14T00:00:00.000Z')`).run();
 db.close();
 """
@@ -69,18 +88,12 @@ def backup_restore_rehearsal(repo: Path, restic: Path, root: Path) -> dict[str, 
     for directory in (
         database.parent,
         state / "uploads/originals",
-        state / "article-releases/releases/fixture-al-bahr-v1",
         state / "backups",
         bin_directory,
     ):
         directory.mkdir(parents=True, exist_ok=True)
-    create_current_database(repo, database)
+    create_current_database(repo, database, state)
     (state / "uploads/originals/approved.source").write_bytes(b"beta private backup fixture")
-    fixture = repo / "var/test-release"
-    if not (fixture / "manifest.json").is_file():
-        run(["npm", "run", "render:fixture"], cwd=repo / "admin-app")
-    shutil.copytree(fixture, state / "article-releases/releases/fixture-al-bahr-v1", dirs_exist_ok=True)
-    (state / "article-releases/active").symlink_to("releases/fixture-al-bahr-v1")
     password_file = root / "restic-password"
     repository_file = root / "restic-repository-path"
     password_file.write_text("beta-only-strong-password-not-for-production\n", encoding="utf-8")
@@ -175,7 +188,7 @@ def downgrade_rehearsal(repo: Path, root: Path) -> dict[str, Any]:
     current_count = migration_count(repo / "admin-app/src/content/database.js", upgraded, repo / "admin-app")
     shutil.copy2(backup, restored)
     restored_count = migration_count(previous_module, restored, previous_root / "admin-app")
-    if not (previous_count == 1 and current_count == 2 and restored_count == 1):
+    if not (previous_count == 1 and current_count == 3 and restored_count == 1):
         raise RuntimeError(
             f"downgrade rehearsal mismatch: previous={previous_count}, current={current_count}, restored={restored_count}"
         )

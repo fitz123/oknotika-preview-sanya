@@ -104,38 +104,6 @@ export function createContentService(db, { clock = () => new Date() } = {}) {
       });
     },
 
-    publishRevision(articleId, revisionId, editorId, { expectedRevisionId = null } = {}) {
-      assertEditor(db, editorId);
-      return transaction(db, () => {
-        const article = db.prepare('SELECT * FROM articles WHERE id = ?').get(articleId);
-        if (!article) throw new Error('Article not found');
-        assertExpectedRevision(article, expectedRevisionId);
-        if (Number(article.current_revision_id) !== Number(revisionId)) {
-          throw new Error('Only the current revision can be published');
-        }
-        const revision = db.prepare('SELECT * FROM article_revisions WHERE id = ? AND article_id = ?')
-          .get(revisionId, articleId);
-        if (!revision) throw new Error('Revision not found for article');
-        db.prepare(`UPDATE articles SET current_revision_id = ?, state = 'published', updated_at = ? WHERE id = ?`)
-          .run(revisionId, now(clock), articleId);
-        insertAudit(db, { type: 'article.marked_published', editorId, articleId, revisionId }, clock);
-      });
-    },
-
-    withdrawArticle(articleId, editorId, { expectedRevisionId = null } = {}) {
-      assertEditor(db, editorId);
-      return transaction(db, () => {
-        const article = db.prepare("SELECT * FROM articles WHERE id = ? AND state = 'published'").get(articleId);
-        if (!article) throw new Error('Only a published article can be withdrawn');
-        assertExpectedRevision(article, expectedRevisionId);
-        db.prepare(`UPDATE articles SET state = 'withdrawn', updated_at = ? WHERE id = ?`)
-          .run(now(clock), articleId);
-        insertAudit(db, {
-          type: 'article.withdrawn', editorId, articleId, revisionId: article.current_revision_id,
-        }, clock);
-      });
-    },
-
     restoreRevision(articleId, sourceRevisionId, editorId, { expectedRevisionId = null } = {}) {
       assertEditor(db, editorId);
       const timestamp = now(clock);

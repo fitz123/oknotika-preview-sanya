@@ -8,6 +8,8 @@
   },
   "scripts": {
     "start": "node src/http/start.js",
+    "bootstrap-editor": "node scripts/bootstrap-editor.js",
+    "bootstrap-content": "node scripts/bootstrap-content.js",
     "enroll": "node scripts/enroll-editor.js",
     "disable-editor": "node scripts/disable-editor.js",
     "lint": "eslint .",

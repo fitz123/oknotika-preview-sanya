@@ -83,6 +83,18 @@ class ReleaseZipTests(unittest.TestCase):
         self.assertEqual(result["status"], "fail")
         self.assertTrue(any("duplicate" in error or "mismatch" in error for error in result["errors"]))
 
+    def test_large_files_and_environment_variants_are_scanned_for_secrets(self) -> None:
+        private_key_marker = b"-----BEGIN " + b"PRIVATE KEY-----"
+        large_secret = b"x" * (4 * 1024 * 1024 + 17) + b"\n" + private_key_marker + b"\n"
+        result = scanner.scan_archive(str(archive_with({
+            "docs/large-record.txt": large_secret,
+            "admin-app/.env.production": b"SAFE_NAME=placeholder\n",
+        })))
+        self.assertEqual(result["status"], "fail")
+        joined = "\n".join(result["errors"])
+        self.assertIn("private key", joined)
+        self.assertIn("environment file", joined)
+
 
 class FinalDocumentationTests(unittest.TestCase):
     def test_final_documentation_and_release_records_are_consistent(self) -> None:

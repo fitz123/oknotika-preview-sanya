@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { AL_BAHR_FIXTURE, importAlBahr } from '../content/al-bahr.js';
 import { openDatabase } from '../content/database.js';
 import { createContentService } from '../content/service.js';
-import { renderRelease, validateRelease } from './renderer.js';
+import { loadRevisionSnapshot, renderRelease, validateRelease } from './renderer.js';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const repoRoot = resolve(appRoot, '..');
@@ -24,10 +24,10 @@ const coverAssetId = service.registerAsset({
   privatePath: privateCover,
   mediaType: 'image/jpeg',
 });
-importAlBahr(service, { editorId, coverAssetId });
+const imported = importAlBahr(service, { editorId, coverAssetId });
 
 const manifest = renderRelease({
-  db,
+  snapshot: [loadRevisionSnapshot(db, imported.articleId, imported.revisionId, 'published')],
   outputDirectory,
   publicOrigin: 'https://oknotika.ru',
   releaseId: 'fixture-al-bahr-v1',

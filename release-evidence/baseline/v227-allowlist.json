@@ -18,6 +18,7 @@
     "allow_add": [
       ".gitignore",
       "ALUMINUM_SOURCES.md",
+      "CLAUDE.md",
       "admin-app/**",
       "deploy/**",
       "docs/adr/**",

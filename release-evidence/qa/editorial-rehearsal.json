@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-07-13T23:57:47.950Z",
+  "generatedAt": "2026-07-14T07:43:12.932Z",
   "stateRoot": "ephemeral isolated directory (deleted after rehearsal)",
   "draftInvisibility": "pass",
   "privatePreview": {
@@ -11,15 +11,15 @@
   "immutableSlugAcrossEdit": "pass",
   "publish": {
     "status": "pass",
-    "releaseId": "20260714000011-df7fe3778c7ab30b"
+    "releaseId": "20260714000007-ec8a35d9388063dc"
   },
   "edit": {
     "status": "pass",
-    "releaseId": "20260714000016-7d6c6a7a8aa8d06e"
+    "releaseId": "20260714000010-c182cf35ed48e07b"
   },
   "withdraw": {
     "status": "pass",
-    "releaseId": "20260714000019-f0358ee0eb52ecf0",
+    "releaseId": "20260714000011-976f2bbf4b27c4e0",
     "responseContract": "static 410"
   },
   "latestFallback": {
@@ -28,13 +28,13 @@
   },
   "editorialRestore": {
     "status": "pass",
-    "releaseId": "20260714000024-28c54132fce9fd46",
+    "releaseId": "20260714000014-013ac2f70485742b",
     "revisionId": 4
   },
   "operationalRollback": {
     "status": "pass",
-    "from": "20260714000024-28c54132fce9fd46",
-    "to": "20260714000011-df7fe3778c7ab30b"
+    "from": "20260714000014-013ac2f70485742b",
+    "to": "20260714000007-ec8a35d9388063dc"
   },
   "adminOutage": {
     "status": "pass",
@@ -43,14 +43,14 @@
     "publicLatestStatus": 200,
     "contract": "public immutable release served independently while admin HTTP service is absent"
   },
-  "initialFallbackRelease": "20260714000006-c6d8394bba7c88a7",
+  "initialFallbackRelease": "20260714000004-6c29782501d3cfa9",
   "auditEvents": [
     {
       "event_type": "article.created",
       "count": 2
     },
     {
-      "event_type": "article.marked_published",
+      "event_type": "article.published",
       "count": 4
     },
     {

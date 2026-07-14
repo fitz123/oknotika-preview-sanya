@@ -18,10 +18,8 @@ export const AL_BAHR_FIXTURE = Object.freeze({
 });
 
 export function importAlBahr(service, { editorId, coverAssetId }) {
-  const created = service.createArticle({ ...AL_BAHR_FIXTURE, coverAssetId }, editorId, {
+  return service.createArticle({ ...AL_BAHR_FIXTURE, coverAssetId }, editorId, {
     initialSlug: AL_BAHR_FIXTURE.slug,
     importedMetadata: AL_BAHR_FIXTURE.importedMetadata,
   });
-  service.publishRevision(created.articleId, created.revisionId, editorId);
-  return created;
 }

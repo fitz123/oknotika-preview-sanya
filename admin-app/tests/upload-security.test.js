@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 import sharp from 'sharp';
@@ -90,4 +90,62 @@ test('upload rejects MIME confusion, GIF/SVG, oversized bytes, excessive pixels 
     uploadsRoot: resolve(publicRoot, 'uploads'),
     publicRoot,
   }), /outside/);
+});
+
+test('decoder failures, timeouts and database failures remove files and roll back asset rows', async (t) => {
+  const harness = createHarness(t);
+  const publicRoot = resolve(harness.root, 'public');
+  mkdirSync(publicRoot, { recursive: true });
+  const initialAssets = harness.db.prepare('SELECT COUNT(*) AS count FROM assets').get().count;
+
+  const malformedRoot = resolve(harness.root, 'malformed-uploads');
+  const malformedStore = createUploadStore({
+    db: harness.db,
+    contentService: harness.service,
+    uploadsRoot: malformedRoot,
+    publicRoot,
+  });
+  await assert.rejects(malformedStore.store({
+    bytes: Buffer.from([0xff, 0xd8, 0xff, 0x00, 0x01]),
+    declaredMediaType: 'image/jpeg',
+    editorId: harness.editorId,
+  }), /decoder|image|jpeg|corrupt|unsupported/i);
+  assert.deepEqual(readdirSync(resolve(malformedRoot, 'originals')), []);
+  assert.deepEqual(readdirSync(resolve(malformedRoot, 'derivatives')), []);
+
+  const valid = await sharp({
+    create: { width: 64, height: 48, channels: 3, background: 'white' },
+  }).png().toBuffer();
+  const timeoutRoot = resolve(harness.root, 'timeout-uploads');
+  const timeoutStore = createUploadStore({
+    db: harness.db,
+    contentService: harness.service,
+    uploadsRoot: timeoutRoot,
+    publicRoot,
+    timeoutMs: 0,
+  });
+  await assert.rejects(timeoutStore.store({
+    bytes: valid, declaredMediaType: 'image/png', editorId: harness.editorId,
+  }), /time limit/);
+  assert.deepEqual(readdirSync(resolve(timeoutRoot, 'originals')), []);
+  assert.deepEqual(readdirSync(resolve(timeoutRoot, 'derivatives')), []);
+
+  harness.db.exec(`
+    CREATE TRIGGER reject_private_upload BEFORE INSERT ON private_uploads
+    BEGIN SELECT RAISE(ABORT, 'injected upload insert failure'); END;
+  `);
+  const databaseRoot = resolve(harness.root, 'database-failure-uploads');
+  const databaseStore = createUploadStore({
+    db: harness.db,
+    contentService: harness.service,
+    uploadsRoot: databaseRoot,
+    publicRoot,
+  });
+  await assert.rejects(databaseStore.store({
+    bytes: valid, declaredMediaType: 'image/png', editorId: harness.editorId,
+  }), /injected upload insert failure/);
+  assert.equal(harness.db.prepare('SELECT COUNT(*) AS count FROM assets').get().count, initialAssets);
+  assert.equal(harness.db.prepare('SELECT COUNT(*) AS count FROM private_uploads').get().count, 0);
+  assert.deepEqual(readdirSync(resolve(databaseRoot, 'originals')), []);
+  assert.deepEqual(readdirSync(resolve(databaseRoot, 'derivatives')), []);
 });

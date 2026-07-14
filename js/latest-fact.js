@@ -30,7 +30,9 @@
     if (typeof fact.lead !== 'string' || fact.lead.length < 1 || fact.lead.length > 1200) return false;
     try {
       const url = new URL(fact.url, window.location.origin);
-      return url.protocol === 'https:' && url.pathname.startsWith('/articles/');
+      return url.protocol === 'https:'
+        && url.origin === window.location.origin
+        && url.pathname.startsWith('/articles/');
     } catch {
       return false;
     }

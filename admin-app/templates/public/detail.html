@@ -14,12 +14,12 @@
   <meta property="og:url" content="{{canonical}}" />
   <meta property="og:image" content="{{ogImage}}" />
   <meta property="article:published_time" content="{{publicationAt}}" />
-  <link rel="stylesheet" href="../../style.css" />
+  <link rel="stylesheet" href="{{stylePath}}" />
 </head>
 <body>
   <header class="site-header" data-header>
-    <a class="brand" href="../../#top" aria-label="ОКНОТИКА"><img class="brand__logo" src="../../img/logo-oknotika.svg" alt="Логотип ОКНОТИКА" /><span class="brand__text">ОКНОТИКА</span></a>
-    <nav class="nav"><a href="../../">Главная</a><a href="../../aluminum/">Алюминий</a><a href="../">Факт недели</a><a href="../../#contacts">Контакты</a></nav>
+    <a class="brand" href="{{homePath}}" aria-label="ОКНОТИКА"><img class="brand__logo" src="{{logoPath}}" alt="Логотип ОКНОТИКА" /><span class="brand__text">ОКНОТИКА</span></a>
+    <nav class="nav"><a href="{{sitePath}}">Главная</a><a href="{{aluminumPath}}">Алюминий</a><a href="{{articleIndexPath}}">Факт недели</a><a href="{{contactsPath}}">Контакты</a></nav>
     <a class="header-cta" href="https://t.me/ambassadorokon" target="_blank" rel="noreferrer">Обсудить проект</a>
   </header>
   <main id="top">
@@ -38,7 +38,7 @@
       </article>
     </section>
   </main>
-  <footer class="footer"><div class="container footer__inner"><p>© 2026 ООО «ОКНОТИКА» · факт недели</p><p><a href="../">К списку статей</a> · <a href="#top">Наверх</a></p></div></footer>
-  <script src="../../script.js"></script>
+  <footer class="footer"><div class="container footer__inner"><p>© 2026 ООО «ОКНОТИКА» · факт недели</p><p><a href="{{articleIndexPath}}">К списку статей</a> · <a href="#top">Наверх</a></p></div></footer>
+  {{scriptTag}}
 </body>
 </html>

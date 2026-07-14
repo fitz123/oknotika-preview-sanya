@@ -2,14 +2,16 @@ import assert from 'node:assert/strict';
 import { readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
+import { setImmediate } from 'node:timers';
+import { runInNewContext } from 'node:vm';
 import { AL_BAHR_FIXTURE, importAlBahr } from '../src/content/al-bahr.js';
-import { renderRelease, validateRelease } from '../src/render/renderer.js';
+import { loadRevisionSnapshot, renderRelease, validateRelease } from '../src/render/renderer.js';
 import { articleInput, createHarness } from './helpers.js';
 
-function render(harness, name) {
+function render(harness, name, snapshot) {
   const outputDirectory = resolve(harness.root, name);
   const manifest = renderRelease({
-    db: harness.db,
+    snapshot,
     outputDirectory,
     publicOrigin: 'https://oknotika.ru',
     releaseId: name,
@@ -21,8 +23,11 @@ function render(harness, name) {
 
 test('Al Bahr import retains URL, visible content, metadata and page style as a golden render', (t) => {
   const harness = createHarness(t);
-  importAlBahr(harness.service, { editorId: harness.editorId, coverAssetId: harness.coverAssetId });
-  const { outputDirectory } = render(harness, 'golden');
+  const imported = importAlBahr(harness.service, { editorId: harness.editorId, coverAssetId: harness.coverAssetId });
+  const snapshot = [loadRevisionSnapshot(
+    harness.db, imported.articleId, imported.revisionId, 'published',
+  )];
+  const { outputDirectory } = render(harness, 'golden', snapshot);
   const generated = readFileSync(
     resolve(outputDirectory, 'articles', AL_BAHR_FIXTURE.slug, 'index.html'),
     'utf8',
@@ -42,9 +47,11 @@ test('Al Bahr import retains URL, visible content, metadata and page style as a 
 test('one release contains listing, latest, canonical/OG, detail and only published assets', (t) => {
   const harness = createHarness(t);
   const published = harness.service.createArticle(articleInput(harness.coverAssetId), harness.editorId);
-  harness.service.publishRevision(published.articleId, published.revisionId, harness.editorId);
   harness.service.createArticle(articleInput(harness.coverAssetId, { title: 'Скрытый черновик' }), harness.editorId);
-  const { outputDirectory, manifest } = render(harness, 'public-release');
+  const snapshot = [loadRevisionSnapshot(
+    harness.db, published.articleId, published.revisionId, 'published',
+  )];
+  const { outputDirectory, manifest } = render(harness, 'public-release', snapshot);
   const listing = readFileSync(resolve(outputDirectory, 'articles/index.html'), 'utf8');
   const detail = readFileSync(resolve(outputDirectory, `articles/${published.slug}/index.html`), 'utf8');
   const latest = JSON.parse(readFileSync(resolve(outputDirectory, 'articles/latest.json'), 'utf8'));
@@ -66,21 +73,20 @@ test('withdrawal generates a 410 page and latest falls back to the previous publ
   const first = harness.service.createArticle(articleInput(harness.coverAssetId, {
     title: 'Первый факт', publicationDate: '2026-07-01',
   }), harness.editorId);
-  harness.service.publishRevision(first.articleId, first.revisionId, harness.editorId);
   const second = harness.service.createArticle(articleInput(harness.coverAssetId, {
     title: 'Второй факт', publicationDate: '2026-07-12',
   }), harness.editorId);
-  harness.service.publishRevision(second.articleId, second.revisionId, harness.editorId);
-  harness.service.withdrawArticle(second.articleId, harness.editorId);
-
-  const { outputDirectory } = render(harness, 'withdrawn-release');
+  const snapshot = [
+    loadRevisionSnapshot(harness.db, first.articleId, first.revisionId, 'published'),
+    loadRevisionSnapshot(harness.db, second.articleId, second.revisionId, 'withdrawn'),
+  ];
+  const { outputDirectory } = render(harness, 'withdrawn-release', snapshot);
   const listing = readFileSync(resolve(outputDirectory, 'articles/index.html'), 'utf8');
   const latest = JSON.parse(readFileSync(resolve(outputDirectory, 'articles/latest.json'), 'utf8'));
-  const goneMap = JSON.parse(readFileSync(resolve(outputDirectory, '410-map.json'), 'utf8'));
   const goneHtml = readFileSync(resolve(outputDirectory, `articles/${second.slug}/index.html`), 'utf8');
   assert.equal(latest.title, 'Первый факт');
   assert.doesNotMatch(listing, /Второй факт/);
-  assert.deepEqual(goneMap.paths, [`/articles/${second.slug}/`]);
+  assert.equal(readFileSync(resolve(outputDirectory, 'withdrawn', second.slug), 'utf8').trim(), '410');
   assert.match(goneHtml, /410 · Факт недели/);
   assert.match(goneHtml, /noindex,nofollow/);
 });
@@ -88,8 +94,10 @@ test('withdrawal generates a 410 page and latest falls back to the previous publ
 test('HTML/JSON revalidate while only content-hashed assets are immutable', (t) => {
   const harness = createHarness(t);
   const created = harness.service.createArticle(articleInput(harness.coverAssetId), harness.editorId);
-  harness.service.publishRevision(created.articleId, created.revisionId, harness.editorId);
-  const { manifest } = render(harness, 'cache-contract');
+  const snapshot = [loadRevisionSnapshot(
+    harness.db, created.articleId, created.revisionId, 'published',
+  )];
+  const { manifest } = render(harness, 'cache-contract', snapshot);
   for (const [path, metadata] of Object.entries(manifest.files)) {
     assert.equal(
       metadata.cacheControl,
@@ -100,14 +108,68 @@ test('HTML/JSON revalidate while only content-hashed assets are immutable', (t) 
   }
 });
 
-test('homepage loads latest.json into bounded text fields and retains static fallback', () => {
+test('homepage loader mutates only bounded same-origin payloads and otherwise retains fallback', async () => {
   const homepage = readFileSync(resolve(import.meta.dirname, '../../index.html'), 'utf8');
-  const loader = readFileSync(resolve(import.meta.dirname, '../../js/latest-fact.js'), 'utf8');
   assert.match(homepage, /data-latest-fact-state="fallback"/);
   assert.match(homepage, /data-latest-title/);
   assert.match(homepage, /data-latest-lead/);
   assert.match(homepage, /src="js\/latest-fact\.js"/);
-  assert.match(loader, /fetch\('\/articles\/latest\.json'/);
-  assert.match(loader, /\.textContent = fact\.title/);
-  assert.doesNotMatch(loader, /innerHTML/);
+
+  const valid = {
+    category: 'Факт недели',
+    title: 'Проверенный факт',
+    lead: 'Короткое описание',
+    url: 'https://oknotika.ru/articles/proverennyi-fakt/',
+  };
+  const loaded = await runLatestLoader(valid);
+  assert.equal(loaded.state, 'loaded');
+  assert.equal(loaded.title, valid.title);
+  assert.equal(loaded.lead, valid.lead);
+  assert.equal(loaded.href, valid.url);
+
+  for (const payload of [
+    null,
+    { ...valid, category: 'Другая рубрика' },
+    { ...valid, title: 'x'.repeat(241) },
+    { ...valid, lead: 'x'.repeat(1201) },
+    { ...valid, url: 'https://evil.example/articles/proverennyi-fakt/' },
+    { ...valid, url: 'javascript:alert(1)' },
+  ]) {
+    const fallback = await runLatestLoader(payload);
+    assert.deepEqual(fallback, {
+      state: 'fallback', title: 'Статический заголовок', lead: 'Статический текст', href: '/articles/',
+    });
+  }
+  assert.equal((await runLatestLoader(valid, { ok: false })).state, 'fallback');
 });
+
+async function runLatestLoader(payload, { ok = true } = {}) {
+  const title = { textContent: 'Статический заголовок' };
+  const lead = { textContent: 'Статический текст' };
+  const link = { href: '/articles/', textContent: 'Подробнее' };
+  const card = {
+    dataset: { latestFactState: 'fallback' },
+    querySelector(selector) {
+      return ({
+        '[data-latest-title]': title,
+        '[data-latest-lead]': lead,
+        '[data-latest-link]': link,
+      })[selector];
+    },
+  };
+  const loader = readFileSync(resolve(import.meta.dirname, '../../js/latest-fact.js'), 'utf8');
+  runInNewContext(loader, {
+    document: { querySelector: () => card },
+    window: { location: { origin: 'https://oknotika.ru' } },
+    URL,
+    fetch: async () => ({ ok, json: async () => payload }),
+  });
+  await new Promise(resolvePromise => setImmediate(resolvePromise));
+  await new Promise(resolvePromise => setImmediate(resolvePromise));
+  return {
+    state: card.dataset.latestFactState,
+    title: title.textContent,
+    lead: lead.textContent,
+    href: link.href,
+  };
+}

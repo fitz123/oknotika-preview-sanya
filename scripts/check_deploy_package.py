@@ -63,6 +63,8 @@ def main() -> None:
     require_text(
         deploy / "nginx/oknotika-public.conf",
         "alias /var/lib/oknotika-admin/article-releases/active/articles/",
+        "error_page 418 =410",
+        "article-releases/active/withdrawn/$article_slug",
         'Cache-Control "public, max-age=0, must-revalidate"',
         'Cache-Control "public, max-age=31536000, immutable"',
     )
@@ -109,12 +111,19 @@ def main() -> None:
     )
     require_text(
         deploy / "scripts/backup.sh",
+        "run-with-publisher-lock.mjs",
         "--keep-daily 7",
         "--keep-weekly 8",
         "--keep-monthly 12",
         "uploads",
         "article-releases/releases",
         "backups/online/admin.sqlite",
+    )
+    require_text(
+        deploy / "scripts/install-marketing.sh",
+        "public_paths=(",
+        "releases/$release_sha",
+        "mv -Tf",
     )
 
     scripts = sorted((deploy / "scripts").glob("*.sh"))
@@ -143,6 +152,9 @@ def main() -> None:
         "Application rollback",
         "nginx -t",
         "systemd-analyze verify",
+        "npm run bootstrap-editor",
+        "run bootstrap-content",
+        "install-marketing.sh",
     )
     print(f"deploy package check passed: {len(scripts)} shell scripts, Node {runtime['nodeVersion']}")
 

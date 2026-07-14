@@ -118,13 +118,15 @@ export function createAdminHandler({
         const bytes = Buffer.from(await request.arrayBuffer());
         return json(await actions.upload(bytes, mediaType, Number(session.editor_id)), 201);
       }
-      const privatePreview = /^\/previews\/([A-Za-z0-9_-]{32})\/(|cover\.(?:jpg|png|webp))$/.exec(url.pathname);
+      const privatePreview = /^\/previews\/([A-Za-z0-9_-]{32})\/(|cover\.(?:jpg|png|webp)|style\.css|logo\.svg)$/.exec(url.pathname);
       if (request.method === 'GET' && privatePreview) {
         const filename = privatePreview[2] || 'index.html';
         const path = resolve(previewsRoot, privatePreview[1], filename);
         const mediaType = filename.endsWith('.html') ? 'text/html; charset=utf-8'
-          : filename.endsWith('.png') ? 'image/png'
-            : filename.endsWith('.jpg') ? 'image/jpeg' : 'image/webp';
+          : filename.endsWith('.css') ? 'text/css; charset=utf-8'
+            : filename.endsWith('.svg') ? 'image/svg+xml'
+              : filename.endsWith('.png') ? 'image/png'
+                : filename.endsWith('.jpg') ? 'image/jpeg' : 'image/webp';
         return response(readFileSync(path), 200, mediaType, {
           'x-robots-tag': 'noindex, nofollow, noarchive',
         });
@@ -150,9 +152,12 @@ function renderDashboard(actions, session) {
         <td>
           <button type="button" data-action="edit" data-id="${article.id}">Редактировать</button>
           <button type="button" data-action="preview" data-revision="${article.current_revision_id}">Preview</button>
-          ${article.state === 'published'
+          ${article.state !== 'published'
+            ? `<button type="button" data-action="publish" data-id="${article.id}" data-revision="${article.current_revision_id}">Опубликовать</button>`
+            : ''}
+          ${article.public_state === 'published'
             ? `<button type="button" data-action="withdraw" data-id="${article.id}" data-revision="${article.current_revision_id}">Снять</button>`
-            : `<button type="button" data-action="publish" data-id="${article.id}" data-revision="${article.current_revision_id}">Опубликовать</button>`}
+            : ''}
           ${renderRevisions(actions.listRevisions(article.id), article)}
         </td>
       </tr>`).join('');

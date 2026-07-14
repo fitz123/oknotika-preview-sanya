@@ -77,7 +77,7 @@ export function createJwksVerifier({
     return cachedKeys;
   }
 
-  return { verifyIdToken, refreshKeys };
+  return { verifyIdToken };
 }
 
 function selectKey(keys, kid) {

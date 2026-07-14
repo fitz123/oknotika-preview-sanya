@@ -40,6 +40,10 @@ test('publication dates are stored in UTC and displayed in Europe/Moscow', () =>
   const stored = normalizePublicationDate('2026-07-10');
   assert.equal(stored, '2026-07-09T21:00:00.000Z');
   assert.equal(formatMoscowDate(stored), '10 июля 2026 г.');
+  for (const impossible of ['2026-02-29', '2024-02-30', '2026-04-31', '2026-13-01', '2026-00-10']) {
+    assert.throws(() => normalizePublicationDate(impossible), /valid calendar date/);
+  }
+  assert.equal(normalizePublicationDate('2024-02-29'), '2024-02-28T21:00:00.000Z');
 });
 
 test('slug collision suffix is stable and title edits never change the URL', (t) => {

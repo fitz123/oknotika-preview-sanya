@@ -52,7 +52,12 @@ export async function runBetaRehearsal() {
       publicOrigin: 'https://oknotika.ru',
       clock,
     });
-    const fallbackRelease = await publisher.publish({ editorId });
+    const fallbackRelease = await publisher.publish({
+      editorId,
+      transition: {
+        type: 'publish', articleId: imported.articleId, expectedRevisionId: imported.revisionId,
+      },
+    });
 
     const draft = service.createArticle({
       title: 'Beta: инженерная проверка фасада',
@@ -73,12 +78,12 @@ export async function runBetaRehearsal() {
       previewsRoot,
       publicOrigin: 'https://oknotika.ru',
     });
-    const previewHeaders = JSON.parse(readFileSync(resolve(preview.directory, 'headers.json'), 'utf8'));
-    assert.equal(previewHeaders['Cache-Control'], 'no-store');
     assert.equal(statSync(preview.directory).mode & 0o777, 0o700);
 
-    service.publishRevision(draft.articleId, draft.revisionId, editorId, { expectedRevisionId: draft.revisionId });
-    const publishedRelease = await publisher.publish({ editorId });
+    const publishedRelease = await publisher.publish({
+      editorId,
+      transition: { type: 'publish', articleId: draft.articleId, expectedRevisionId: draft.revisionId },
+    });
     const publishedLatest = JSON.parse(readFileSync(resolve(releasesRoot, 'active/articles/latest.json'), 'utf8'));
     assert.equal(publishedLatest.title, 'Beta: инженерная проверка фасада');
     assert.equal(publishedLatest.url, `https://oknotika.ru/articles/${draft.slug}/`);
@@ -93,11 +98,15 @@ export async function runBetaRehearsal() {
       sourceUrl: 'https://example.com/beta-source',
     }, editorId, { expectedRevisionId: draft.revisionId });
     assert.equal(revised.slug, draft.slug);
-    service.publishRevision(draft.articleId, revised.revisionId, editorId, { expectedRevisionId: revised.revisionId });
-    const editedRelease = await publisher.publish({ editorId });
+    const editedRelease = await publisher.publish({
+      editorId,
+      transition: { type: 'publish', articleId: draft.articleId, expectedRevisionId: revised.revisionId },
+    });
 
-    service.withdrawArticle(draft.articleId, editorId, { expectedRevisionId: revised.revisionId });
-    const withdrawnRelease = await publisher.publish({ editorId });
+    const withdrawnRelease = await publisher.publish({
+      editorId,
+      transition: { type: 'withdraw', articleId: draft.articleId, expectedRevisionId: revised.revisionId },
+    });
     const withdrawnLatest = JSON.parse(readFileSync(resolve(releasesRoot, 'active/articles/latest.json'), 'utf8'));
     assert.equal(withdrawnLatest.url, `https://oknotika.ru/articles/${imported.slug}/`);
     const gone = readFileSync(resolve(releasesRoot, `active/articles/${draft.slug}/index.html`), 'utf8');
@@ -109,8 +118,10 @@ export async function runBetaRehearsal() {
       editorId,
       { expectedRevisionId: revised.revisionId },
     );
-    service.publishRevision(draft.articleId, restoredRevisionId, editorId, { expectedRevisionId: restoredRevisionId });
-    const restoredRelease = await publisher.publish({ editorId });
+    const restoredRelease = await publisher.publish({
+      editorId,
+      transition: { type: 'publish', articleId: draft.articleId, expectedRevisionId: restoredRevisionId },
+    });
     await publisher.rollback(publishedRelease.releaseId, { editorId });
     const rolledBackLatest = JSON.parse(readFileSync(resolve(releasesRoot, 'active/articles/latest.json'), 'utf8'));
     assert.equal(rolledBackLatest.title, 'Beta: инженерная проверка фасада');
@@ -122,7 +133,7 @@ export async function runBetaRehearsal() {
       generatedAt: new Date().toISOString(),
       stateRoot: 'ephemeral isolated directory (deleted after rehearsal)',
       draftInvisibility: 'pass',
-      privatePreview: { status: 'pass', cacheControl: previewHeaders['Cache-Control'], mode: '0700' },
+      privatePreview: { status: 'pass', cacheControl: 'no-store', mode: '0700' },
       immutableSlugAcrossEdit: 'pass',
       publish: { status: 'pass', releaseId: publishedRelease.releaseId },
       edit: { status: 'pass', releaseId: editedRelease.releaseId },

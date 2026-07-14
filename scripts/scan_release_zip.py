@@ -59,6 +59,19 @@ def normalized_entry(name: str) -> PurePosixPath | None:
     return path
 
 
+def scan_entry_for_secrets(archive: zipfile.ZipFile, info: zipfile.ZipInfo) -> set[str]:
+    detected: set[str] = set()
+    tail = b""
+    with archive.open(info) as stream:
+        while chunk := stream.read(1024 * 1024):
+            window = tail + chunk
+            for label, pattern in SECRET_PATTERNS.items():
+                if label not in detected and pattern.search(window):
+                    detected.add(label)
+            tail = window[-4096:]
+    return detected
+
+
 def scan_archive(filename: str) -> dict[str, Any]:
     errors: list[str] = []
     with zipfile.ZipFile(filename) as archive:
@@ -84,17 +97,20 @@ def scan_archive(filename: str) -> dict[str, Any]:
             if lower_parts & FORBIDDEN_COMPONENTS:
                 errors.append(f"private/runtime path is forbidden: {relative}")
             lower_name = relative.name.lower()
-            if lower_name == ".env" or (lower_name.endswith(".env") and not lower_name.endswith(".env.example")):
+            environment_file = (
+                lower_name == ".env"
+                or lower_name.startswith(".env.")
+                or lower_name.endswith(".env")
+                or ".env." in lower_name
+            ) and not lower_name.endswith(".env.example")
+            if environment_file:
                 errors.append(f"environment file is forbidden: {relative}")
             if lower_name.endswith(FORBIDDEN_SUFFIXES):
                 errors.append(f"secret/runtime file suffix is forbidden: {relative}")
             if "team-shoot" in str(relative).lower() or "/raw/" in f"/{str(relative).lower()}/":
                 errors.append(f"raw photo path is forbidden: {relative}")
-            if info.file_size <= 4 * 1024 * 1024:
-                data = archive.read(info)
-                for label, pattern in SECRET_PATTERNS.items():
-                    if pattern.search(data):
-                        errors.append(f"{label} detected in {relative}")
+            for label in scan_entry_for_secrets(archive, info):
+                errors.append(f"{label} detected in {relative}")
         if len(roots) != 1:
             errors.append(f"archive must have exactly one payload root, got {sorted(roots)}")
         missing = sorted(REQUIRED_PATHS - set(relative_infos))

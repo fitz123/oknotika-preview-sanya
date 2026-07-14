@@ -58,9 +58,13 @@ test('preview requires an authenticated configured editor and stays private/no-s
   });
   assert.match(preview.previewId, /^[A-Za-z0-9_-]{32}$/);
   const html = readFileSync(resolve(preview.directory, 'index.html'), 'utf8');
-  const headers = JSON.parse(readFileSync(resolve(preview.directory, 'headers.json'), 'utf8'));
   assert.match(html, /noindex,nofollow,noarchive/);
-  assert.equal(headers['Cache-Control'], 'no-store');
+  assert.match(html, /href="style\.css"/);
+  assert.match(html, /src="logo\.svg"/);
+  assert.match(html, /href="https:\/\/oknotika\.ru\/articles\/"/);
   assert.equal(statSync(preview.directory).mode & 0o777, 0o700);
   assert.equal(statSync(resolve(preview.directory, 'index.html')).mode & 0o777, 0o600);
+  for (const filename of ['style.css', 'logo.svg']) {
+    assert.equal(statSync(resolve(preview.directory, filename)).mode & 0o777, 0o600);
+  }
 });

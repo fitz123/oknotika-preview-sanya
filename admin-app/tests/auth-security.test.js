@@ -139,6 +139,55 @@ test('authorization code flow binds exact redirect, state, nonce and S256 verifi
   );
 });
 
+test('OIDC transactions reject expiry, wrong browser binding, duplicate parameters and redirect mismatch before exchange', async (t) => {
+  let current = new Date(NOW);
+  let tokenRequests = 0;
+  const harness = createHarness(t, { clock: () => current });
+  const oidc = createOidcService(harness.db, {
+    clientId: '123456789',
+    clientSecret: 'secret',
+    redirectUri: 'https://admin.oknotika.ru/auth/callback',
+    discovery: fixture.metadata,
+    clock: () => current,
+    stateTtlMs: 1_000,
+    fetchImpl: async () => {
+      tokenRequests += 1;
+      throw new Error('token exchange must not run');
+    },
+  });
+
+  const expired = oidc.beginAuthorization();
+  const expiredState = new URL(expired.authorizationUrl).searchParams.get('state');
+  current = new Date(NOW.valueOf() + 1_001);
+  await assert.rejects(oidc.finishAuthorization({
+    callbackUrl: `https://admin.oknotika.ru/auth/callback?code=code&state=${expiredState}`,
+    browserBinding: expired.browserBinding,
+  }), /invalid, expired/);
+
+  current = new Date(NOW);
+  const wrongBrowser = oidc.beginAuthorization();
+  const wrongBrowserState = new URL(wrongBrowser.authorizationUrl).searchParams.get('state');
+  await assert.rejects(oidc.finishAuthorization({
+    callbackUrl: `https://admin.oknotika.ru/auth/callback?code=code&state=${wrongBrowserState}`,
+    browserBinding: 'another-browser-binding-value',
+  }), /another browser/);
+
+  for (const query of [
+    'code=one&code=two&state=state',
+    'code=one&state=state&state=again',
+  ]) {
+    await assert.rejects(oidc.finishAuthorization({
+      callbackUrl: `https://admin.oknotika.ru/auth/callback?${query}`,
+      browserBinding: wrongBrowser.browserBinding,
+    }), /repeats/);
+  }
+  await assert.rejects(oidc.finishAuthorization({
+    callbackUrl: `https://evil.example/auth/callback?code=code&state=${wrongBrowserState}`,
+    browserBinding: wrongBrowser.browserBinding,
+  }), /exact redirect URI/);
+  assert.equal(tokenRequests, 0);
+});
+
 test('non-allowlisted issuer/subject is denied after valid signature and claims', async (t) => {
   const harness = createHarness(t, { clock: () => NOW });
   const key = signingKey('known');
@@ -160,6 +209,16 @@ test('non-allowlisted issuer/subject is denied after valid signature and claims'
     callbackUrl: `https://admin.oknotika.ru/auth/callback?code=code&state=${url.searchParams.get('state')}`,
     browserBinding: started.browserBinding,
   }), /not enrolled/);
+
+  const bootstrap = oidc.beginAuthorization();
+  const bootstrapUrl = new URL(bootstrap.authorizationUrl);
+  token = signedJwt(key, claims({ nonce: bootstrapUrl.searchParams.get('nonce'), sub: '9988776655' }));
+  const verified = await oidc.finishIdentityVerification({
+    callbackUrl: `https://admin.oknotika.ru/auth/callback?code=bootstrap&state=${bootstrapUrl.searchParams.get('state')}`,
+    browserBinding: bootstrap.browserBinding,
+  });
+  assert.equal(verified.iss, fixture.metadata.issuer);
+  assert.equal(verified.sub, '9988776655');
 });
 
 test('JWT verification rejects wrong alg/claims/signature and validates azp only when present/applicable', async () => {

@@ -1,7 +1,10 @@
 import { randomBytes } from 'node:crypto';
-import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { renderDetailDocument } from './renderer.js';
+
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 
 export function createPrivatePreview({ db, revisionId, authenticatedEditorId, previewsRoot, publicOrigin }) {
   const editor = db.prepare('SELECT id FROM configured_editors WHERE id = ? AND enabled = 1')
@@ -22,15 +25,23 @@ export function createPrivatePreview({ db, revisionId, authenticatedEditorId, pr
   const coverName = `cover${extension}`;
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   copyFileSync(revision.private_path, resolve(directory, coverName));
-  const html = renderDetailDocument(revision, new URL(publicOrigin).origin, {
+  copyFileSync(resolve(REPO_ROOT, 'style.css'), resolve(directory, 'style.css'));
+  copyFileSync(resolve(REPO_ROOT, 'img/logo-oknotika.svg'), resolve(directory, 'logo.svg'));
+  for (const filename of [coverName, 'style.css', 'logo.svg']) chmodSync(resolve(directory, filename), 0o600);
+  const origin = new URL(publicOrigin).origin;
+  const html = renderDetailDocument(revision, origin, {
     robots: 'noindex,nofollow,noarchive',
     coverPath: coverName,
+    stylePath: 'style.css',
+    logoPath: 'logo.svg',
+    homePath: `${origin}/#top`,
+    sitePath: `${origin}/`,
+    aluminumPath: `${origin}/aluminum/`,
+    articleIndexPath: `${origin}/articles/`,
+    contactsPath: `${origin}/#contacts`,
+    scriptTag: '',
   });
   writePrivate(resolve(directory, 'index.html'), html);
-  writePrivate(resolve(directory, 'headers.json'), `${JSON.stringify({
-    'Cache-Control': 'no-store',
-    'X-Robots-Tag': 'noindex, nofollow, noarchive',
-  }, null, 2)}\n`);
   return { previewId, directory };
 }
 

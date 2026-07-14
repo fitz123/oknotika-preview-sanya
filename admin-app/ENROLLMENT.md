@@ -1,14 +1,19 @@
 # Первичное подключение редактора
 
-Вход разрешается только по точной паре OIDC `issuer` + `sub`. Username, номер телефона, Telegram display name и числовое поле `id` из profile scope не используются как идентификатор доступа.
+Доверенная identity — только точная пара проверенных OIDC claims `issuer` + `sub`. Username, телефон и display name не используются как идентификатор доступа; декодированный без проверки JWT payload также не даёт доступ.
 
-1. Женя создаёт отдельный Telegram Web Login для `admin.oknotika.ru` в BotFather и регистрирует ровно production origin и `https://admin.oknotika.ru/auth/callback`.
-2. В обслуживаемом окне на VPS он получает `sub` Сани из серверно проверенного ID token: подпись по official JWKS, `RS256`, issuer, audience, expiry, issue time и nonce должны пройти те же проверки, что production callback. Значение нельзя брать из непроверенного JWT payload, сообщения, username или телефона.
-3. Саня подтверждает вход, а Женя сверяет полученный `sub` с Саней по отдельному каналу. В release-evidence сохраняют только timestamp, подтверждающих лиц и SHA-256 fingerprint пары; сам ID token и секреты не сохраняют.
-4. На остановленном сервисе Женя выполняет локально, не пересылая команду или вывод в Telegram:
+## Поддерживаемый bootstrap
 
-   `npm run enroll -- --database /var/lib/oknotika-admin/db/admin.sqlite --issuer https://oauth.telegram.org --subject "$VERIFIED_TELEGRAM_SUBJECT"`
+1. Создать отдельное Telegram Web Login приложение, зарегистрировать exact callback `https://admin.oknotika.ru/auth/callback`, закрепить RS256 и загрузить client ID/secret как systemd encrypted credentials.
+2. Подготовить production environment file и runtime-каталоги. Admin vhost пока не включать, обычный сервис остановить. DNS/TLS callback должны быть готовы; страница callback может вернуть ошибку, потому что URL нужен локальной bootstrap-команде.
+3. Запустить `npm run bootstrap-editor` через transient systemd unit с теми же environment и encrypted credentials, как показано в `deploy/README_ZHENYA.md`. Команда создаёт server-side `state`, `nonce`, browser binding и PKCE S256 verifier, выдаёт одноразовый authorization URL, принимает полный callback URL через интерактивный prompt, обменивает code и проверяет discovery, подпись, `iss`, `aud`, `exp`, `iat`, `nonce`, exact redirect и signing algorithm.
+4. После успешной проверки команда показывает `sub` и SHA-256 fingerprint только в локальном root terminal. Женя сверяет identity с Саней по отдельному согласованному каналу и вводит требуемую строку `ENROLL-<fingerprint>`. Скрипт сам записывает проверенную пару в SQLite; subject не попадает в shell history.
+5. В release evidence сохраняют только timestamp, approvers и fingerprint. Callback URL, authorization code, ID token, client secret и subject не сохраняют и не пересылают.
 
-5. Команда откажется заменить другого редактора. Смена identity на другой `sub` намеренно не автоматизирована в MVP: сначала отключают текущего редактора (это немедленно отзывает все его сессии), затем проводят отдельное reviewed maintenance-изменение с backup/restore gate. Повторный enrollment разрешён только для той же пары.
+Bootstrap откажется работать, если configured editor уже существует. Обычный `/auth/callback` также не может обойти allowlist: он создаёт сессию только для заранее enrolled пары.
 
-До этой процедуры production admin vhost оставляют выключенным. В базе поддерживается ровно один configured editor; editor CRUD и RBAC отсутствуют намеренно.
+## Повторное обслуживание
+
+Команда `npm run enroll -- --database /var/lib/oknotika-admin/db/admin.sqlite --issuer https://oauth.telegram.org --subject "$VERIFIED_TELEGRAM_SUBJECT"` разрешена только для повторного включения той же уже проверенной пары в локальном maintenance-сеансе. Она не является способом извлечения или проверки `sub`.
+
+Смена identity намеренно не автоматизирована: сначала остановить admin, сделать verified backup, выполнить `npm run disable-editor -- --database /var/lib/oknotika-admin/db/admin.sqlite`, проверить немедленный отзыв сессий, затем провести отдельное reviewed bootstrap-изменение. До завершения процедуры admin vhost остаётся выключенным; editor CRUD и RBAC отсутствуют намеренно.

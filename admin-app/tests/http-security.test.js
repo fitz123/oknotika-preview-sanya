@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
+import { resolve } from 'node:path';
 import test from 'node:test';
 import { createSessionService, sessionCookie } from '../src/auth/sessions.js';
 import { createAdminActions } from '../src/http/admin-actions.js';
 import { createAdminHandler } from '../src/http/handler.js';
 import { assertMutationRequest, assertTrustedProxyHeaders } from '../src/http/security.js';
+import { createPublisher } from '../src/render/publisher.js';
 import { articleInput, createHarness } from './helpers.js';
 
 const ADMIN_ORIGIN = 'https://admin.oknotika.ru';
@@ -68,10 +70,11 @@ test('optimistic revision checks reject stale forms and actions emit audit event
     ),
     /Revision conflict/,
   );
-  const publisher = {
-    publish: async () => ({ releaseId: 'release-published' }),
-    rollback: async (releaseId) => ({ releaseId }),
-  };
+  const publisher = createPublisher(harness.db, {
+    releasesRoot: resolve(harness.root, 'article-releases'),
+    publicOrigin: 'https://oknotika.ru',
+    clock: () => new Date('2026-07-14T12:00:00.000Z'),
+  });
   const actions = createAdminActions({
     db: harness.db,
     contentService: harness.service,
@@ -84,12 +87,12 @@ test('optimistic revision checks reject stale forms and actions emit audit event
     actions.publish(created.articleId, revised.revisionId, harness.editorId, 'yes'),
     /Explicit PUBLISH/,
   );
-  assert.equal((await actions.publish(
+  assert.match((await actions.publish(
     created.articleId, revised.revisionId, harness.editorId, 'PUBLISH',
-  )).releaseId, 'release-published');
+  )).releaseId, /^20260714120000-/);
   assert.equal(harness.service.getArticle(created.articleId).state, 'published');
   assert.equal(
-    harness.db.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE event_type = 'article.marked_published'").get().count,
+    harness.db.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE event_type = 'article.published'").get().count,
     1,
   );
   await assert.rejects(
@@ -142,6 +145,134 @@ test('admin handler keeps XSS escaped and rejects raw HTML through authenticated
   }));
   assert.equal(response.status, 400);
   assert.match((await response.json()).error, /raw HTML/);
+});
+
+test('admin handler wires login, editor lifecycle, preview assets, upload, rollback and logout routes', async (t) => {
+  let tick = 0;
+  const harness = createHarness(t, {
+    clock: () => new Date(Date.parse('2026-07-14T00:00:00.000Z') + tick++ * 1000),
+  });
+  const sessions = createSessionService(harness.db);
+  const publisher = createPublisher(harness.db, {
+    releasesRoot: resolve(harness.root, 'handler-releases'),
+    publicOrigin: 'https://oknotika.ru',
+    clock: () => new Date(Date.parse('2026-07-15T00:00:00.000Z') + tick++ * 1000),
+  });
+  const previewsRoot = resolve(harness.root, 'handler-previews');
+  const actions = createAdminActions({
+    db: harness.db,
+    contentService: harness.service,
+    publisher,
+    uploadStore: {
+      store: async () => ({
+        uploadId: 7, assetId: harness.coverAssetId, mediaType: 'image/png', width: 1, height: 1,
+      }),
+    },
+    previewsRoot,
+    publicOrigin: 'https://oknotika.ru',
+  });
+  let callbackSeen = false;
+  const handler = createAdminHandler({
+    adminOrigin: ADMIN_ORIGIN,
+    oidcService: {
+      beginAuthorization: () => ({
+        authorizationUrl: 'https://oauth.telegram.org/auth?state=test',
+        browserBinding: 'b'.repeat(43),
+      }),
+      finishAuthorization: async () => {
+        callbackSeen = true;
+        return { editorId: harness.editorId };
+      },
+    },
+    sessionService: sessions,
+    actions,
+    previewsRoot,
+  });
+
+  const start = await handler(new Request(`${ADMIN_ORIGIN}/auth/start`, {
+    headers: { 'sec-fetch-site': 'same-origin' },
+  }));
+  assert.equal(start.status, 303);
+  assert.equal(start.headers.get('location'), 'https://oauth.telegram.org/auth?state=test');
+  assert.match(start.headers.get('set-cookie'), /__Host-oknotika_oidc=/);
+  const callback = await handler(new Request(`${ADMIN_ORIGIN}/auth/callback?code=one&state=test`, {
+    headers: { cookie: `__Host-oknotika_oidc=${'b'.repeat(43)}` },
+  }));
+  assert.equal(callback.status, 303);
+  assert.equal(callbackSeen, true);
+  assert.match(callback.headers.get('set-cookie'), /__Host-oknotika_session=/);
+
+  const createdSession = sessions.create(harness.editorId);
+  const cookie = sessionCookie(createdSession.token);
+  const mutate = (path, body, { contentType = 'application/json' } = {}) => handler(new Request(`${ADMIN_ORIGIN}${path}`, {
+    method: 'POST',
+    headers: {
+      cookie,
+      origin: ADMIN_ORIGIN,
+      'sec-fetch-site': 'same-origin',
+      'sec-fetch-mode': 'cors',
+      'x-csrf-token': createdSession.csrfToken,
+      'content-type': contentType,
+    },
+    body,
+  }));
+
+  const createResponse = await mutate('/api/articles', JSON.stringify(articleInput(harness.coverAssetId)));
+  assert.equal(createResponse.status, 201);
+  const created = await createResponse.json();
+  const reviseResponse = await mutate(`/api/articles/${created.articleId}/revisions`, JSON.stringify({
+    article: articleInput(harness.coverAssetId, { title: 'Handler lifecycle revision' }),
+    expectedRevisionId: created.revisionId,
+  }));
+  assert.equal(reviseResponse.status, 201);
+  const revised = await reviseResponse.json();
+
+  const previewResponse = await mutate(`/api/revisions/${revised.revisionId}/preview`, undefined, {
+    contentType: 'text/plain',
+  });
+  assert.equal(previewResponse.status, 201);
+  const { previewUrl } = await previewResponse.json();
+  for (const filename of ['', 'cover.png', 'style.css', 'logo.svg']) {
+    const asset = await handler(new Request(`${ADMIN_ORIGIN}${previewUrl}${filename}`, { headers: { cookie } }));
+    assert.equal(asset.status, 200, filename || 'preview HTML');
+    assert.equal(asset.headers.get('cache-control'), 'no-store');
+    assert.match(asset.headers.get('x-robots-tag'), /noindex/);
+  }
+
+  const publishedResponse = await mutate(`/api/articles/${created.articleId}/publish`, JSON.stringify({
+    expectedRevisionId: revised.revisionId, confirmation: 'PUBLISH',
+  }));
+  assert.equal(publishedResponse.status, 200);
+  const published = await publishedResponse.json();
+  const withdrawnResponse = await mutate(`/api/articles/${created.articleId}/withdraw`, JSON.stringify({
+    expectedRevisionId: revised.revisionId, confirmation: 'WITHDRAW',
+  }));
+  assert.equal(withdrawnResponse.status, 200);
+  const withdrawn = await withdrawnResponse.json();
+  assert.notEqual(withdrawn.releaseId, published.releaseId);
+
+  const restoreResponse = await mutate(`/api/articles/${created.articleId}/restore`, JSON.stringify({
+    sourceRevisionId: created.revisionId,
+    expectedRevisionId: revised.revisionId,
+    confirmation: 'RESTORE',
+  }));
+  assert.equal(restoreResponse.status, 201);
+  assert.ok((await restoreResponse.json()).revisionId);
+  const rollbackResponse = await mutate('/api/releases/rollback', JSON.stringify({
+    releaseId: published.releaseId, confirmation: 'ROLLBACK',
+  }));
+  assert.equal(rollbackResponse.status, 200);
+  assert.equal((await rollbackResponse.json()).releaseId, published.releaseId);
+
+  const uploadResponse = await mutate('/api/uploads', Buffer.from([0x89, 0x50]), { contentType: 'image/png' });
+  assert.equal(uploadResponse.status, 201);
+  assert.equal((await uploadResponse.json()).assetId, harness.coverAssetId);
+  assert.equal((await handler(new Request(`${ADMIN_ORIGIN}/api/articles`, { headers: { cookie } }))).status, 200);
+  assert.equal((await handler(new Request(`${ADMIN_ORIGIN}/admin.js`, { headers: { cookie } }))).status, 200);
+
+  const logout = await mutate('/logout', undefined, { contentType: 'text/plain' });
+  assert.equal(logout.status, 303);
+  assert.match(logout.headers.get('set-cookie'), /Max-Age=0/);
 });
 
 function mutationRequest({

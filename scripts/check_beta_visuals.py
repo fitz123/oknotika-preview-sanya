@@ -75,7 +75,6 @@ const baselineOrigin = process.argv[4];
 const output = process.argv[5];
 const expectedVersion = process.argv[6];
 const widths = JSON.parse(process.argv[7]);
-const staticPaths = JSON.parse(process.argv[8]);
 
 async function settle(page, scrollPage = true) {
   await page.addStyleTag({ content: `
@@ -171,52 +170,6 @@ async function homepage(browser, origin, width, filename, teamFilename = null, r
   }
   await context.close();
   return { width, metrics, errors };
-}
-
-async function staticPage(browser, origin, pathname, width) {
-  const context = await browser.newContext({
-    viewport: { width, height: 900 }, colorScheme: 'dark', reducedMotion: 'reduce', locale: 'ru-RU',
-  });
-  await context.route('**/*', route => route.request().resourceType() === 'media' ? route.abort() : route.continue());
-  await context.addInitScript(() => localStorage.setItem('oknotika_cookie_ok', '1'));
-  const page = await context.newPage();
-  const errors = [];
-  page.on('pageerror', error => errors.push(`pageerror: ${error.message}`));
-  page.on('console', message => {
-    if (message.type() === 'error') errors.push(`console: ${message.text()}`);
-  });
-  page.on('response', response => {
-    if (response.url().startsWith(origin) && response.status() >= 400) {
-      errors.push(`http ${response.status()}: ${response.url().slice(origin.length)}`);
-    }
-  });
-  const response = await page.goto(`${origin}${pathname}`, { waitUntil: 'domcontentloaded', timeout: 20000 });
-  if (!response?.ok()) errors.push(`navigation: ${response?.status() ?? 'missing response'}`);
-  await page.addStyleTag({ content: `
-    *, *::before, *::after { animation: none !important; transition: none !important; }
-    .reveal { opacity: 1 !important; transform: none !important; }
-  ` });
-  await page.evaluate(async () => {
-    if (document.fonts?.ready) {
-      await Promise.race([document.fonts.ready, new Promise(resolve => setTimeout(resolve, 1000))]);
-    }
-  });
-  const metrics = await page.evaluate(() => ({
-    title: document.title,
-    clientWidth: document.documentElement.clientWidth,
-    scrollWidth: document.documentElement.scrollWidth,
-    images: document.images.length,
-    brokenImages: Array.from(document.images).filter(image => image.complete && image.naturalWidth === 0).length,
-    canonical: document.querySelector('link[rel="canonical"]')?.href ?? null,
-    ogTitle: document.querySelector('meta[property="og:title"]')?.content ?? null,
-    ogDescription: document.querySelector('meta[property="og:description"]')?.content ?? null,
-    ogImage: document.querySelector('meta[property="og:image"]')?.content ?? null,
-  }));
-  if (!metrics.title) errors.push('document title is empty');
-  if (metrics.scrollWidth > metrics.clientWidth + 1) errors.push('horizontal overflow');
-  if (metrics.brokenImages) errors.push(`${metrics.brokenImages} broken images`);
-  await context.close();
-  return { pathname, width, metrics, errors };
 }
 
 (async () => {
@@ -538,7 +491,7 @@ def main() -> int:
                 result = subprocess.run(
                     [
                         "node", str(script_path), str(package), final_server.origin, baseline_server.origin,
-                        str(output), PINNED_CHROMIUM, json.dumps(WIDTHS), json.dumps(STATIC_PATHS),
+                        str(output), PINNED_CHROMIUM, json.dumps(WIDTHS),
                     ],
                     check=True,
                     stdout=subprocess.PIPE,

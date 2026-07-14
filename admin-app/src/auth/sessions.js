@@ -64,14 +64,6 @@ export function createSessionService(db, {
     return revokeTokenHash(hash(token), reason);
   }
 
-  function revokeEditor(editorId, reason = 'editor-disabled') {
-    const result = db.prepare(`
-      UPDATE admin_sessions SET revoked_at = ?, revocation_reason = ?
-      WHERE editor_id = ? AND revoked_at IS NULL
-    `).run(clock().toISOString(), reason, editorId);
-    return Number(result.changes);
-  }
-
   function revokeTokenHash(tokenHash, reason) {
     const result = db.prepare(`
       UPDATE admin_sessions SET revoked_at = ?, revocation_reason = ?
@@ -80,7 +72,7 @@ export function createSessionService(db, {
     return result.changes === 1;
   }
 
-  return { create, authenticate, verifyCsrf, revoke, revokeEditor };
+  return { create, authenticate, verifyCsrf, revoke };
 }
 
 export function sessionCookie(token, { maxAgeSeconds = 8 * 60 * 60 } = {}) {

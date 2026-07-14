@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { Worker } from 'node:worker_threads';
+import { transaction } from '../content/database.js';
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const MAX_PIXELS = 40_000_000;
@@ -44,28 +45,30 @@ export function createUploadStore({
     try {
       const processed = await processInWorker(bytes, detected.format, { timeoutMs });
       writeFileSync(derivativePath, processed.data, { mode: 0o600, flag: 'wx' });
-      const assetId = contentService.registerAsset({
-        privatePath: derivativePath,
-        mediaType: processed.mediaType,
-        width: processed.width,
-        height: processed.height,
+      return transaction(db, () => {
+        const assetId = contentService.registerAsset({
+          privatePath: derivativePath,
+          mediaType: processed.mediaType,
+          width: processed.width,
+          height: processed.height,
+        });
+        const result = db.prepare(`
+          INSERT INTO private_uploads
+            (original_path, sanitized_asset_id, original_media_type, source_bytes,
+             width, height, created_by, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          originalPath, assetId, detected.mediaType, bytes.length,
+          processed.width, processed.height, editorId, clock().toISOString(),
+        );
+        return {
+          uploadId: Number(result.lastInsertRowid),
+          assetId,
+          mediaType: processed.mediaType,
+          width: processed.width,
+          height: processed.height,
+        };
       });
-      const result = db.prepare(`
-        INSERT INTO private_uploads
-          (original_path, sanitized_asset_id, original_media_type, source_bytes,
-           width, height, created_by, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        originalPath, assetId, detected.mediaType, bytes.length,
-        processed.width, processed.height, editorId, clock().toISOString(),
-      );
-      return {
-        uploadId: Number(result.lastInsertRowid),
-        assetId,
-        mediaType: processed.mediaType,
-        width: processed.width,
-        height: processed.height,
-      };
     } catch (error) {
       rmSync(originalPath, { force: true });
       rmSync(derivativePath, { force: true });

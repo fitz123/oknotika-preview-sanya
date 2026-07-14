@@ -47,9 +47,17 @@ def main() -> None:
             fail("latest category is not fixed")
         if not latest.get("url", "").startswith("https://oknotika.ru/articles/"):
             fail("latest URL is not canonical")
-    gone = json.loads((root / "410-map.json").read_text(encoding="utf-8"))
-    if not isinstance(gone.get("paths"), list):
-        fail("410 map is invalid")
+    withdrawn = {
+        path.relative_to(root / "withdrawn").as_posix()
+        for path in (root / "withdrawn").glob("*")
+        if path.is_file()
+    } if (root / "withdrawn").is_dir() else set()
+    manifest_withdrawn = {
+        article["slug"] for article in manifest.get("articles", [])
+        if article.get("state") == "withdrawn"
+    }
+    if withdrawn != manifest_withdrawn:
+        fail("withdrawn status markers do not match the manifest")
     print(f"generated articles check passed: {manifest['releaseId']} ({len(actual)} files)")
 
 

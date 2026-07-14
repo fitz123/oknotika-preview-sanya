@@ -63,6 +63,16 @@ export function createOidcService(db, {
   }
 
   async function finishAuthorization({ callbackUrl, browserBinding }) {
+    const claims = await finishIdentityVerification({ callbackUrl, browserBinding });
+    const editor = db.prepare(`
+      SELECT id, issuer, subject FROM configured_editors
+      WHERE issuer = ? AND subject = ? AND enabled = 1
+    `).get(claims.iss, claims.sub);
+    if (!editor) throw new Error('Telegram identity is not enrolled for this admin');
+    return { editorId: Number(editor.id), claims };
+  }
+
+  async function finishIdentityVerification({ callbackUrl, browserBinding }) {
     const callback = new URL(callbackUrl);
     const expected = new URL(redirectUri);
     if (callback.origin !== expected.origin || callback.pathname !== expected.pathname || callback.hash) {
@@ -76,13 +86,7 @@ export function createOidcService(db, {
     const code = callback.searchParams.get('code');
     if (!code) throw new Error('OIDC callback is incomplete');
     const tokens = await exchangeCode(code, login.pkce_verifier);
-    const claims = await verifier.verifyIdToken(tokens.id_token, { nonce: login.nonce });
-    const editor = db.prepare(`
-      SELECT id, issuer, subject FROM configured_editors
-      WHERE issuer = ? AND subject = ? AND enabled = 1
-    `).get(claims.iss, claims.sub);
-    if (!editor) throw new Error('Telegram identity is not enrolled for this admin');
-    return { editorId: Number(editor.id), claims };
+    return verifier.verifyIdToken(tokens.id_token, { nonce: login.nonce });
   }
 
   function consumeLoginTransaction(state, browserBinding) {
@@ -134,7 +138,7 @@ export function createOidcService(db, {
     return tokens;
   }
 
-  return { beginAuthorization, finishAuthorization, verifyIdToken: verifier.verifyIdToken };
+  return { beginAuthorization, finishAuthorization, finishIdentityVerification };
 }
 
 function rejectDuplicateParameters(parameters, names) {

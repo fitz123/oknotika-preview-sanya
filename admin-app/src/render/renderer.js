@@ -20,28 +20,50 @@ const CACHE_IMMUTABLE = 'public, max-age=31536000, immutable';
 export function loadPublicSnapshot(db) {
   return db.prepare(`
     SELECT
-      a.id AS article_id, a.slug, a.state, r.id AS revision_id, r.title,
+      a.id AS article_id, a.slug, a.public_state AS state, r.id AS revision_id, r.title,
       r.publication_at, r.lead, r.body_markdown, r.legacy_eyebrow,
       r.legacy_meta_description, r.legacy_listing_excerpt, r.cover_alt, r.source_url,
       s.id AS asset_id, s.private_path, s.sha256 AS asset_sha256, s.media_type
     FROM articles a
-    JOIN article_revisions r ON r.id = a.current_revision_id
+    JOIN article_revisions r ON r.id = a.published_revision_id
     JOIN assets s ON s.id = r.cover_asset_id
-    WHERE a.state IN ('published', 'withdrawn')
+    WHERE a.public_state IN ('published', 'withdrawn')
     ORDER BY r.publication_at DESC, a.id DESC
   `).all();
 }
 
+export function loadRevisionSnapshot(db, articleId, revisionId, state) {
+  if (!['published', 'withdrawn'].includes(state)) throw new TypeError('A public state is required');
+  const row = db.prepare(`
+    SELECT
+      a.id AS article_id, a.slug, ? AS state, r.id AS revision_id, r.title,
+      r.publication_at, r.lead, r.body_markdown, r.legacy_eyebrow,
+      r.legacy_meta_description, r.legacy_listing_excerpt, r.cover_alt, r.source_url,
+      s.id AS asset_id, s.private_path, s.sha256 AS asset_sha256, s.media_type
+    FROM articles a
+    JOIN article_revisions r ON r.article_id = a.id AND r.id = ?
+    JOIN assets s ON s.id = r.cover_asset_id
+    WHERE a.id = ?
+  `).get(state, revisionId, articleId);
+  if (!row) throw new Error('Revision not found for article');
+  return row;
+}
+
 export function renderRelease({
   db,
+  snapshot = null,
   outputDirectory,
   publicOrigin,
   releaseId,
   generatedAt = new Date().toISOString(),
+  transition = null,
 }) {
   const origin = normalizeOrigin(publicOrigin);
   if (!releaseId || !/^[a-zA-Z0-9._-]+$/.test(releaseId)) throw new TypeError('A safe releaseId is required');
-  const articles = loadPublicSnapshot(db);
+  const articles = (snapshot ?? loadPublicSnapshot(db))
+    .map((article) => ({ ...article }))
+    .sort((left, right) => right.publication_at.localeCompare(left.publication_at)
+      || Number(right.article_id) - Number(left.article_id));
   const publicArticles = articles.filter((article) => article.state === 'published');
   const withdrawn = articles.filter((article) => article.state === 'withdrawn');
   const articleRoot = resolve(outputDirectory, 'articles');
@@ -79,21 +101,15 @@ export function renderRelease({
     writeText(resolve(articleRoot, article.slug, 'index.html'), interpolate(readTemplate('gone.html'), {
       canonical: escapeHtml(`${origin}/articles/${article.slug}/`),
     }));
+    writeText(resolve(outputDirectory, 'withdrawn', article.slug), '410');
   }
 
   const latest = publicArticles[0] ? latestPayload(publicArticles[0], origin) : null;
   writeJson(resolve(articleRoot, 'latest.json'), latest);
-  writeJson(resolve(outputDirectory, '410-map.json'), {
-    paths: withdrawn.map((article) => `/articles/${article.slug}/`),
-  });
-  writeJson(resolve(outputDirectory, 'cache-policy.json'), {
-    htmlAndJson: CACHE_REVALIDATE,
-    hashedAssets: CACHE_IMMUTABLE,
-  });
-
   const manifest = buildManifest(outputDirectory, {
     releaseId,
     generatedAt,
+    transition,
     articles: articles.map((article) => ({
       articleId: article.article_id,
       revisionId: article.revision_id,
@@ -109,6 +125,14 @@ export function renderRelease({
 export function renderDetailDocument(article, origin, {
   robots = 'index,follow',
   coverPath,
+  stylePath = '../../style.css',
+  logoPath = '../../img/logo-oknotika.svg',
+  homePath = '../../#top',
+  sitePath = '../../',
+  aluminumPath = '../../aluminum/',
+  articleIndexPath = '../',
+  contactsPath = '../../#contacts',
+  scriptTag = '<script src="../../script.js"></script>',
 } = {}) {
   const canonical = `${origin}/articles/${article.slug}/`;
   const publicCoverPath = coverPath ?? `../assets/${article.cover_filename}`;
@@ -125,6 +149,14 @@ export function renderDetailDocument(article, origin, {
     ogImage: escapeAttribute(absoluteCover),
     publicationAt: escapeAttribute(article.publication_at),
     coverPath: escapeAttribute(publicCoverPath),
+    stylePath: escapeAttribute(stylePath),
+    logoPath: escapeAttribute(logoPath),
+    homePath: escapeAttribute(homePath),
+    sitePath: escapeAttribute(sitePath),
+    aluminumPath: escapeAttribute(aluminumPath),
+    articleIndexPath: escapeAttribute(articleIndexPath),
+    contactsPath: escapeAttribute(contactsPath),
+    scriptTag,
     displayDate: escapeHtml(article.legacy_eyebrow?.replace(/^Факт недели · /, '') ?? formatMoscowDate(article.publication_at)),
     lead: escapeHtml(article.lead),
     body,
@@ -189,7 +221,7 @@ function buildManifest(outputDirectory, base) {
     };
   }
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     ...base,
     files,
   };
