@@ -11,7 +11,8 @@ import {
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderMarkdown } from '../content/markdown.js';
-import { formatMoscowDate } from '../content/validation.js';
+import { MAX_SLUG_LENGTH } from '../content/slug.js';
+import { ARTICLE_TEXT_LIMITS, formatMoscowDate } from '../content/validation.js';
 
 const TEMPLATE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../templates/public');
 const CACHE_REVALIDATE = 'public, max-age=0, must-revalidate';
@@ -182,10 +183,29 @@ export function validateRelease(outputDirectory) {
     if (metadata.cacheControl !== expectedCache) throw new Error(`Invalid cache policy: ${path}`);
   }
   const latest = JSON.parse(readFileSync(resolve(outputDirectory, 'articles/latest.json'), 'utf8'));
-  if (latest !== null && (!latest.url?.startsWith('https://') || latest.category !== 'Факт недели')) {
+  if (latest !== null && !isValidLatestPayload(latest)) {
     throw new Error('latest.json contract is invalid');
   }
+  for (const article of manifest.articles) {
+    if (typeof article.slug !== 'string'
+      || article.slug.length > MAX_SLUG_LENGTH
+      || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(article.slug)) {
+      throw new Error('Release manifest contains an invalid article slug');
+    }
+  }
   return manifest;
+}
+
+function isValidLatestPayload(latest) {
+  return latest.category === 'Факт недели'
+    && typeof latest.title === 'string'
+    && latest.title.length > 0
+    && latest.title.length <= ARTICLE_TEXT_LIMITS.title
+    && typeof latest.lead === 'string'
+    && latest.lead.length > 0
+    && latest.lead.length <= ARTICLE_TEXT_LIMITS.lead
+    && typeof latest.url === 'string'
+    && latest.url.startsWith('https://');
 }
 
 function renderCard(article) {

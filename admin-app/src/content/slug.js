@@ -4,6 +4,7 @@ const CYRILLIC = new Map(Object.entries({
   у: 'u', ф: 'f', х: 'h', ц: 'ts', ч: 'ch', ш: 'sh', щ: 'sch', ъ: '', ы: 'y',
   ь: '', э: 'e', ю: 'yu', я: 'ya',
 }));
+export const MAX_SLUG_LENGTH = 200;
 
 export function slugify(title) {
   const transliterated = [...title.toLocaleLowerCase('ru-RU')]
@@ -15,7 +16,7 @@ export function slugify(title) {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .replace(/-{2,}/g, '-');
-  return slug || 'fakt-nedeli';
+  return truncateSlug(slug || 'fakt-nedeli', MAX_SLUG_LENGTH);
 }
 
 export function allocateSlug(db, title) {
@@ -24,8 +25,15 @@ export function allocateSlug(db, title) {
   let suffix = 2;
   const exists = db.prepare('SELECT 1 FROM articles WHERE slug = ?');
   while (exists.get(candidate)) {
-    candidate = `${base}-${suffix}`;
+    const ending = `-${suffix}`;
+    const stem = truncateSlug(base, MAX_SLUG_LENGTH - ending.length);
+    candidate = `${stem}${ending}`;
     suffix += 1;
   }
   return candidate;
+}
+
+function truncateSlug(slug, maximum) {
+  if (maximum < 1) throw new Error('Slug collision suffix exhausted the filesystem-safe length');
+  return slug.slice(0, maximum).replace(/-+$/g, '') || 'fakt-nedeli'.slice(0, maximum);
 }

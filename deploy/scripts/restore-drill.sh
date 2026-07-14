@@ -19,7 +19,10 @@ done
 [[ -n "$target" ]] || { echo "--target is required" >&2; exit 2; }
 target="$(realpath -m "$target")"
 case "$target" in
-  /|/var|/var/lib|/var/lib/oknotika-admin|/srv|/srv/oknotika|/opt|/opt/oknotika-admin)
+  /|/var|/var/lib|/srv|/opt|\
+  /var/lib/oknotika-admin|/var/lib/oknotika-admin/*|\
+  /srv/oknotika|/srv/oknotika/*|\
+  /opt/oknotika-admin|/opt/oknotika-admin/*)
     echo "refusing to restore into a production path" >&2
     exit 1
     ;;

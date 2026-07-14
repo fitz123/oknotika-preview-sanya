@@ -18,6 +18,14 @@ test('required fields, raw HTML and unsafe source URLs fail closed', (t) => {
   for (const sourceUrl of ['http://example.com', 'javascript:alert(1)', 'https://user:pass@example.com/']) {
     assert.throws(() => service.createArticle(articleInput(coverAssetId, { sourceUrl }), editorId));
   }
+  assert.throws(
+    () => service.createArticle(articleInput(coverAssetId, { title: 'x'.repeat(241) }), editorId),
+    /title must not exceed 240 characters/,
+  );
+  assert.throws(
+    () => service.createArticle(articleInput(coverAssetId, { lead: 'x'.repeat(1201) }), editorId),
+    /lead must not exceed 1200 characters/,
+  );
 });
 
 test('source URL validation stores data without fetching it', (t) => {

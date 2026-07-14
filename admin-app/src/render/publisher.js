@@ -130,7 +130,16 @@ export function createPublisher(db, {
       }
       target = resolve(releasesRoot, activeTarget);
     } catch (error) {
-      if (error.code === 'ENOENT') return null;
+      if (error.code === 'ENOENT') {
+        const publicState = db.prepare(`
+          SELECT active_release_id,
+            (SELECT COUNT(*) FROM articles
+             WHERE published_revision_id IS NOT NULL OR public_state IS NOT NULL) AS public_article_count
+          FROM site_state WHERE singleton = 1
+        `).get();
+        if (!publicState?.active_release_id && Number(publicState?.public_article_count ?? 0) === 0) return null;
+        throw new Error('Active release symlink is missing while SQLite still records public state', { cause: error });
+      }
       throw error;
     }
     const manifest = validateRelease(target);

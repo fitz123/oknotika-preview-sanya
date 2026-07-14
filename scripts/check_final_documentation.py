@@ -46,6 +46,10 @@ def validate_readme_text(text: str) -> list[str]:
     return errors
 
 
+def validate_public_html_text(text: str, path: str = "index.html") -> list[str]:
+    return [f"{path} retains stale marker {marker}" for marker in STALE_MARKERS if marker in text]
+
+
 def parse_checksums(path: Path) -> dict[str, str]:
     checksums: dict[str, str] = {}
     for line in path.read_text(encoding="utf-8").splitlines():
@@ -60,6 +64,9 @@ def validate(root: Path) -> list[str]:
     errors: list[str] = []
     readme = (root / "README.md").read_text(encoding="utf-8")
     errors.extend(validate_readme_text(readme))
+    homepage = (root / "index.html").read_text(encoding="utf-8")
+    errors.extend(validate_public_html_text(homepage))
+    require(homepage, "index.html", ("ОКНОТИКА ·",), errors)
 
     image_sources = (root / "IMAGE_SOURCES.md").read_text(encoding="utf-8")
     require(image_sources, "IMAGE_SOURCES.md", (

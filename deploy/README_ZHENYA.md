@@ -92,7 +92,7 @@ systemd-analyze verify /etc/systemd/system/oknotika-admin-backup.timer
 systemd-analyze verify /etc/systemd/system/oknotika-admin-backup.path
 ```
 
-Service имеет empty capabilities, `NoNewPrivileges`, read-only system, private devices/tmp и запись только в `/var/lib/oknotika-admin` и `/run/oknotika-admin`. До старта он создаёт runtime directories, делает verified pre-migration SQLite backup и проверяет exact runtime/origins/credential files.
+Service имеет empty capabilities, `NoNewPrivileges`, read-only system, private devices/tmp и запись только в `/var/lib/oknotika-admin` и `/run/oknotika-admin`. До старта он создаёт runtime directories, при наличии pending migration делает verified pre-migration SQLite backup и проверяет exact runtime/origins/credential files.
 
 После credentials, verified enrollment, initial article bootstrap, nginx validation и restore gate включить units в таком порядке:
 
@@ -111,7 +111,7 @@ journalctl -u oknotika-admin.service -u oknotika-admin-backup.service --since=-1
 
 Новые миграции должны быть additive/backward-compatible: новые nullable/default columns, новые таблицы и индексы; запрещены drop/rename/destructive rewrite в обычном релизе. `scripts/check_deploy_package.py` блокирует очевидные destructive SQL statements.
 
-Перед каждым запуском `pre-migrate-backup.sh` создаёт SQLite online snapshot в `db/migration-backups/`, выполняет `PRAGMA integrity_check` и пишет SHA-256. Приложение применяет pending migrations транзакционно только после этого шага.
+`pre-migrate-backup.sh` сначала сравнивает `schema_migrations` с миграциями нового release. Только при наличии pending migration он создаёт SQLite online snapshot в `db/migration-backups/`, выполняет `PRAGMA integrity_check` и пишет SHA-256. Имя детерминировано исходной/целевой схемой, migration fingerprint и release, поэтому рестарты повторно проверяют тот же snapshot, а не создают новые копии; сохраняются десять последних migration backups. Приложение применяет pending migrations транзакционно только после этого шага.
 
 Breaking migration требует отдельного двухфазного плана и rehearsal:
 

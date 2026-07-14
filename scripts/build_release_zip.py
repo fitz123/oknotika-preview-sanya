@@ -35,27 +35,66 @@ def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def source_paths(repo: Path) -> list[Path]:
+def source_entries(repo: Path, commit: str = "HEAD") -> list[tuple[Path, int]]:
     result = subprocess.run(
-        ["git", "-C", str(repo), "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+        ["git", "-C", str(repo), "ls-tree", "-rz", commit],
         check=True,
         stdout=subprocess.PIPE,
     )
-    paths = []
+    entries = []
     for item in result.stdout.split(b"\0"):
         if not item:
             continue
-        relative = Path(item.decode())
+        metadata, raw_path = item.split(b"\t", 1)
+        raw_mode, object_type, _object_id = metadata.split(b" ", 2)
+        if object_type != b"blob" or raw_mode not in {b"100644", b"100755"}:
+            continue
+        relative = Path(raw_path.decode())
         if relative.name in {".DS_Store"} or any(part in EXCLUDED_COMPONENTS for part in relative.parts):
             continue
         if relative.parts[0] == "docs" and len(relative.parts) > 1 and relative.parts[1] == "plans":
             continue
         if relative.parts[0] not in TOP_LEVEL_DIRECTORIES and str(relative) not in TOP_LEVEL_FILES:
             continue
-        path = repo / relative
-        if path.is_file() and not path.is_symlink():
-            paths.append(relative)
-    return sorted(paths, key=lambda path: path.as_posix())
+        entries.append((relative, int(raw_mode, 8)))
+    return sorted(entries, key=lambda entry: entry[0].as_posix())
+
+
+def source_paths(repo: Path, commit: str = "HEAD") -> list[Path]:
+    return [path for path, _mode in source_entries(repo, commit)]
+
+
+def git_blob(repo: Path, commit: str, path: Path) -> bytes:
+    return subprocess.run(
+        ["git", "-C", str(repo), "show", f"{commit}:{path.as_posix()}"],
+        check=True,
+        stdout=subprocess.PIPE,
+    ).stdout
+
+
+def ensure_clean_payload_worktree(repo: Path) -> None:
+    result = subprocess.run(
+        ["git", "-C", str(repo), "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+        check=True,
+        stdout=subprocess.PIPE,
+    )
+    records = result.stdout.split(b"\0")
+    dirty: list[str] = []
+    index = 0
+    while index < len(records):
+        record = records[index]
+        index += 1
+        if not record:
+            continue
+        status = record[:2].decode("ascii")
+        paths = [record[3:].decode()]
+        if "R" in status or "C" in status:
+            if index < len(records) and records[index]:
+                paths.append(records[index].decode())
+                index += 1
+        dirty.extend(path for path in paths if path != "release" and not path.startswith("release/"))
+    if dirty:
+        raise RuntimeError(f"release payload worktree must be clean: {', '.join(sorted(set(dirty)))}")
 
 
 def changed_payload_inventory(repo: Path, paths: list[Path], implementation_commit: str) -> bytes:
@@ -78,12 +117,8 @@ def changed_payload_inventory(repo: Path, paths: list[Path], implementation_comm
         if relative not in baseline_paths:
             status = "A"
         else:
-            baseline_data = subprocess.run(
-                ["git", "-C", str(repo), "show", f"{BASELINE_COMMIT}:{relative}"],
-                check=True,
-                stdout=subprocess.PIPE,
-            ).stdout
-            if baseline_data == (repo / path).read_bytes():
+            baseline_data = git_blob(repo, BASELINE_COMMIT, path)
+            if baseline_data == git_blob(repo, implementation_commit, path):
                 continue
             status = "M"
         lines.append(f"{status}\t{relative}")
@@ -105,20 +140,33 @@ def main() -> int:
     parser.add_argument("--notes", type=Path)
     args = parser.parse_args()
     repo = args.repo.resolve()
+    try:
+        ensure_clean_payload_worktree(repo)
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
     release = repo / "release"
     release.mkdir(parents=True, exist_ok=True)
     version = args.version
-    notes = args.notes or release / f"RELEASE_NOTES-{version}.md"
+    expected_notes = (release / f"RELEASE_NOTES-{version}.md").resolve()
+    notes = (args.notes or expected_notes).resolve()
+    if notes != expected_notes:
+        print(f"release notes must use the controlled path: {expected_notes}", file=sys.stderr)
+        return 1
     if not notes.is_file():
         print(f"release notes are missing: {notes}", file=sys.stderr)
         return 1
     payload_root = f"oknotika-final-{version}"
-    paths = source_paths(repo)
-    payload: dict[str, bytes] = {path.as_posix(): (repo / path).read_bytes() for path in paths}
-    payload["RELEASE_NOTES.md"] = notes.read_bytes()
     implementation_commit = subprocess.run(
         ["git", "-C", str(repo), "rev-parse", "HEAD"], check=True, stdout=subprocess.PIPE, text=True
     ).stdout.strip()
+    entries = source_entries(repo, implementation_commit)
+    paths = [path for path, _mode in entries]
+    modes = {path.as_posix(): mode for path, mode in entries}
+    payload: dict[str, bytes] = {
+        path.as_posix(): git_blob(repo, implementation_commit, path) for path in paths
+    }
+    payload["RELEASE_NOTES.md"] = notes.read_bytes()
     inventory = changed_payload_inventory(repo, paths, implementation_commit)
     payload["CHANGED_FILES.txt"] = inventory
     (release / f"CHANGED_FILES-{version}.txt").write_bytes(inventory)
@@ -132,7 +180,7 @@ def main() -> int:
             path: {
                 "sha256": sha256(data),
                 "bytes": len(data),
-                "mode": "0755" if path.startswith("deploy/scripts/") and (repo / path).exists() and (repo / path).stat().st_mode & stat.S_IXUSR else "0644",
+                "mode": "0755" if modes.get(path, 0) & stat.S_IXUSR else "0644",
             }
             for path, data in sorted(payload.items())
         },
@@ -141,7 +189,7 @@ def main() -> int:
     versioned = release / f"oknotika-final-{version}.zip"
     with zipfile.ZipFile(versioned, "w", compresslevel=9) as archive:
         for path, data in sorted(payload.items()):
-            executable = path.startswith("deploy/scripts/") and (repo / path).exists() and (repo / path).stat().st_mode & stat.S_IXUSR
+            executable = bool(modes.get(path, 0) & stat.S_IXUSR)
             archive.writestr(zip_info(f"{payload_root}/{path}", 0o755 if executable else 0o644), data)
     stable = release / "oknotika-final.zip"
     shutil.copyfile(versioned, stable)

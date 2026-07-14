@@ -1,5 +1,6 @@
 const REQUIRED_TEXT = ['title', 'lead', 'bodyMarkdown', 'coverAlt'];
 const RAW_HTML = /<\/?[a-z][^>]*>/i;
+export const ARTICLE_TEXT_LIMITS = Object.freeze({ title: 240, lead: 1200 });
 
 export function normalizePublicationDate(value) {
   if (typeof value !== 'string' || value.trim() === '') {
@@ -55,6 +56,10 @@ export function validateArticleInput(input) {
       throw new TypeError(`${field} is required`);
     }
     normalized[field] = input[field].trim();
+    const maximum = ARTICLE_TEXT_LIMITS[field];
+    if (maximum && normalized[field].length > maximum) {
+      throw new TypeError(`${field} must not exceed ${maximum} characters`);
+    }
   }
   if (RAW_HTML.test(normalized.bodyMarkdown)) {
     throw new TypeError('raw HTML is not allowed in Markdown');

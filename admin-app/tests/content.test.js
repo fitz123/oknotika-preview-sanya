@@ -59,6 +59,17 @@ test('slug collision suffix is stable and title edits never change the URL', (t)
   assert.equal(oldRevision.title, 'Светопрозрачный фасад');
 });
 
+test('transliterated slugs and collision suffixes stay within filesystem component limits', (t) => {
+  const { service, editorId, coverAssetId } = createHarness(t);
+  const title = 'Щ'.repeat(240);
+  const first = service.createArticle(articleInput(coverAssetId, { title }), editorId);
+  const second = service.createArticle(articleInput(coverAssetId, { title }), editorId);
+  assert.ok(Buffer.byteLength(first.slug) <= 200);
+  assert.ok(Buffer.byteLength(second.slug) <= 200);
+  assert.notEqual(first.slug, second.slug);
+  assert.match(second.slug, /-2$/);
+});
+
 test('editorial restore creates a new immutable draft revision', (t) => {
   const { db, service, editorId, coverAssetId } = createHarness(t);
   const created = service.createArticle(articleInput(coverAssetId), editorId);

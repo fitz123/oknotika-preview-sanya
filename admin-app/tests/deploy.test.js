@@ -4,9 +4,11 @@ import {
   copyFileSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -48,6 +50,36 @@ test('online deployment backup is a mode-0600 consistent SQLite snapshot', (t) =
   restored.close();
 });
 
+test('pre-migration backup runs once per pending schema and skips current databases', (t) => {
+  const root = mkdtempSync(resolve(tmpdir(), 'oknotika-migration-backup-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const migrations = resolve(root, 'old-migrations');
+  const databasePath = resolve(root, 'db/admin.sqlite');
+  mkdirSync(migrations, { recursive: true });
+  mkdirSync(resolve(root, 'db/migration-backups'), { recursive: true });
+  for (const name of ['001_content.sql', '002_admin_security.sql']) {
+    copyFileSync(resolve(REPO_ROOT, 'admin-app/migrations', name), resolve(migrations, name));
+  }
+  openDatabase(databasePath, migrations).close();
+
+  const script = resolve(REPO_ROOT, 'deploy/scripts/pre-migrate-backup.sh');
+  const env = {
+    ...process.env,
+    OKNOTIKA_STATE_ROOT: root,
+    OKNOTIKA_DATABASE_PATH: databasePath,
+    OKNOTIKA_RELEASE_SHA: 'a'.repeat(40),
+  };
+  execFileSync('bash', [script], { env });
+  execFileSync('bash', [script], { env });
+  const backupRoot = resolve(root, 'db/migration-backups');
+  assert.equal(readdirSync(backupRoot).filter(name => name.endsWith('.sqlite')).length, 1);
+
+  openDatabase(databasePath).close();
+  execFileSync('bash', [script], { env });
+  assert.equal(readdirSync(backupRoot).filter(name => name.endsWith('.sqlite')).length, 1);
+  assert.match(readFileSync(script, 'utf8'), /maximum_backups=10/);
+});
+
 test('deployment manifest pins Node 24, bundled SQLite and the exact npm lockfile', () => {
   const manifest = JSON.parse(readFileSync(resolve(REPO_ROOT, 'deploy/release-manifest.json'), 'utf8'));
   assert.equal(manifest.runtime.nodeMajor, 24);
@@ -55,6 +87,31 @@ test('deployment manifest pins Node 24, bundled SQLite and the exact npm lockfil
   assert.match(manifest.runtime.sqliteVersion, /^3\.\d+\.\d+$/);
   assert.equal(manifest.runtime.packageLockVersion, 3);
   assert.match(manifest.runtime.packageLockSha256, /^[a-f0-9]{64}$/);
+});
+
+test('restore drill rejects production roots and every descendant before restoring', () => {
+  const script = readFileSync(resolve(REPO_ROOT, 'deploy/scripts/restore-drill.sh'), 'utf8');
+  for (const protectedRoot of [
+    '/var/lib/oknotika-admin',
+    '/srv/oknotika',
+    '/opt/oknotika-admin',
+  ]) {
+    assert.ok(script.includes(`${protectedRoot}|${protectedRoot}/*`));
+  }
+});
+
+test('production preflight pins every path shared by the app, nginx, systemd and backups', () => {
+  const script = readFileSync(resolve(REPO_ROOT, 'deploy/scripts/preflight.sh'), 'utf8');
+  for (const name of [
+    'OKNOTIKA_DATABASE_PATH',
+    'OKNOTIKA_UPLOADS_ROOT',
+    'OKNOTIKA_PREVIEWS_ROOT',
+    'OKNOTIKA_ARTICLE_RELEASES_ROOT',
+    'OKNOTIKA_PUBLIC_ROOT',
+    'OKNOTIKA_LISTEN_SOCKET',
+  ]) {
+    assert.match(script, new RegExp(`require_exact ${name}`));
+  }
 });
 
 test('backup reconciliation repairs public pointers while holding the publisher lock', async (t) => {
@@ -86,6 +143,27 @@ test('backup reconciliation repairs public pointers while holding the publisher 
 
   const backupScript = readFileSync(resolve(REPO_ROOT, 'deploy/scripts/backup.sh'), 'utf8');
   assert.ok(backupScript.indexOf('reconcile-public-state.mjs') < backupScript.indexOf('sqlite-online-backup.mjs'));
+});
+
+test('backup reconciliation refuses a missing active symlink with nonempty public DB state', async (t) => {
+  const fixture = await createRestoreFixture(t);
+  unlinkSync(resolve(fixture.releasesRoot, 'active'));
+  const lock = acquirePublisherLock(fixture.releasesRoot);
+  let result;
+  try {
+    result = spawnSync(process.execPath, [
+      resolve(REPO_ROOT, 'deploy/scripts/reconcile-public-state.mjs'),
+      fixture.liveDatabasePath,
+      fixture.releasesRoot,
+    ], {
+      encoding: 'utf8',
+      env: { ...process.env, OKNOTIKA_PUBLISHER_LOCK_HELD: '1' },
+    });
+  } finally {
+    releasePublisherLock(lock);
+  }
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /symlink is missing while SQLite still records public state/);
 });
 
 test('restore verification rejects stale public article pointers', async (t) => {

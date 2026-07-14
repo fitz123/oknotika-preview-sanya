@@ -108,6 +108,16 @@ test('HTML/JSON revalidate while only content-hashed assets are immutable', (t) 
   }
 });
 
+test('release validation enforces the homepage latest-card text contract', (t) => {
+  const harness = createHarness(t);
+  const created = harness.service.createArticle(articleInput(harness.coverAssetId), harness.editorId);
+  const article = loadRevisionSnapshot(harness.db, created.articleId, created.revisionId, 'published');
+  assert.throws(
+    () => render(harness, 'oversized-latest', [{ ...article, title: 'x'.repeat(241) }]),
+    /latest.json contract is invalid/,
+  );
+});
+
 test('homepage loader mutates only bounded same-origin payloads and otherwise retains fallback', async () => {
   const homepage = readFileSync(resolve(import.meta.dirname, '../../index.html'), 'utf8');
   assert.match(homepage, /data-latest-fact-state="fallback"/);

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -25,6 +26,12 @@ assert DOCS_SPEC and DOCS_SPEC.loader
 docs_checker = importlib.util.module_from_spec(DOCS_SPEC)
 sys.modules["check_final_documentation"] = docs_checker
 DOCS_SPEC.loader.exec_module(docs_checker)
+
+BUILD_SCRIPT = REPO / "scripts/build_release_zip.py"
+BUILD_SPEC = importlib.util.spec_from_file_location("build_release_zip", BUILD_SCRIPT)
+assert BUILD_SPEC and BUILD_SPEC.loader
+builder = importlib.util.module_from_spec(BUILD_SPEC)
+BUILD_SPEC.loader.exec_module(builder)
 
 
 def archive_with(extra: dict[str, bytes] | None = None) -> Path:
@@ -95,6 +102,25 @@ class ReleaseZipTests(unittest.TestCase):
         self.assertIn("private key", joined)
         self.assertIn("environment file", joined)
 
+    def test_builder_uses_committed_blobs_and_rejects_dirty_payload_inputs(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            subprocess.run(["git", "init", "-q", str(repo)], check=True)
+            subprocess.run(["git", "-C", str(repo), "config", "user.email", "test@example.com"], check=True)
+            subprocess.run(["git", "-C", str(repo), "config", "user.name", "Test"], check=True)
+            (repo / "admin-app").mkdir()
+            tracked = repo / "admin-app/tracked.txt"
+            tracked.write_text("committed\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
+            subprocess.run(["git", "-C", str(repo), "commit", "-qm", "fixture"], check=True)
+
+            tracked.write_text("working tree\n", encoding="utf-8")
+            (repo / "admin-app/private-rights.txt").write_text("private\n", encoding="utf-8")
+            self.assertEqual(builder.source_paths(repo), [Path("admin-app/tracked.txt")])
+            self.assertEqual(builder.git_blob(repo, "HEAD", Path("admin-app/tracked.txt")), b"committed\n")
+            with self.assertRaisesRegex(RuntimeError, "worktree must be clean"):
+                builder.ensure_clean_payload_worktree(repo)
+
 
 class FinalDocumentationTests(unittest.TestCase):
     def test_final_documentation_and_release_records_are_consistent(self) -> None:
@@ -106,6 +132,10 @@ class FinalDocumentationTests(unittest.TestCase):
         )
         self.assertTrue(any("V2.18" in error for error in errors))
         self.assertTrue(any("V2.25" in error for error in errors))
+        homepage_errors = docs_checker.validate_public_html_text(
+            '<footer><p>V2.25 multipage preview</p></footer>'
+        )
+        self.assertTrue(any("index.html" in error and "V2.25" in error for error in homepage_errors))
 
 
 if __name__ == "__main__":

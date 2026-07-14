@@ -20,6 +20,7 @@ export function loadConfiguration(env = process.env) {
     ['OKNOTIKA_DATABASE_PATH', databasePath],
     ['OKNOTIKA_UPLOADS_ROOT', uploadsRoot],
     ['OKNOTIKA_PREVIEWS_ROOT', previewsRoot],
+    ['OKNOTIKA_ARTICLE_RELEASES_ROOT', releasesRoot],
   ]) assertOutside(path, publicRoot, name);
   return Object.freeze({
     adminOrigin,
@@ -43,6 +44,7 @@ export function assertRuntimeSeparation(config) {
     ['OKNOTIKA_DATABASE_PATH', dirname(config.databasePath)],
     ['OKNOTIKA_UPLOADS_ROOT', config.uploadsRoot],
     ['OKNOTIKA_PREVIEWS_ROOT', config.previewsRoot],
+    ['OKNOTIKA_ARTICLE_RELEASES_ROOT', config.releasesRoot],
   ]) assertOutside(realpathSync(path), publicRoot, name);
 }
 

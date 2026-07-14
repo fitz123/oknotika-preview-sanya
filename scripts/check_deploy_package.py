@@ -55,6 +55,10 @@ def main() -> None:
         "OKNOTIKA_ADMIN_ORIGIN=https://admin.oknotika.ru",
         "OKNOTIKA_PUBLIC_ORIGIN=https://oknotika.ru",
         "OKNOTIKA_DATABASE_PATH=/var/lib/oknotika-admin/db/admin.sqlite",
+        "OKNOTIKA_UPLOADS_ROOT=/var/lib/oknotika-admin/uploads",
+        "OKNOTIKA_PREVIEWS_ROOT=/var/lib/oknotika-admin/previews",
+        "OKNOTIKA_ARTICLE_RELEASES_ROOT=/var/lib/oknotika-admin/article-releases",
+        "OKNOTIKA_PUBLIC_ROOT=/srv/oknotika/current",
         "OKNOTIKA_LISTEN_SOCKET=/run/oknotika-admin/app.sock",
     )
     if re.search(r"TELEGRAM_OIDC_CLIENT_(?:ID|SECRET)=", config):
@@ -96,6 +100,15 @@ def main() -> None:
         "CapabilityBoundingSet=",
     )
     require_text(
+        deploy / "scripts/preflight.sh",
+        'expected_database="$expected_state_root/db/admin.sqlite"',
+        'expected_uploads="$expected_state_root/uploads"',
+        'expected_previews="$expected_state_root/previews"',
+        'expected_article_releases="$expected_state_root/article-releases"',
+        'expected_public_root="/srv/oknotika/current"',
+        "require_exact OKNOTIKA_ARTICLE_RELEASES_ROOT",
+    )
+    require_text(
         root / "admin-app/src/http/start.js",
         "chmodSync(config.listenSocket, 0o660)",
         "assertTrustedProxyHeaders",
@@ -119,6 +132,18 @@ def main() -> None:
         "uploads",
         "article-releases/releases",
         "backups/online/admin.sqlite",
+    )
+    require_text(
+        deploy / "scripts/pre-migrate-backup.sh",
+        "pending-migrations.mjs",
+        "maximum_backups=10",
+        "sha256sum -c",
+    )
+    require_text(
+        deploy / "scripts/pending-migrations.mjs",
+        "new DatabaseSync(databasePath, { readOnly: true })",
+        "duplicate migration version",
+        "fingerprint.digest('hex')",
     )
     require_text(
         deploy / "scripts/install-marketing.sh",

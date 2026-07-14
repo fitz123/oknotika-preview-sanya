@@ -4,6 +4,13 @@ set -euo pipefail
 expected_node="24.18.0"
 expected_sqlite="3.53.1"
 expected_socket="/run/oknotika-admin/app.sock"
+expected_state_root="/var/lib/oknotika-admin"
+expected_app_root="/opt/oknotika-admin/current"
+expected_database="$expected_state_root/db/admin.sqlite"
+expected_uploads="$expected_state_root/uploads"
+expected_previews="$expected_state_root/previews"
+expected_article_releases="$expected_state_root/article-releases"
+expected_public_root="/srv/oknotika/current"
 state_root="${OKNOTIKA_STATE_ROOT:-/var/lib/oknotika-admin}"
 app_root="${OKNOTIKA_APP_ROOT:-/opt/oknotika-admin/current}"
 service_start=false
@@ -44,8 +51,24 @@ for path in "$state_root/article-releases/releases" "$state_root/article-release
 done
 
 if $service_start; then
-  [[ "${OKNOTIKA_LISTEN_SOCKET:-$expected_socket}" == "$expected_socket" ]] || {
-    echo "production must use $expected_socket" >&2
+  require_exact() {
+    local name="$1" actual="$2" expected="$3"
+    [[ "$actual" == "$expected" ]] || {
+      echo "production $name must use $expected" >&2
+      exit 1
+    }
+  }
+  require_exact OKNOTIKA_STATE_ROOT "$state_root" "$expected_state_root"
+  require_exact OKNOTIKA_APP_ROOT "$app_root" "$expected_app_root"
+  require_exact OKNOTIKA_DATABASE_PATH "${OKNOTIKA_DATABASE_PATH:-}" "$expected_database"
+  require_exact OKNOTIKA_UPLOADS_ROOT "${OKNOTIKA_UPLOADS_ROOT:-}" "$expected_uploads"
+  require_exact OKNOTIKA_PREVIEWS_ROOT "${OKNOTIKA_PREVIEWS_ROOT:-}" "$expected_previews"
+  require_exact OKNOTIKA_ARTICLE_RELEASES_ROOT \
+    "${OKNOTIKA_ARTICLE_RELEASES_ROOT:-}" "$expected_article_releases"
+  require_exact OKNOTIKA_PUBLIC_ROOT "${OKNOTIKA_PUBLIC_ROOT:-}" "$expected_public_root"
+  require_exact OKNOTIKA_LISTEN_SOCKET "${OKNOTIKA_LISTEN_SOCKET:-$expected_socket}" "$expected_socket"
+  [[ "${OKNOTIKA_RELEASE_SHA:-}" =~ ^[a-f0-9]{40,64}$ ]] || {
+    echo "OKNOTIKA_RELEASE_SHA must be 40-64 lowercase hex characters" >&2
     exit 1
   }
   for name in OKNOTIKA_ADMIN_ORIGIN OKNOTIKA_PUBLIC_ORIGIN TELEGRAM_OIDC_REDIRECT_URI \

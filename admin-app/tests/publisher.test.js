@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { existsSync, readlinkSync } from 'node:fs';
+import { existsSync, readlinkSync, unlinkSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 import { openDatabase } from '../src/content/database.js';
@@ -174,6 +174,24 @@ test('startup reconciliation participates in the shared publisher lock', (t) => 
   } finally {
     releasePublisherLock(lock);
   }
+});
+
+test('reconciliation fails closed when an active public release loses its symlink', async (t) => {
+  const harness = createHarness(t);
+  const article = harness.service.createArticle(articleInput(harness.coverAssetId), harness.editorId);
+  const releasesRoot = resolve(harness.root, 'missing-active');
+  const publisher = createPublisher(harness.db, { releasesRoot, publicOrigin: 'https://oknotika.ru' });
+  const release = await publisher.publish({ editorId: harness.editorId, transition: publication(article) });
+  unlinkSync(publisher.activePath);
+
+  assert.throws(() => publisher.reconcile(), /symlink is missing while SQLite still records public state/);
+  assert.equal(
+    harness.db.prepare('SELECT active_release_id FROM site_state WHERE singleton = 1').get().active_release_id,
+    release.releaseId,
+  );
+  const stored = harness.service.getArticle(article.articleId);
+  assert.equal(stored.published_revision_id, article.revisionId);
+  assert.equal(stored.public_state, 'published');
 });
 
 for (const boundary of ['before-active-switch', 'after-active-switch', 'before-db-finalize', 'after-db-finalize']) {

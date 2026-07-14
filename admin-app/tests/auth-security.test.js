@@ -57,6 +57,9 @@ test('production configuration pins canonical origins, exact callback and privat
   assert.throws(() => loadConfiguration({
     ...env, OKNOTIKA_UPLOADS_ROOT: '/srv/oknotika/current/private',
   }), /outside the public/);
+  assert.throws(() => loadConfiguration({
+    ...env, OKNOTIKA_ARTICLE_RELEASES_ROOT: '/srv/oknotika/current/article-releases',
+  }), /outside the public/);
 });
 
 test('production configuration reads OIDC secrets from systemd credential files', (t) => {
