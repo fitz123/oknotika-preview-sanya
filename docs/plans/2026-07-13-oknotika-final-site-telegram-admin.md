@@ -276,19 +276,19 @@ systemd-analyze verify deploy/systemd/oknotika-admin.service
 - Create: `release-evidence/qa/`
 - Create: `release/`
 
-- [ ] проверить статические страницы и сравнить с V2.27 baseline;
-- [ ] проверить команду на 1440/1280/1180/768/760/390 px;
-- [ ] проверить алюминий и Schüco на desktop/mobile;
-- [ ] проверить mocked valid/forged/stale/replayed/wrong-issuer/wrong-audience/wrong-alg/unknown-kid/non-allowlisted OIDC cases;
-- [ ] добавить отдельный production rehearsal runbook для реального Telegram OIDC login/logout/revocation после передачи credentials;
-- [ ] проверить draft invisibility, preview, publish, edit, withdraw и rollback;
-- [ ] проверить XSS, CSRF, unsafe URL, malformed/oversized/decompression-bomb images;
-- [ ] проверить canonical/OG и Telegram link preview;
-- [ ] проверить crash injection вокруг staging/rename/symlink/DB finalize и startup reconciliation;
-- [ ] проверить restic backup, integrity и реальный restore drill в изолированный каталог;
-- [ ] проверить application downgrade на восстановленной pre-migration DB;
-- [ ] провести отключение admin service и подтвердить доступность публичного сайта;
-- [ ] собрать versioned secret-free ZIP, checksums и release notes.
+- [x] проверить статические страницы и сравнить с V2.27 baseline;
+- [x] проверить команду на 1440/1280/1180/768/760/390 px;
+- [x] проверить алюминий и Schüco на desktop/mobile;
+- [x] проверить mocked valid/forged/stale/replayed/wrong-issuer/wrong-audience/wrong-alg/unknown-kid/non-allowlisted OIDC cases;
+- [x] добавить отдельный production rehearsal runbook для реального Telegram OIDC login/logout/revocation после передачи credentials;
+- [x] проверить draft invisibility, preview, publish, edit, withdraw и rollback;
+- [x] проверить XSS, CSRF, unsafe URL, malformed/oversized/decompression-bomb images;
+- [x] проверить canonical/OG и Telegram link preview (детерминированная OG-проверка пройдена; live Telegram fetch оставлен production gate без публичного URL/credentials);
+- [x] проверить crash injection вокруг staging/rename/symlink/DB finalize и startup reconciliation;
+- [x] проверить restic backup, integrity и реальный restore drill в изолированный каталог;
+- [x] проверить application downgrade на восстановленной pre-migration DB;
+- [x] провести отключение admin service и подтвердить доступность публичного сайта;
+- [x] собрать versioned secret-free ZIP, checksums и release notes.
 
 ### Task 8: Verify acceptance criteria [HIGH]
 

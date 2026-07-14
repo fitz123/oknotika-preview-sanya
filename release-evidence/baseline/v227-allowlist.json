@@ -37,8 +37,11 @@
       "release-evidence/team-approval/**",
       "release-evidence/team-release-evidence.json",
       "scripts/check_*.py",
+      "scripts/build_release_zip.py",
       "scripts/capture_v227_baseline.py",
+      "scripts/scan_release_zip.py",
       "tests/test_release_guardrails.py",
+      "tests/test_release_package.py",
       "tools/team-portraits/create_final_portraits.py"
     ],
     "allow_delete": []

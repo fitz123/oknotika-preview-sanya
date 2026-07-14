@@ -1,0 +1,753 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-13T23:57:30.907704+00:00",
+  "baselineCommit": "5364ff160ffa9b8e9f2d0998a5eef1cf6cd3f5ed",
+  "playwright": "1.58.2",
+  "chromium": "145.0.7632.6",
+  "visualPolicy": "release-evidence/baseline/visual-diff-policy.json",
+  "visuals": [
+    {
+      "width": 1440,
+      "final": "release-evidence/previews/index-1440.jpg",
+      "team": "release-evidence/previews/team-1440.jpg",
+      "baselineReproductionDiffRatio": 0.0,
+      "fullPagePixelDiffRatio": 0.08138149243918474,
+      "protectedPixelDiffRatio": 0.0,
+      "dimensionDeltaPx": 0,
+      "approvedRegionHeightDeltaPx": 0,
+      "unapprovedDimensionDeltaPx": 0,
+      "allowedRegions": {
+        "final": [
+          {
+            "x": 0,
+            "y": 4115.3125,
+            "width": 1440,
+            "height": 1612.96875
+          },
+          {
+            "x": 888.046875,
+            "y": 399.25,
+            "width": 451.9375,
+            "height": 399.796875
+          },
+          {
+            "x": 100,
+            "y": 1795.09375,
+            "width": 611,
+            "height": 430
+          },
+          {
+            "x": 0,
+            "y": 7058.609375,
+            "width": 1440,
+            "height": 208.59375
+          }
+        ],
+        "baseline": [
+          {
+            "x": 0,
+            "y": 4115.3125,
+            "width": 1440,
+            "height": 1612.96875
+          },
+          {
+            "x": 888.046875,
+            "y": 332.046875,
+            "width": 451.9375,
+            "height": 467
+          },
+          {
+            "x": 100,
+            "y": 1795.09375,
+            "width": 611,
+            "height": 430
+          },
+          {
+            "x": 0,
+            "y": 7058.609375,
+            "width": 1440,
+            "height": 208.59375
+          }
+        ]
+      },
+      "headerDeltasPx": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "protectedGeometryDeltasPx": {
+        ".site-header": {
+          "width": 0,
+          "height": 0
+        },
+        ".hero__content": {
+          "width": 0.0,
+          "height": 0.0
+        },
+        "#approach .container": {
+          "width": 0,
+          "height": 0.0
+        },
+        "#cases .container": {
+          "width": 0,
+          "height": 0.0
+        },
+        "#proof .container": {
+          "width": 0,
+          "height": 0.0
+        },
+        "#contacts .container": {
+          "width": 0,
+          "height": 0.0
+        }
+      },
+      "comparisonMode": "full-page-pixels",
+      "sha256": "9d46d7a696f126e20390923548f325479d40ed1a4f26bcffe04b6872e2be76eb",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "width": 1280,
+      "final": "release-evidence/previews/index-1280.jpg",
+      "team": "release-evidence/previews/team-1280.jpg",
+      "baselineReproductionDiffRatio": 0.0,
+      "fullPagePixelDiffRatio": 0.09210829793900571,
+      "protectedPixelDiffRatio": 0.0,
+      "dimensionDeltaPx": 0,
+      "approvedRegionHeightDeltaPx": 0,
+      "unapprovedDimensionDeltaPx": 0,
+      "allowedRegions": {
+        "final": [
+          {
+            "x": 0,
+            "y": 4073.6875,
+            "width": 1280,
+            "height": 1599.09375
+          },
+          {
+            "x": 808.046875,
+            "y": 405.125,
+            "width": 451.9375,
+            "height": 350.140625
+          },
+          {
+            "x": 20,
+            "y": 1767.34375,
+            "width": 611,
+            "height": 430
+          },
+          {
+            "x": 0,
+            "y": 6972.109375,
+            "width": 1280,
+            "height": 208.59375
+          }
+        ],
+        "baseline": [
+          {
+            "x": 0,
+            "y": 4073.6875,
+            "width": 1280,
+            "height": 1599.09375
+          },
+          {
+            "x": 808.046875,
+            "y": 341.546875,
+            "width": 451.9375,
+            "height": 413.71875
+          },
+          {
+            "x": 20,
+            "y": 1767.34375,
+            "width": 611,
+            "height": 430
+          },
+          {
+            "x": 0,
+            "y": 6972.109375,
+            "width": 1280,
+            "height": 208.59375
+          }
+        ]
+      },
+      "headerDeltasPx": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "protectedGeometryDeltasPx": {
+        ".site-header": {
+          "width": 0,
+          "height": 0
+        },
+        ".hero__content": {
+          "width": 0.0,
+          "height": 0.0
+        },
+        "#approach .container": {
+          "width": 0,
+          "height": 0.0
+        },
+        "#cases .container": {
+          "width": 0,
+          "height": 0.0
+        },
+        "#proof .container": {
+          "width": 0,
+          "height": 0.0
+        },
+        "#contacts .container": {
+          "width": 0,
+          "height": 0.0
+        }
+      },
+      "comparisonMode": "full-page-pixels",
+      "sha256": "b5963946ae945a70a5ffb84b157d44a8a8ebc7ac14ee8d3115668aadfc6e786b",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "width": 1180,
+      "final": "release-evidence/previews/index-1180.jpg",
+      "team": "release-evidence/previews/team-1180.jpg",
+      "baselineReproductionDiffRatio": 0.0,
+      "fullPagePixelDiffRatio": 0.1039368680937529,
+      "protectedPixelDiffRatio": 0.0,
+      "dimensionDeltaPx": 0,
+      "approvedRegionHeightDeltaPx": 0,
+      "unapprovedDimensionDeltaPx": 0,
+      "allowedRegions": {
+        "final": [
+          {
+            "x": 0,
+            "y": 4941.5625,
+            "width": 1180,
+            "height": 2303.84375
+          },
+          {
+            "x": 20,
+            "y": 590.71875,
+            "width": 1140,
+            "height": 258.734375
+          },
+          {
+            "x": 20,
+            "y": 1874.640625,
+            "width": 561,
+            "height": 430
+          },
+          {
+            "x": 0,
+            "y": 9100.84375,
+            "width": 1180,
+            "height": 208.59375
+          }
+        ],
+        "baseline": [
+          {
+            "x": 0,
+            "y": 4941.5625,
+            "width": 1180,
+            "height": 2303.84375
+          },
+          {
+            "x": 20,
+            "y": 590.71875,
+            "width": 1140,
+            "height": 258.734375
+          },
+          {
+            "x": 20,
+            "y": 1874.640625,
+            "width": 561,
+            "height": 430
+          },
+          {
+            "x": 0,
+            "y": 9100.84375,
+            "width": 1180,
+            "height": 208.59375
+          }
+        ]
+      },
+      "headerDeltasPx": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0.0
+      },
+      "protectedGeometryDeltasPx": {
+        ".site-header": {
+          "width": 0,
+          "height": 0.0
+        },
+        ".hero__content": {
+          "width": 0,
+          "height": 0.0
+        },
+        "#approach .container": {
+          "width": 0,
+          "height": 0.0
+        },
+        "#cases .container": {
+          "width": 0,
+          "height": 0.0
+        },
+        "#proof .container": {
+          "width": 0,
+          "height": 0.0
+        },
+        "#contacts .container": {
+          "width": 0,
+          "height": 0.0
+        }
+      },
+      "comparisonMode": "full-page-pixels",
+      "sha256": "b90344d826c302b724ffea79466c63edb534b8000119cf283d3702dbb67224ef",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "width": 768,
+      "final": "release-evidence/previews/index-768.jpg",
+      "team": "release-evidence/previews/team-768.jpg",
+      "baselineReproductionDiffRatio": 0.0,
+      "fullPagePixelDiffRatio": 0.0873392650462963,
+      "protectedPixelDiffRatio": 0.015273030063984573,
+      "dimensionDeltaPx": 0,
+      "approvedRegionHeightDeltaPx": 0,
+      "unapprovedDimensionDeltaPx": 0,
+      "allowedRegions": {
+        "final": [
+          {
+            "x": 0,
+            "y": 4917.1875,
+            "width": 768,
+            "height": 2030.59375
+          },
+          {
+            "x": 20,
+            "y": 558.640625,
+            "width": 728,
+            "height": 251.25
+          },
+          {
+            "x": 20,
+            "y": 1868.8125,
+            "width": 355,
+            "height": 430
+          },
+          {
+            "x": 0,
+            "y": 8766.59375,
+            "width": 768,
+            "height": 233.390625
+          }
+        ],
+        "baseline": [
+          {
+            "x": 0,
+            "y": 4917.1875,
+            "width": 768,
+            "height": 2030.59375
+          },
+          {
+            "x": 20,
+            "y": 546.25,
+            "width": 728,
+            "height": 276.046875
+          },
+          {
+            "x": 20,
+            "y": 1868.8125,
+            "width": 355,
+            "height": 430
+          },
+          {
+            "x": 0,
+            "y": 8766.59375,
+            "width": 768,
+            "height": 233.390625
+          }
+        ]
+      },
+      "headerDeltasPx": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0.0
+      },
+      "protectedGeometryDeltasPx": {
+        ".site-header": {
+          "width": 0,
+          "height": 0.0
+        },
+        ".hero__content": {
+          "width": 0,
+          "height": 0.0
+        },
+        "#approach .container": {
+          "width": 0,
+          "height": 0.0
+        },
+        "#cases .container": {
+          "width": 0,
+          "height": 0.0
+        },
+        "#proof .container": {
+          "width": 0,
+          "height": 0.0
+        },
+        "#contacts .container": {
+          "width": 0,
+          "height": 0.0
+        }
+      },
+      "comparisonMode": "protected-dom-geometry",
+      "sha256": "e53db9c898b951da227661f142c4fd66165669e0d968581e1ce967d8bc23e4f3",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "width": 760,
+      "final": "release-evidence/previews/index-760.jpg",
+      "team": "release-evidence/previews/team-760.jpg",
+      "baselineReproductionDiffRatio": 0.0,
+      "fullPagePixelDiffRatio": 0.34496590358545587,
+      "protectedPixelDiffRatio": 0.05097250798286174,
+      "dimensionDeltaPx": 25,
+      "approvedRegionHeightDeltaPx": -25,
+      "unapprovedDimensionDeltaPx": 0,
+      "allowedRegions": {
+        "final": [
+          {
+            "x": 0,
+            "y": 6411.65625,
+            "width": 760,
+            "height": 8721.578125
+          },
+          {
+            "x": 14,
+            "y": 507.625,
+            "width": 732,
+            "height": 243.25
+          },
+          {
+            "x": 14,
+            "y": 1653.875,
+            "width": 732,
+            "height": 357.578125
+          },
+          {
+            "x": 0,
+            "y": 17026.390625,
+            "width": 760,
+            "height": 221.390625
+          }
+        ],
+        "baseline": [
+          {
+            "x": 0,
+            "y": 6436.453125,
+            "width": 760,
+            "height": 8721.578125
+          },
+          {
+            "x": 14,
+            "y": 507.625,
+            "width": 732,
+            "height": 268.046875
+          },
+          {
+            "x": 14,
+            "y": 1678.671875,
+            "width": 732,
+            "height": 357.578125
+          },
+          {
+            "x": 0,
+            "y": 17051.1875,
+            "width": 760,
+            "height": 221.390625
+          }
+        ]
+      },
+      "headerDeltasPx": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "protectedGeometryDeltasPx": {
+        ".site-header": {
+          "width": 0,
+          "height": 0
+        },
+        ".hero__content": {
+          "width": 0,
+          "height": 0.0
+        },
+        "#approach .container": {
+          "width": 0,
+          "height": 0.0
+        },
+        "#cases .container": {
+          "width": 0,
+          "height": 0.0
+        },
+        "#proof .container": {
+          "width": 0,
+          "height": 0
+        },
+        "#contacts .container": {
+          "width": 0,
+          "height": 0.0
+        }
+      },
+      "comparisonMode": "protected-dom-geometry",
+      "sha256": "b20da96a96b5d4fad761b3c77f5a29d0f9117a17b16d09678d43eb8a7fbca913",
+      "status": "pass",
+      "failures": []
+    },
+    {
+      "width": 390,
+      "final": "release-evidence/previews/index-390.jpg",
+      "team": "release-evidence/previews/team-390.jpg",
+      "baselineReproductionDiffRatio": 0.0,
+      "fullPagePixelDiffRatio": 0.22660838690309826,
+      "protectedPixelDiffRatio": 0.058323641454967205,
+      "dimensionDeltaPx": 21,
+      "approvedRegionHeightDeltaPx": -21,
+      "unapprovedDimensionDeltaPx": 0,
+      "allowedRegions": {
+        "final": [
+          {
+            "x": 0,
+            "y": 7238.765625,
+            "width": 390,
+            "height": 5256.625
+          },
+          {
+            "x": 14,
+            "y": 669.625,
+            "width": 362,
+            "height": 345.90625
+          },
+          {
+            "x": 14,
+            "y": 2205.84375,
+            "width": 362,
+            "height": 421.953125
+          },
+          {
+            "x": 0,
+            "y": 14594.859375,
+            "width": 390,
+            "height": 246.1875
+          }
+        ],
+        "baseline": [
+          {
+            "x": 0,
+            "y": 7259.640625,
+            "width": 390,
+            "height": 5256.625
+          },
+          {
+            "x": 14,
+            "y": 669.625,
+            "width": 362,
+            "height": 398.96875
+          },
+          {
+            "x": 14,
+            "y": 2258.90625,
+            "width": 362,
+            "height": 389.765625
+          },
+          {
+            "x": 0,
+            "y": 14615.734375,
+            "width": 390,
+            "height": 246.1875
+          }
+        ]
+      },
+      "headerDeltasPx": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+      },
+      "protectedGeometryDeltasPx": {
+        ".site-header": {
+          "width": 0,
+          "height": 0
+        },
+        ".hero__content": {
+          "width": 0,
+          "height": 0.0
+        },
+        "#approach .container": {
+          "width": 0,
+          "height": 0.0
+        },
+        "#cases .container": {
+          "width": 0,
+          "height": 0.0
+        },
+        "#proof .container": {
+          "width": 0,
+          "height": 0.0
+        },
+        "#contacts .container": {
+          "width": 0,
+          "height": 0.0
+        }
+      },
+      "comparisonMode": "protected-dom-geometry",
+      "sha256": "02aca41d49dcdf63ab4928b7390f841bf06609f858ca361c74d1c8e6daeccdb1",
+      "status": "pass",
+      "failures": []
+    }
+  ],
+  "staticPages": [
+    {
+      "pathname": "/",
+      "file": "index.html",
+      "metrics": {
+        "title": "ОКНОТИКА — светопрозрачные решения, окна, алюминий и умные системы",
+        "images": 22,
+        "canonical": null,
+        "ogTitle": "ОКНОТИКА — инженерно-интеграционная компания",
+        "ogDescription": "Подбираем светопрозрачные системы под объект: профиль, стеклопакет, фурнитура, монтажный узел, автоматика и документация.",
+        "ogImage": null
+      },
+      "errors": []
+    },
+    {
+      "pathname": "/aluminum/",
+      "file": "aluminum/index.html",
+      "metrics": {
+        "title": "Алюминиевые системы — ОКНОТИКА",
+        "images": 4,
+        "canonical": null,
+        "ogTitle": null,
+        "ogDescription": null,
+        "ogImage": null
+      },
+      "errors": []
+    },
+    {
+      "pathname": "/articles/",
+      "file": "articles/index.html",
+      "metrics": {
+        "title": "Факт недели и статьи — ОКНОТИКА",
+        "images": 2,
+        "canonical": "https://oknotika.ru/articles/",
+        "ogTitle": "Факт недели и статьи — ОКНОТИКА",
+        "ogDescription": "Короткие инженерные факты об окнах, фасадах и светопрозрачных решениях.",
+        "ogImage": null
+      },
+      "errors": []
+    },
+    {
+      "pathname": "/articles/al-bahr-towers-dynamic-facade/",
+      "file": "articles/al-bahr-towers-dynamic-facade/index.html",
+      "metrics": {
+        "title": "Фасад может реагировать на солнце — ОКНОТИКА",
+        "images": 2,
+        "canonical": "https://oknotika.ru/articles/al-bahr-towers-dynamic-facade/",
+        "ogTitle": "Фасад может реагировать на солнце",
+        "ogDescription": "Факт недели ОКНОТИКИ: Al Bahr Towers и динамический фасад как пример активной инженерной оболочки здания.",
+        "ogImage": "https://oknotika.ru/articles/assets/e794ac9b2fc096b47e5a406d.jpg"
+      },
+      "errors": []
+    },
+    {
+      "pathname": "/carbon-glass/",
+      "file": "carbon-glass/index.html",
+      "metrics": {
+        "title": "Carbon Glass: стеклянная компланарность и карбон — ОКНОТИКА",
+        "images": 5,
+        "canonical": null,
+        "ogTitle": null,
+        "ogDescription": null,
+        "ogImage": null
+      },
+      "errors": []
+    },
+    {
+      "pathname": "/glass/",
+      "file": "glass/index.html",
+      "metrics": {
+        "title": "Стеклопакеты, Art Glass, Thermo и Smart Glass — ОКНОТИКА",
+        "images": 5,
+        "canonical": null,
+        "ogTitle": null,
+        "ogDescription": null,
+        "ogImage": null
+      },
+      "errors": []
+    },
+    {
+      "pathname": "/oknotika-smart-window/",
+      "file": "oknotika-smart-window/index.html",
+      "metrics": {
+        "title": "OKNOTIKA — умное окно со скрытой автоматикой",
+        "images": 4,
+        "canonical": null,
+        "ogTitle": "OKNOTIKA — умное окно со скрытой автоматикой",
+        "ogDescription": "Интеллектуальная светопрозрачная система со скрытой автоматикой, голосовым управлением и сценариями здания.",
+        "ogImage": null
+      },
+      "errors": []
+    },
+    {
+      "pathname": "/protectapeel/",
+      "file": "protectapeel/index.html",
+      "metrics": {
+        "title": "Protectapeel: временная защита на стройке — ОКНОТИКА",
+        "images": 2,
+        "canonical": null,
+        "ogTitle": null,
+        "ogDescription": null,
+        "ogImage": null
+      },
+      "errors": []
+    },
+    {
+      "pathname": "/pvc/",
+      "file": "pvc/index.html",
+      "metrics": {
+        "title": "ПВХ: рациональный тёплый контур — ОКНОТИКА",
+        "images": 5,
+        "canonical": null,
+        "ogTitle": null,
+        "ogDescription": null,
+        "ogImage": null
+      },
+      "errors": []
+    },
+    {
+      "pathname": "/wood-stoller/",
+      "file": "wood-stoller/index.html",
+      "metrics": {
+        "title": "Дерево и дерево-алюминий Stoller — ОКНОТИКА",
+        "images": 5,
+        "canonical": null,
+        "ogTitle": null,
+        "ogDescription": null,
+        "ogImage": null
+      },
+      "errors": []
+    }
+  ],
+  "telegramLinkPreview": {
+    "mode": "deterministic Open Graph simulation; live Telegram fetch remains a production gate",
+    "status": "pass"
+  },
+  "status": "pass"
+}

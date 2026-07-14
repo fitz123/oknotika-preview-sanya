@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-14T00:00:03.575280+00:00",
+  "host": "Darwin beta host; Linux service verification remains a production gate",
+  "backupRestore": {
+    "status": "pass",
+    "resticVersion": "restic 0.19.0 compiled with go1.26.5 on darwin/arm64",
+    "repository": "ephemeral encrypted local repository (deleted after rehearsal)",
+    "snapshotId": "5df46575",
+    "snapshotCount": 1,
+    "init": "pass",
+    "backup": "pass",
+    "integrity": "pass",
+    "restore": "pass",
+    "verification": {
+      "database": "backups/online/admin.sqlite",
+      "auditState": "readable",
+      "releaseManifests": 1,
+      "integrity": "ok"
+    },
+    "productionNote": "real encrypted off-host repository restore remains a Linux production gate"
+  },
+  "applicationDowngrade": {
+    "status": "pass",
+    "previousApplicationCommit": "bbf4e4d93569cc58097bb0d02616a0789a059450",
+    "preMigrationSchemaVersions": 1,
+    "upgradedCopySchemaVersions": 2,
+    "restoredPreMigrationSchemaVersions": 1,
+    "backupIntegrity": "ok",
+    "strategy": "upgrade a copy; downgrade by restoring the verified pre-migration database"
+  },
+  "status": "pass"
+}

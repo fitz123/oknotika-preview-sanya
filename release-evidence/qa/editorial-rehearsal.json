@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-13T23:57:47.950Z",
+  "stateRoot": "ephemeral isolated directory (deleted after rehearsal)",
+  "draftInvisibility": "pass",
+  "privatePreview": {
+    "status": "pass",
+    "cacheControl": "no-store",
+    "mode": "0700"
+  },
+  "immutableSlugAcrossEdit": "pass",
+  "publish": {
+    "status": "pass",
+    "releaseId": "20260714000011-df7fe3778c7ab30b"
+  },
+  "edit": {
+    "status": "pass",
+    "releaseId": "20260714000016-7d6c6a7a8aa8d06e"
+  },
+  "withdraw": {
+    "status": "pass",
+    "releaseId": "20260714000019-f0358ee0eb52ecf0",
+    "responseContract": "static 410"
+  },
+  "latestFallback": {
+    "status": "pass",
+    "url": "https://oknotika.ru/articles/al-bahr-towers-dynamic-facade/"
+  },
+  "editorialRestore": {
+    "status": "pass",
+    "releaseId": "20260714000024-28c54132fce9fd46",
+    "revisionId": 4
+  },
+  "operationalRollback": {
+    "status": "pass",
+    "from": "20260714000024-28c54132fce9fd46",
+    "to": "20260714000011-df7fe3778c7ab30b"
+  },
+  "adminOutage": {
+    "status": "pass",
+    "adminHttpServiceStarted": false,
+    "publicListingStatus": 200,
+    "publicLatestStatus": 200,
+    "contract": "public immutable release served independently while admin HTTP service is absent"
+  },
+  "initialFallbackRelease": "20260714000006-c6d8394bba7c88a7",
+  "auditEvents": [
+    {
+      "event_type": "article.created",
+      "count": 2
+    },
+    {
+      "event_type": "article.marked_published",
+      "count": 4
+    },
+    {
+      "event_type": "article.revised",
+      "count": 1
+    },
+    {
+      "event_type": "article.withdrawn",
+      "count": 1
+    },
+    {
+      "event_type": "release.published",
+      "count": 5
+    },
+    {
+      "event_type": "release.rolled_back",
+      "count": 1
+    },
+    {
+      "event_type": "revision.restored",
+      "count": 1
+    }
+  ],
+  "status": "pass"
+}
