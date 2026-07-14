@@ -1,6 +1,6 @@
 # OKNOTIKA v2.28.0-beta.1 release payload changes
 # Baseline: 5364ff160ffa9b8e9f2d0998a5eef1cf6cd3f5ed
-# Verified implementation: f8a25435e850655acfc0a39c55cc540361760948
+# Verified implementation: c9aa9c0f0f6cfc6c9165c8d230820fa68e363249
 # Status: A = added to payload, M = modified from baseline
 A	CHANGED_FILES.txt
 A	RELEASE_NOTES.md
@@ -83,6 +83,7 @@ A	deploy/scripts/install-marketing.sh
 A	deploy/scripts/pre-migrate-backup.sh
 A	deploy/scripts/preflight.sh
 A	deploy/scripts/prepare-runtime.sh
+A	deploy/scripts/reconcile-public-state.mjs
 A	deploy/scripts/restore-drill.sh
 A	deploy/scripts/run-with-publisher-lock.mjs
 A	deploy/scripts/smoke-test.sh
