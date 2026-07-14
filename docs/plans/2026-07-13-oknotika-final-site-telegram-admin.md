@@ -294,16 +294,16 @@ systemd-analyze verify deploy/systemd/oknotika-admin.service
 
 **Goal:** подтвердить выполнение всех целей без скрытой деградации V2.27.
 
-- [ ] exact tree diff относительно `5364ff1` укладывается в path/DOM/CSS allowlist, а V2.27 header/composition сохранены на 1440, 1280 и 390 px;
-- [ ] структурный тест подтверждает восемь карточек, шесть новых portrait hashes, два прежних hashes и роль Жалнина только `Операционный директор`;
-- [ ] Schüco визуально отделён, фасадный блок подтверждён официальными источниками;
-- [ ] в опубликованных материалах нет неподтверждённого партнёрства или нелицензированных Schüco assets;
-- [ ] один active release атомарно обновляет `/articles/`, detail pages и `latest.json`; статическая главная получает новую карточку только через согласованный `latest.json`;
-- [ ] drafts не видны публично, rollback восстанавливает предыдущий release;
-- [ ] mocked Telegram OIDC conformance и auth/security/upload/header/cookie tests проходят; реальный OIDC rehearsal обозначен production gate;
-- [ ] full test suite и linter проходят;
-- [ ] nginx/systemd smoke checks проходят в Linux-контуре;
-- [ ] automated ZIP scan подтверждает отсутствие `.env`, secrets, SQLite/WAL/SHM, uploads, previews, raw photos, logs и runtime releases.
+- [x] exact tree diff относительно `5364ff1` укладывается в path/DOM/CSS allowlist, а V2.27 header/composition сохранены на 1440, 1280 и 390 px;
+- [x] структурный тест подтверждает восемь карточек, шесть новых portrait hashes, два прежних hashes и роль Жалнина только `Операционный директор`;
+- [x] Schüco визуально отделён, фасадный блок подтверждён официальными источниками;
+- [x] в опубликованных материалах нет неподтверждённого партнёрства или нелицензированных Schüco assets;
+- [x] один active release атомарно обновляет `/articles/`, detail pages и `latest.json`; статическая главная получает новую карточку только через согласованный `latest.json`;
+- [x] drafts не видны публично, rollback восстанавливает предыдущий release;
+- [x] mocked Telegram OIDC conformance и auth/security/upload/header/cookie tests проходят; реальный OIDC rehearsal обозначен production gate;
+- [x] full test suite и linter проходят;
+- [x] nginx/systemd smoke checks проходят в Linux-контуре (skipped - not automatable on the macOS beta host; static deploy checks passed and the Linux host check remains a production gate);
+- [x] automated ZIP scan подтверждает отсутствие `.env`, secrets, SQLite/WAL/SHM, uploads, previews, raw photos, logs и runtime releases.
 
 ### Task 9: Update documentation [HIGH]
 
