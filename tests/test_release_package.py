@@ -137,6 +137,30 @@ class FinalDocumentationTests(unittest.TestCase):
         )
         self.assertTrue(any("index.html" in error and "V2.25" in error for error in homepage_errors))
 
+    def test_release_only_followup_is_allowed_but_later_source_change_is_stale(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            subprocess.run(["git", "init", "-q", str(repo)], check=True)
+            subprocess.run(["git", "-C", str(repo), "config", "user.email", "test@example.com"], check=True)
+            subprocess.run(["git", "-C", str(repo), "config", "user.name", "Test"], check=True)
+            (repo / "app.js").write_text("first\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
+            subprocess.run(["git", "-C", str(repo), "commit", "-qm", "implementation"], check=True)
+            implementation = subprocess.run(
+                ["git", "-C", str(repo), "rev-parse", "HEAD"],
+                check=True, capture_output=True, text=True,
+            ).stdout.strip()
+            (repo / "release").mkdir()
+            (repo / "release/package.zip").write_bytes(b"release")
+            subprocess.run(["git", "-C", str(repo), "add", "release"], check=True)
+            subprocess.run(["git", "-C", str(repo), "commit", "-qm", "release"], check=True)
+            self.assertEqual(docs_checker.non_release_changes_since(repo, implementation), [])
+
+            (repo / "app.js").write_text("later source change\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(repo), "add", "app.js"], check=True)
+            subprocess.run(["git", "-C", str(repo), "commit", "-qm", "source"], check=True)
+            self.assertEqual(docs_checker.non_release_changes_since(repo, implementation), ["app.js"])
+
 
 if __name__ == "__main__":
     unittest.main()

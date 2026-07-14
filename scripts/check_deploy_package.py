@@ -75,7 +75,10 @@ def main() -> None:
     require_text(
         deploy / "nginx/oknotika-admin.conf",
         "server unix:/run/oknotika-admin/app.sock",
+        "client_max_body_size 1m",
         "client_max_body_size 10m",
+        "location = /api/uploads",
+        "limit_conn oknotika_admin_uploads 2",
         "limit_req zone=oknotika_admin_login",
         "proxy_set_header X-Forwarded-Proto https",
         "proxy_set_header X-Forwarded-For $remote_addr",
@@ -179,6 +182,8 @@ def main() -> None:
         "nginx -t",
         "systemd-analyze verify",
         "npm run bootstrap-editor",
+        "--unit=oknotika-bootstrap-content",
+        "--property=User=oknotika-admin --property=Group=www-data --property=UMask=0027",
         "run bootstrap-content",
         "install-marketing.sh",
     )

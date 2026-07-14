@@ -12,6 +12,7 @@ import { createPublisher } from '../render/publisher.js';
 import { createAdminActions } from './admin-actions.js';
 import { createAdminHandler } from './handler.js';
 import { createUploadStore } from './uploads.js';
+import { createProxiedRequest } from './node-adapter.js';
 import { assertTrustedProxyHeaders } from './security.js';
 
 const config = loadConfiguration();
@@ -66,11 +67,9 @@ const handler = createAdminHandler({
 const server = createServer(async (incoming, outgoing) => {
   try {
     assertTrustedProxyHeaders(incoming.headers, config.adminOrigin);
-    const body = ['GET', 'HEAD'].includes(incoming.method) ? undefined : await readRequestBody(incoming);
-    const request = new Request(`${config.adminOrigin}${incoming.url}`, {
-      method: incoming.method,
-      headers: incoming.headers,
-      body,
+    const request = await createProxiedRequest(incoming, {
+      adminOrigin: config.adminOrigin,
+      sessionService,
     });
     const response = await handler(request);
     outgoing.statusCode = response.status;
@@ -95,24 +94,4 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
     db.close();
     rmSync(config.listenSocket, { force: true });
   }));
-}
-
-async function readRequestBody(request) {
-  const maximum = 10 * 1024 * 1024;
-  const declared = Number(request.headers['content-length'] ?? 0);
-  if (declared > maximum) throw requestTooLarge();
-  const chunks = [];
-  let length = 0;
-  for await (const chunk of request) {
-    length += chunk.length;
-    if (length > maximum) throw requestTooLarge();
-    chunks.push(chunk);
-  }
-  return Buffer.concat(chunks);
-}
-
-function requestTooLarge() {
-  const error = new Error('Request too large');
-  error.code = 'REQUEST_TOO_LARGE';
-  return error;
 }

@@ -4,11 +4,57 @@ import test from 'node:test';
 import { createSessionService, sessionCookie } from '../src/auth/sessions.js';
 import { createAdminActions } from '../src/http/admin-actions.js';
 import { createAdminHandler } from '../src/http/handler.js';
+import { createProxiedRequest } from '../src/http/node-adapter.js';
 import { assertMutationRequest, assertTrustedProxyHeaders } from '../src/http/security.js';
 import { createPublisher } from '../src/render/publisher.js';
 import { articleInput, createHarness } from './helpers.js';
 
 const ADMIN_ORIGIN = 'https://admin.oknotika.ru';
+
+test('Node adapter authenticates before buffering and applies route-specific body limits', async () => {
+  const unauthenticated = fakeIncoming({
+    url: '/api/uploads',
+    body: Buffer.alloc(10 * 1024 * 1024),
+    headers: mutationHeaders({ contentType: 'image/png', contentLength: 10 * 1024 * 1024 }),
+  });
+  const rejected = await createProxiedRequest(unauthenticated, {
+    adminOrigin: ADMIN_ORIGIN,
+    sessionService: { authenticate: () => null },
+  });
+  assert.equal(rejected.body, null);
+  assert.equal(unauthenticated.iterated, false);
+  assert.equal(unauthenticated.resumed, true);
+
+  const authenticatedSessionService = {
+    authenticate: () => ({ csrf_hash: 'unused' }),
+    verifyCsrf: () => true,
+  };
+  const oversizedJson = fakeIncoming({
+    url: '/api/articles',
+    body: Buffer.from('{}'),
+    headers: mutationHeaders({ contentType: 'application/json', contentLength: 1024 * 1024 + 1 }),
+  });
+  await assert.rejects(
+    createProxiedRequest(oversizedJson, {
+      adminOrigin: ADMIN_ORIGIN,
+      sessionService: authenticatedSessionService,
+    }),
+    (error) => error.code === 'REQUEST_TOO_LARGE',
+  );
+  assert.equal(oversizedJson.iterated, false);
+
+  const upload = fakeIncoming({
+    url: '/api/uploads',
+    body: Buffer.from([0x89, 0x50]),
+    headers: mutationHeaders({ contentType: 'image/png', contentLength: 2 }),
+  });
+  const accepted = await createProxiedRequest(upload, {
+    adminOrigin: ADMIN_ORIGIN,
+    sessionService: authenticatedSessionService,
+  });
+  assert.deepEqual(Buffer.from(await accepted.arrayBuffer()), Buffer.from([0x89, 0x50]));
+  assert.equal(upload.iterated, true);
+});
 
 test('Unix-socket proxy headers must be single-valued and match the canonical origin', () => {
   const valid = new Headers({
@@ -284,4 +330,33 @@ function mutationRequest({
   const headers = { origin, 'sec-fetch-site': site, 'sec-fetch-mode': mode };
   if (csrf !== null && csrf !== undefined) headers['x-csrf-token'] = csrf;
   return new Request(`${ADMIN_ORIGIN}/api/articles`, { method: 'POST', headers });
+}
+
+function mutationHeaders({ contentType, contentLength }) {
+  return {
+    cookie: '__Host-oknotika_session=session-token-value-for-test',
+    origin: ADMIN_ORIGIN,
+    'sec-fetch-site': 'same-origin',
+    'sec-fetch-mode': 'cors',
+    'x-csrf-token': 'csrf-token-for-test',
+    'content-type': contentType,
+    'content-length': String(contentLength),
+  };
+}
+
+function fakeIncoming({ url, headers, body }) {
+  return {
+    method: 'POST',
+    url,
+    headers,
+    iterated: false,
+    resumed: false,
+    resume() {
+      this.resumed = true;
+    },
+    async *[Symbol.asyncIterator]() {
+      this.iterated = true;
+      yield body;
+    },
+  };
 }

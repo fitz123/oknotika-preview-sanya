@@ -77,7 +77,7 @@ Rotation Telegram: создать новые credential-файлы под вре
 - public/admin configs → `/etc/nginx/sites-available/`;
 - snippets → `/etc/nginx/snippets/oknotika-*-security-headers.conf`.
 
-Public vhost выдаёт `/articles/` только из `/var/lib/oknotika-admin/article-releases/active/articles/`: HTML/JSON revalidate, hashed media immutable. Admin vhost имеет `client_max_body_size 10m`, отдельные login/general rate limits, `no-store`, CSP, HSTS, nosniff, `frame-ancestors 'none'` и проксирует только в `/run/oknotika-admin/app.sock`.
+Public vhost выдаёт `/articles/` только из `/var/lib/oknotika-admin/article-releases/active/articles/`: HTML/JSON revalidate, hashed media immutable. Admin vhost ограничивает JSON body до 1 MB, разрешает 10 MB только exact upload route с двумя одновременными upload connections, имеет отдельные login/general rate limits, `no-store`, CSP, HSTS, nosniff, `frame-ancestors 'none'` и проксирует только в `/run/oknotika-admin/app.sock`.
 
 Не включать symlink admin vhost до выдачи TLS, настройки credentials и enrollment. На Linux обязательно выполнить `nginx -t`; reload делать только после успешного результата.
 
@@ -172,8 +172,12 @@ systemd-run --pty --wait --collect --unit=oknotika-bootstrap-editor \
 После enrollment и marketing install, но до включения public/admin vhosts, импортировать packaged Al Bahr как первую published revision. Команда копирует reviewed JPEG из public payload в private uploads, идемпотентно создаёт article/revision, валидирует immutable release и переключает `article-releases/active`:
 
 ```bash
-sudo -u oknotika-admin env PATH=/opt/node-v24.18.0/bin:/usr/bin:/bin \
-  /opt/node-v24.18.0/bin/npm --prefix /opt/oknotika-admin/current/admin-app \
+sudo systemd-run --pty --wait --collect --unit=oknotika-bootstrap-content \
+  --property=User=oknotika-admin --property=Group=www-data --property=UMask=0027 \
+  --property=WorkingDirectory=/opt/oknotika-admin/current/admin-app \
+  --property=Environment=PATH=/opt/node-v24.18.0/bin:/usr/bin:/bin \
+  --property=ReadWritePaths=/var/lib/oknotika-admin \
+  /opt/node-v24.18.0/bin/npm \
   run bootstrap-content -- \
   --database /var/lib/oknotika-admin/db/admin.sqlite \
   --releases-root /var/lib/oknotika-admin/article-releases \

@@ -60,6 +60,18 @@ def parse_checksums(path: Path) -> dict[str, str]:
     return checksums
 
 
+def non_release_changes_since(root: Path, implementation: str) -> list[str]:
+    result = subprocess.run(
+        ["git", "-C", str(root), "diff", "--name-only", "-z", f"{implementation}..HEAD", "--"],
+        check=True,
+        stdout=subprocess.PIPE,
+    )
+    return sorted(
+        path.decode() for path in result.stdout.split(b"\0")
+        if path and not path.decode().startswith("release/")
+    )
+
+
 def validate(root: Path) -> list[str]:
     errors: list[str] = []
     readme = (root / "README.md").read_text(encoding="utf-8")
@@ -122,6 +134,13 @@ def validate(root: Path) -> list[str]:
         stderr=subprocess.DEVNULL,
     ).returncode:
         errors.append("release implementation SHA is not an ancestor of HEAD")
+    else:
+        stale_paths = non_release_changes_since(root, implementation)
+        if stale_paths:
+            errors.append(
+                "release implementation predates non-release source changes: "
+                + ", ".join(stale_paths)
+            )
 
     notes = (release / f"RELEASE_NOTES-{VERSION}.md").read_text(encoding="utf-8")
     require(notes, f"RELEASE_NOTES-{VERSION}.md", (

@@ -89,6 +89,24 @@ test('deployment manifest pins Node 24, bundled SQLite and the exact npm lockfil
   assert.match(manifest.runtime.packageLockSha256, /^[a-f0-9]{64}$/);
 });
 
+test('admin ingress isolates large uploads and caps their global concurrency', () => {
+  const nginx = readFileSync(resolve(REPO_ROOT, 'deploy/nginx/oknotika-admin.conf'), 'utf8');
+  const zones = readFileSync(resolve(REPO_ROOT, 'deploy/nginx/00-oknotika-zones.conf'), 'utf8');
+  assert.match(nginx, /client_max_body_size 1m;/);
+  assert.match(
+    nginx,
+    /location = \/api\/uploads \{[\s\S]*?client_max_body_size 10m;[\s\S]*?limit_conn oknotika_admin_uploads 2;/,
+  );
+  assert.match(zones, /limit_conn_zone \$server_name zone=oknotika_admin_uploads:10m;/);
+});
+
+test('initial content bootstrap publishes with the nginx-readable service group and umask', () => {
+  const runbook = readFileSync(resolve(REPO_ROOT, 'deploy/README_ZHENYA.md'), 'utf8');
+  const section = runbook.split('## Инициализация первой article release')[1].split('## Emergency disable')[0];
+  assert.match(section, /--unit=oknotika-bootstrap-content/);
+  assert.match(section, /--property=User=oknotika-admin --property=Group=www-data --property=UMask=0027/);
+});
+
 test('restore drill rejects production roots and every descendant before restoring', () => {
   const script = readFileSync(resolve(REPO_ROOT, 'deploy/scripts/restore-drill.sh'), 'utf8');
   for (const protectedRoot of [
