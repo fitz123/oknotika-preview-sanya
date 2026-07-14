@@ -14,7 +14,10 @@ if (!/^\d{5,32}$/.test(subject)) throw new Error('Subject must be the verified n
 const db = openDatabase(databasePath);
 try {
   const existing = db.prepare('SELECT issuer, subject FROM configured_editors').get();
-  if (existing && (existing.issuer !== issuer || existing.subject !== subject)) {
+  if (!existing) {
+    throw new Error('No verified editor exists; first enrollment must use npm run bootstrap-editor');
+  }
+  if (existing.issuer !== issuer || existing.subject !== subject) {
     throw new Error('A different editor is already enrolled; editor CRUD and replacement are intentionally unavailable');
   }
   const id = createContentService(db).configureEditor({ issuer, subject });

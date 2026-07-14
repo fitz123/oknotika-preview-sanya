@@ -4,7 +4,11 @@ import { existsSync, readlinkSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 import { openDatabase } from '../src/content/database.js';
-import { createPublisher } from '../src/render/publisher.js';
+import {
+  acquirePublisherLock,
+  createPublisher,
+  releasePublisherLock,
+} from '../src/render/publisher.js';
 import { articleInput, createHarness } from './helpers.js';
 
 const BOUNDARIES = [
@@ -40,12 +44,11 @@ for (const boundary of BOUNDARIES) {
     const switched = ['after-active-switch', 'before-db-finalize', 'after-db-finalize'].includes(boundary);
     assert.equal(existsSync(publisher.activePath), switched);
     if (switched) {
-      const manifest = publisher.reconcile();
-      assert.ok(manifest.releaseId);
       const state = harness.db.prepare('SELECT active_release_id FROM site_state WHERE singleton = 1').get();
-      assert.equal(state.active_release_id, manifest.releaseId);
+      const activeReleaseId = readlinkSync(publisher.activePath).split('/').at(-1);
+      assert.equal(state.active_release_id, activeReleaseId);
       assert.equal(
-        harness.db.prepare('SELECT status FROM releases WHERE id = ?').get(manifest.releaseId).status,
+        harness.db.prepare('SELECT status FROM releases WHERE id = ?').get(activeReleaseId).status,
         'complete',
       );
     } else {
@@ -161,6 +164,18 @@ test('single-publisher lock rejects concurrent publication', async (t) => {
   await first;
 });
 
+test('startup reconciliation participates in the shared publisher lock', (t) => {
+  const harness = createHarness(t);
+  const releasesRoot = resolve(harness.root, 'reconcile-lock');
+  const publisher = createPublisher(harness.db, { releasesRoot, publicOrigin: 'https://oknotika.ru' });
+  const lock = acquirePublisherLock(releasesRoot);
+  try {
+    assert.throws(() => publisher.reconcile(), /Another publisher holds the release lock/);
+  } finally {
+    releasePublisherLock(lock);
+  }
+});
+
 for (const boundary of ['before-active-switch', 'after-active-switch', 'before-db-finalize', 'after-db-finalize']) {
   test(`rollback failure at ${boundary} preserves or reconciles active release state`, async (t) => {
     let tick = 0;
@@ -190,7 +205,6 @@ for (const boundary of ['before-active-switch', 'after-active-switch', 'before-d
 
     const switched = ['after-active-switch', 'before-db-finalize', 'after-db-finalize'].includes(boundary);
     assert.equal(readlinkSync(publisher.activePath), `releases/${switched ? first.releaseId : second.releaseId}`);
-    if (switched) publisher.reconcile();
     assert.equal(
       harness.db.prepare('SELECT active_release_id FROM site_state WHERE singleton = 1').get().active_release_id,
       switched ? first.releaseId : second.releaseId,

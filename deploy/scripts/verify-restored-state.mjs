@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readlinkSync, readdirSync, statSync } from 'node:fs';
 import { basename, dirname, relative, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { isDeepStrictEqual } from 'node:util';
 
 const [rootArgument] = process.argv.slice(2);
 if (!rootArgument) throw new Error('Usage: verify-restored-state.mjs RESTORE_ROOT');
@@ -36,8 +37,14 @@ if (activeTarget !== null) {
   if (manifest.releaseId !== activeReleaseId) throw new Error('Restored active manifest release ID differs');
   const stateDb = new DatabaseSync(databasePath, { readOnly: true });
   try {
-    const release = stateDb.prepare("SELECT id FROM releases WHERE id = ? AND status = 'complete'").get(activeReleaseId);
+    const release = stateDb.prepare(
+      "SELECT id, manifest_json FROM releases WHERE id = ? AND status = 'complete'",
+    ).get(activeReleaseId);
     if (!release) throw new Error('Restored active release is not complete in SQLite');
+    const storedManifest = JSON.parse(release.manifest_json);
+    if (!isDeepStrictEqual(storedManifest, manifest)) {
+      throw new Error('Restored SQLite release manifest differs from the active manifest');
+    }
     const releaseArticleCount = stateDb.prepare(
       'SELECT COUNT(*) AS count FROM release_articles WHERE release_id = ?',
     ).get(activeReleaseId).count;
@@ -46,15 +53,29 @@ if (activeTarget !== null) {
     }
     for (const article of manifest.articles ?? []) {
       const row = stateDb.prepare(`
-        SELECT ra.public_state
+        SELECT ra.public_state AS release_public_state,
+               a.published_revision_id, a.public_state AS article_public_state
         FROM release_articles ra
         JOIN articles a ON a.id = ra.article_id
         JOIN article_revisions r ON r.id = ra.revision_id AND r.article_id = a.id
         WHERE ra.release_id = ? AND ra.article_id = ? AND ra.revision_id = ?
       `).get(activeReleaseId, article.articleId, article.revisionId);
-      if (!row || row.public_state !== article.state) {
+      if (!row
+          || row.release_public_state !== article.state
+          || Number(row.published_revision_id) !== Number(article.revisionId)
+          || row.article_public_state !== article.state) {
         throw new Error(`Restored release article state differs for article ${article.articleId}`);
       }
+    }
+    const publicArticles = stateDb.prepare(`
+      SELECT id, published_revision_id, public_state
+      FROM articles
+      WHERE published_revision_id IS NOT NULL OR public_state IS NOT NULL
+    `).all();
+    const manifestArticleIds = new Set((manifest.articles ?? []).map(article => Number(article.articleId)));
+    if (publicArticles.length !== manifestArticleIds.size
+        || publicArticles.some(article => !manifestArticleIds.has(Number(article.id)))) {
+      throw new Error('Restored public article set differs from the active manifest');
     }
   } finally {
     stateDb.close();

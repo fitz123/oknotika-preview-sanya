@@ -1,6 +1,7 @@
 import { chmodSync, mkdirSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname } from 'node:path';
+import { setImmediate } from 'node:timers';
 import { fetchTelegramDiscovery } from '../auth/conformance.js';
 import { assertRuntimeSeparation, loadConfiguration } from '../auth/config.js';
 import { createOidcService } from '../auth/oidc.js';
@@ -29,6 +30,7 @@ const contentService = createContentService(db);
 const publisher = createPublisher(db, {
   releasesRoot: config.releasesRoot,
   publicOrigin: config.publicOrigin,
+  onFatalConsistencyError: (error) => setImmediate(() => { throw error; }),
 });
 publisher.reconcile();
 const uploadStore = createUploadStore({

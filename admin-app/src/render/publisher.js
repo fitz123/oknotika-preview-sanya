@@ -20,6 +20,7 @@ export function createPublisher(db, {
   releasesRoot,
   publicOrigin,
   clock = () => new Date(),
+  onFatalConsistencyError = () => {},
 } = {}) {
   if (!releasesRoot) throw new TypeError('releasesRoot is required');
   const immutableRoot = resolve(releasesRoot, 'releases');
@@ -35,10 +36,13 @@ export function createPublisher(db, {
   if (filesystemDevices.size !== 1) {
     throw new Error('Staging, immutable releases and active symlink must share one filesystem');
   }
+  let quarantineError = null;
 
   async function publish({ editorId = null, transition = null, inject = async () => {} } = {}) {
+    assertPublisherIsWritable(quarantineError);
     const lock = acquirePublisherLock(releasesRoot);
     let stage = null;
+    let activeSwitched = false;
     try {
       const generatedAt = clock().toISOString();
       const prospective = buildProspectiveSnapshot(db, transition);
@@ -72,19 +76,52 @@ export function createPublisher(db, {
 
       await inject('before-active-switch');
       switchActive(releasesRoot, activePath, final);
+      activeSwitched = true;
       await inject('after-active-switch');
 
       await inject('before-db-finalize');
       finalizeRelease(db, manifest, previous, generatedAt, editorId);
       await inject('after-db-finalize');
       return manifest;
+    } catch (error) {
+      if (activeSwitched) {
+        try {
+          reconcileUnderLock();
+          quarantineError = null;
+        } catch (reconciliationError) {
+          quarantineError = new AggregateError(
+            [error, reconciliationError],
+            'Publication switched the active release but database reconciliation failed; publisher is quarantined',
+          );
+          onFatalConsistencyError(quarantineError);
+          throw quarantineError;
+        }
+      }
+      throw error;
     } finally {
       if (stage) rmSync(stage, { recursive: true, force: true });
       releasePublisherLock(lock);
     }
   }
 
-  function reconcile() {
+  function reconcile({ publisherLockHeld = false } = {}) {
+    if (publisherLockHeld && process.env.OKNOTIKA_PUBLISHER_LOCK_HELD !== '1') {
+      throw new Error('publisherLockHeld requires the deployment lock wrapper');
+    }
+    const lock = publisherLockHeld ? null : acquirePublisherLock(releasesRoot);
+    try {
+      const manifest = reconcileUnderLock();
+      quarantineError = null;
+      return manifest;
+    } catch (error) {
+      quarantineError = error;
+      throw error;
+    } finally {
+      if (lock) releasePublisherLock(lock);
+    }
+  }
+
+  function reconcileUnderLock() {
     let target;
     try {
       const activeTarget = readlinkSync(activePath);
@@ -120,7 +157,9 @@ export function createPublisher(db, {
   }
 
   async function rollback(targetReleaseId, { editorId = null, inject = async () => {} } = {}) {
+    assertPublisherIsWritable(quarantineError);
     const lock = acquirePublisherLock(releasesRoot);
+    let activeSwitched = false;
     try {
       const release = db.prepare("SELECT * FROM releases WHERE id = ? AND status = 'complete'").get(targetReleaseId);
       if (!release) throw new Error('Completed release not found');
@@ -129,6 +168,7 @@ export function createPublisher(db, {
       const previous = db.prepare('SELECT active_release_id FROM site_state WHERE singleton = 1').get().active_release_id;
       await inject('before-active-switch');
       switchActive(releasesRoot, activePath, target);
+      activeSwitched = true;
       await inject('after-active-switch');
       await inject('before-db-finalize');
       const timestamp = clock().toISOString();
@@ -143,12 +183,35 @@ export function createPublisher(db, {
       });
       await inject('after-db-finalize');
       return manifest;
+    } catch (error) {
+      if (activeSwitched) {
+        try {
+          reconcileUnderLock();
+          quarantineError = null;
+        } catch (reconciliationError) {
+          quarantineError = new AggregateError(
+            [error, reconciliationError],
+            'Rollback switched the active release but database reconciliation failed; publisher is quarantined',
+          );
+          onFatalConsistencyError(quarantineError);
+          throw quarantineError;
+        }
+      }
+      throw error;
     } finally {
       releasePublisherLock(lock);
     }
   }
 
   return { publish, reconcile, rollback, activePath };
+}
+
+function assertPublisherIsWritable(quarantineError) {
+  if (quarantineError) {
+    throw new Error('Publisher is quarantined until active-release reconciliation succeeds', {
+      cause: quarantineError,
+    });
+  }
 }
 
 function finalizeRelease(db, manifest, previous, timestamp, editorId) {

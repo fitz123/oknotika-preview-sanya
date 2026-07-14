@@ -1,10 +1,26 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
+import { openDatabase } from '../src/content/database.js';
+import { createContentService } from '../src/content/service.js';
+import {
+  acquirePublisherLock,
+  createPublisher,
+  releasePublisherLock,
+} from '../src/render/publisher.js';
+import { articleInput } from './helpers.js';
 
 const REPO_ROOT = resolve(import.meta.dirname, '../..');
 
@@ -40,3 +56,113 @@ test('deployment manifest pins Node 24, bundled SQLite and the exact npm lockfil
   assert.equal(manifest.runtime.packageLockVersion, 3);
   assert.match(manifest.runtime.packageLockSha256, /^[a-f0-9]{64}$/);
 });
+
+test('backup reconciliation repairs public pointers while holding the publisher lock', async (t) => {
+  const fixture = await createRestoreFixture(t);
+  const database = new DatabaseSync(fixture.liveDatabasePath);
+  database.exec('UPDATE articles SET published_revision_id = NULL, public_state = NULL;');
+  database.close();
+
+  const lock = acquirePublisherLock(fixture.releasesRoot);
+  let result;
+  try {
+    result = spawnSync(process.execPath, [
+      resolve(REPO_ROOT, 'deploy/scripts/reconcile-public-state.mjs'),
+      fixture.liveDatabasePath,
+      fixture.releasesRoot,
+    ], {
+      encoding: 'utf8',
+      env: { ...process.env, OKNOTIKA_PUBLISHER_LOCK_HELD: '1' },
+    });
+  } finally {
+    releasePublisherLock(lock);
+  }
+  assert.equal(result.status, 0, result.stderr);
+  const reconciled = new DatabaseSync(fixture.liveDatabasePath, { readOnly: true });
+  const article = reconciled.prepare('SELECT published_revision_id, public_state FROM articles').get();
+  reconciled.close();
+  assert.equal(Number(article.published_revision_id), fixture.revisionId);
+  assert.equal(article.public_state, 'published');
+
+  const backupScript = readFileSync(resolve(REPO_ROOT, 'deploy/scripts/backup.sh'), 'utf8');
+  assert.ok(backupScript.indexOf('reconcile-public-state.mjs') < backupScript.indexOf('sqlite-online-backup.mjs'));
+});
+
+test('restore verification rejects stale public article pointers', async (t) => {
+  const fixture = await createRestoreFixture(t);
+  const restored = new DatabaseSync(fixture.snapshotPath);
+  restored.exec('UPDATE articles SET published_revision_id = NULL, public_state = NULL;');
+  restored.close();
+  const result = verifyRestoredState(fixture.root);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /release article state differs/);
+});
+
+test('restore verification accepts a generation-consistent snapshot', async (t) => {
+  const fixture = await createRestoreFixture(t);
+  const result = verifyRestoredState(fixture.root);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).activeReleaseId, fixture.releaseId);
+});
+
+test('restore verification rejects a stored release manifest mismatch', async (t) => {
+  const fixture = await createRestoreFixture(t);
+  const restored = new DatabaseSync(fixture.snapshotPath);
+  restored.prepare("UPDATE releases SET manifest_json = '{}' WHERE id = ?").run(fixture.releaseId);
+  restored.close();
+  const result = verifyRestoredState(fixture.root);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /SQLite release manifest differs/);
+});
+
+async function createRestoreFixture(t) {
+  const root = mkdtempSync(resolve(tmpdir(), 'oknotika-restore-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const liveDatabasePath = resolve(root, 'live/admin.sqlite');
+  const snapshotPath = resolve(root, 'backups/online/admin.sqlite');
+  const releasesRoot = resolve(root, 'article-releases');
+  const coverPath = resolve(root, 'cover.png');
+  mkdirSync(resolve(root, 'live'), { recursive: true });
+  mkdirSync(resolve(root, 'backups/online'), { recursive: true });
+  writeFileSync(coverPath, Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+    'base64',
+  ));
+
+  const database = openDatabase(liveDatabasePath);
+  const service = createContentService(database);
+  const editorId = service.configureEditor({
+    issuer: 'https://oauth.telegram.org', subject: '9988776655',
+  });
+  const coverAssetId = service.registerAsset({
+    privatePath: coverPath, mediaType: 'image/png', width: 1, height: 1,
+  });
+  const created = service.createArticle(articleInput(coverAssetId), editorId);
+  const manifest = await createPublisher(database, {
+    releasesRoot,
+    publicOrigin: 'https://oknotika.ru',
+    clock: () => new Date('2026-07-14T12:00:00.000Z'),
+  }).publish({
+    editorId,
+    transition: {
+      type: 'publish', articleId: created.articleId, expectedRevisionId: created.revisionId,
+    },
+  });
+  database.close();
+  copyFileSync(liveDatabasePath, snapshotPath);
+
+  return {
+    root,
+    liveDatabasePath,
+    snapshotPath,
+    releasesRoot,
+    releaseId: manifest.releaseId,
+    revisionId: created.revisionId,
+  };
+}
+
+function verifyRestoredState(root) {
+  return spawnSync(process.execPath, [
+    resolve(REPO_ROOT, 'deploy/scripts/verify-restored-state.mjs'), root,
+  ], { encoding: 'utf8' });
+}

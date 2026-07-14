@@ -125,7 +125,7 @@ Breaking migration требует отдельного двухфазного п
 
 RPO: 24 часа плюс backup после каждого publish. RTO: 2 часа.
 
-`oknotika-admin-backup.timer` запускает daily backup, а `oknotika-admin-backup.path` реагирует на atomic switch `article-releases/active`. `backup.sh` сначала получает тот же crash-recoverable publisher lock, поэтому DB snapshot, immutable releases и active symlink не могут попасть в разные publication generations; отдельный backup `flock` не допускает два restic процесса. Затем скрипт создаёт online SQLite snapshot, проверяет его и передаёт restic:
+`oknotika-admin-backup.timer` запускает daily backup, а `oknotika-admin-backup.path` реагирует на atomic switch `article-releases/active`. `backup.sh` сначала получает тот же crash-recoverable publisher lock и под ним синхронизирует SQLite с active manifest, поэтому даже после падения publisher между symlink switch и DB finalize snapshot, immutable releases и active symlink не могут попасть в разные publication generations; отдельный backup `flock` не допускает два restic процесса. Затем скрипт создаёт online SQLite snapshot, проверяет его и передаёт restic:
 
 - SQLite с audit events и site/release state;
 - private originals и unpublished/published derivatives в `uploads/`;

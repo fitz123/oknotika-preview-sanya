@@ -23,6 +23,7 @@ fi
 exec 9>"$lock"
 flock -n 9 || { echo "another backup is running" >&2; exit 0; }
 
+node "$script_root/reconcile-public-state.mjs" "$database" "$state_root/article-releases"
 node "$script_root/sqlite-online-backup.mjs" "$database" "$snapshot"
 
 paths=(backups/online/admin.sqlite uploads article-releases/releases)

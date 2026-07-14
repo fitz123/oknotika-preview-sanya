@@ -112,6 +112,7 @@ def main() -> None:
     require_text(
         deploy / "scripts/backup.sh",
         "run-with-publisher-lock.mjs",
+        "reconcile-public-state.mjs",
         "--keep-daily 7",
         "--keep-weekly 8",
         "--keep-monthly 12",
