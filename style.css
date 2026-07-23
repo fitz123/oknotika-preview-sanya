@@ -169,6 +169,8 @@ ul { margin: 20px 0 0; padding-left: 20px; color: var(--paper-2); }
 .team .section-head p { color: var(--muted-dark); }
 .team-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
 .person { overflow: hidden; min-height: 520px; display: flex; flex-direction: column; border: 1px solid var(--line-dark); border-radius: 24px; background: rgba(255,255,255,.62); box-shadow: 0 16px 48px rgba(17,23,27,.08); }
+.person__portrait { display: block; width: 100%; aspect-ratio: 4 / 5; line-height: 0; }
+.person__portrait img { height: 100%; }
 .person img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; background: #d8d0c4; }
 .person div { flex: 1; display: flex; flex-direction: column; padding: 18px; }
 .person h3 { margin-bottom: 8px; font-size: 19px; }
@@ -284,6 +286,44 @@ dd { margin: 0; font-weight: 850; }
 .page-card span { display: block; margin-bottom: 38px; color: var(--accent); font-weight: 950; }
 .page-card p { margin-bottom: 0; color: var(--muted); }
 .schueco-focus { background: linear-gradient(180deg, rgba(197,161,95,.09), rgba(255,255,255,0)); }
+.schueco-hero { overflow: hidden; background: linear-gradient(135deg, rgba(197,161,95,.10), rgba(116,215,223,.04) 58%, transparent); }
+.schueco-hero__grid { display: grid; grid-template-columns: .9fr 1.1fr; gap: 54px; align-items: center; }
+.schueco-hero__copy h2 { max-width: 760px; }
+.schueco-hero__copy > p:not(.eyebrow) { max-width: 720px; color: var(--paper-2); font-size: 19px; }
+.schueco-hero__visual, .design-path__visual { overflow: hidden; margin: 0; border: 1px solid var(--line); border-radius: var(--radius); background: #10191f; box-shadow: var(--shadow); }
+.schueco-hero__visual img, .design-path__visual img { width: 100%; height: auto; }
+.schueco-hero__visual figcaption, .design-path__visual figcaption { padding: 14px 18px; color: var(--muted); border-top: 1px solid var(--line); font-size: 13px; }
+.facade-scenarios { background: linear-gradient(180deg, rgba(255,255,255,.018), rgba(116,215,223,.04)); }
+.facade-scenario-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+.facade-scenario-card { min-height: 330px; padding: 32px; border: 1px solid var(--line); border-radius: var(--radius); background: linear-gradient(145deg, rgba(255,255,255,.078), rgba(255,255,255,.032)); box-shadow: 0 22px 72px rgba(0,0,0,.18); }
+.facade-scenario-card:nth-child(2), .facade-scenario-card:nth-child(4) { border-color: rgba(197,161,95,.30); }
+.facade-scenario-card h3 { font-size: clamp(34px, 4vw, 54px); }
+.facade-scenario-card p:not(.eyebrow) { max-width: 650px; color: var(--paper-2); font-size: 17px; }
+.integration-shell { background: radial-gradient(circle at 78% 22%, rgba(116,215,223,.12), transparent 30rem); }
+.integration-shell__layout { display: grid; grid-template-columns: .78fr 1.22fr; gap: 58px; align-items: start; }
+.integration-shell__copy p:not(.eyebrow) { color: var(--paper-2); font-size: 19px; }
+.integration-shell__list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin: 0; padding: 0; list-style: none; }
+.integration-shell__list li { min-height: 155px; padding: 22px; border: 1px solid var(--line); border-radius: 22px; background: rgba(0,0,0,.19); }
+.integration-shell__list span { display: block; margin-bottom: 24px; color: var(--accent); font-weight: 950; }
+.integration-shell__list strong, .integration-shell__list small { display: block; }
+.integration-shell__list strong { margin-bottom: 6px; font-size: 19px; }
+.integration-shell__list small { color: var(--muted); font-size: 14px; }
+.design-path { background: linear-gradient(180deg, rgba(197,161,95,.075), rgba(255,255,255,.015)); }
+.design-path__intro { display: grid; grid-template-columns: .82fr 1.18fr; gap: 52px; align-items: center; }
+.design-path__visual { max-width: 720px; }
+.design-path__steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 52px 0 0; padding: 0; list-style: none; }
+.design-path__steps li { min-height: 220px; padding: 24px; border: 1px solid var(--line); border-radius: 22px; background: rgba(0,0,0,.19); }
+.design-path__steps span { display: block; margin-bottom: 36px; color: var(--cyan); font-weight: 950; }
+.design-path__steps strong { display: block; margin-bottom: 10px; font-size: 19px; }
+.design-path__steps p { margin: 0; color: var(--muted); }
+.schueco-specific-claim { margin-top: 18px; padding: 24px 28px; border: 1px solid rgba(197,161,95,.38); border-radius: 22px; background: rgba(197,161,95,.09); }
+.schueco-specific-claim p { margin: 0; color: var(--paper-2); }
+.schueco-specific-claim strong { color: var(--accent); }
+.facade-caveat { padding-top: 42px; }
+.facade-caveat__panel { padding: clamp(28px, 5vw, 64px); border: 1px solid var(--line); border-radius: var(--radius); background: linear-gradient(135deg, rgba(116,215,223,.10), rgba(197,161,95,.09)); box-shadow: var(--shadow); }
+.facade-caveat__panel h2 { max-width: 880px; }
+.facade-caveat__panel > p:not(.eyebrow) { max-width: 920px; color: var(--paper-2); font-size: 19px; }
+.facade-caveat__panel .btn { margin-top: 20px; }
 .article-list { display: grid; gap: 18px; }
 .article-card { padding: 34px; border: 1px solid var(--line); border-radius: var(--radius); background: rgba(255,255,255,.06); box-shadow: var(--shadow); }
 .article-card h2 { font-size: clamp(30px, 4vw, 52px); }
@@ -293,6 +333,9 @@ dd { margin: 0; font-weight: 850; }
 @media (max-width: 1180px) {
   .product-link-grid, .page-card-grid { grid-template-columns: repeat(2, 1fr); }
   .product-link-card--accent { grid-column: auto; }
+  .schueco-hero__grid, .integration-shell__layout, .design-path__intro { grid-template-columns: 1fr; }
+  .design-path__visual { max-width: none; }
+  .design-path__steps { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 760px) {
   .product-link-grid, .page-card-grid { grid-template-columns: 1fr; }
@@ -300,6 +343,10 @@ dd { margin: 0; font-weight: 850; }
   .product-link-card img { height: 210px; }
   .page-hero { min-height: auto; padding-top: 126px; }
   .weekly-fact, .article-card { padding: 24px; }
+  .facade-scenario-grid, .integration-shell__list, .design-path__steps { grid-template-columns: 1fr; }
+  .facade-scenario-card, .design-path__steps li { min-height: 0; padding: 24px; }
+  .schueco-hero__grid, .integration-shell__layout, .design-path__intro { gap: 32px; }
+  .schueco-specific-claim { padding: 22px; }
 }
 
 

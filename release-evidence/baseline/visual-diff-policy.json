@@ -1,0 +1,14 @@
+{
+  "baseline": "v227-baseline.json",
+  "comparison": {
+    "color_space": "sRGB",
+    "per_channel_tolerance": 12,
+    "protected_pixel_diff_ratio_max": 0.005,
+    "full_page_pixel_diff_ratio_max": 0.18,
+    "dimension_delta_px_max": 4,
+    "full_page_raster_required_min_width": 1180,
+    "responsive_protected_geometry_delta_px_max": 4
+  },
+  "rationale": "Protected composition must remain effectively pixel-stable on desktop. The broader full-page ceiling accommodates approved portrait, aluminum-card and latest-fact content changes; those page-scoped regions and their measured downstream shifts are registered before enforcing the protected threshold. Below 1180 px, Chromium full-page raster tiling changes when allowlisted dynamic cards alter page height, so the deterministic gate is exact baseline reproduction plus protected DOM width/height geometry within four pixels; full-page ratios remain recorded as informational evidence.",
+  "viewports": [1440, 1280, 1180, 768, 760, 390]
+}

@@ -1,0 +1,316 @@
+{
+  "schema_version": 1,
+  "release": "2026-07",
+  "generator": {
+    "path": "tools/team-portraits/create_final_portraits.py",
+    "pillow": "12.2.0",
+    "operation": "approved crop, uniform resize and metadata-free encoding only"
+  },
+  "approval": {
+    "approver": "Саня",
+    "approved_at": "2026-07-13T21:34:00Z",
+    "timestamp_basis": "approved private input set frozen for this release",
+    "evidence": "release-evidence/team-approval/"
+  },
+  "web_use_rights": {
+    "confirmed": true,
+    "scope": "six approved portraits on the public ОКНОТИКА website",
+    "recorded_at": "2026-07-13T21:34:00Z",
+    "private_documents": "retained outside Git, release ZIP and public document root"
+  },
+  "portrait_count": 8,
+  "new_portrait_count": 6,
+  "retained_portrait_count": 2,
+  "new_outputs_combined_bytes": 782232,
+  "new_outputs_max_bytes": 900000,
+  "portraits": [
+    {
+      "name": "Александр Золотухин",
+      "role": "Директор по развитию",
+      "status": "approved_new_shoot",
+      "approval": {
+        "approver": "Саня",
+        "approved_at": "2026-07-13T21:34:00Z",
+        "method": "reaction to the private approval sheet; selection frozen in the project input set"
+      },
+      "raw": {
+        "path": ".tmp-inputs/team-shoot/alexander-zolotukhin.jpg",
+        "sha256": "8f9d0347785f14b835402e3bdbbcc33aece695a608d38f51407229792f223495",
+        "width": 960,
+        "height": 1280,
+        "exif": "absent"
+      },
+      "crop": {
+        "x": 30,
+        "y": 155,
+        "width": 900,
+        "height": 1125,
+        "eye_line_source_y": 443,
+        "eye_line_output_ratio": 0.256,
+        "normalization": "crop and uniform resize only; identity and expression unchanged"
+      },
+      "html": {
+        "alt": "Александр Золотухин, директор по развитию ОКНОТИКИ",
+        "width": 800,
+        "height": 1000,
+        "loading": "lazy",
+        "decoding": "async"
+      },
+      "outputs": {
+        "jpeg": {
+          "path": "img/team/alexander-zolotukhin-2026-07.jpg",
+          "sha256": "febcd632470711592c4acb697b7eedecc4eba6f1880b4dc743296192f164d907",
+          "bytes": 41974
+        },
+        "webp": {
+          "path": "img/team/alexander-zolotukhin-2026-07.webp",
+          "sha256": "10d61eab6a3d6c07c9d5cacb1325dfcd9a0a718bf701f092b3344b63cfe009d3",
+          "bytes": 16408
+        }
+      }
+    },
+    {
+      "name": "Евгений Жалнин",
+      "role": "Операционный директор",
+      "status": "approved_new_shoot",
+      "approval": {
+        "approver": "Саня",
+        "approved_at": "2026-07-13T21:34:00Z",
+        "method": "reaction to the private approval sheet; selection frozen in the project input set"
+      },
+      "raw": {
+        "path": ".tmp-inputs/team-shoot/evgeny-zhalnin.jpg",
+        "sha256": "06c01a9b7a0c71a0a2e925d62cd8c385b30fcfe3c0c0c64440f64797af3d84a2",
+        "width": 960,
+        "height": 1280,
+        "exif": "absent"
+      },
+      "crop": {
+        "x": 30,
+        "y": 140,
+        "width": 900,
+        "height": 1125,
+        "eye_line_source_y": 435,
+        "eye_line_output_ratio": 0.2622,
+        "normalization": "crop and uniform resize only; identity and expression unchanged"
+      },
+      "html": {
+        "alt": "Евгений Жалнин, операционный директор ОКНОТИКИ",
+        "width": 800,
+        "height": 1000,
+        "loading": "lazy",
+        "decoding": "async"
+      },
+      "outputs": {
+        "jpeg": {
+          "path": "img/team/evgeny-zhalnin-2026-07.jpg",
+          "sha256": "12747eecdbf68af78ad6f297ad7947fd82714c0bc6343770242439a9df143e83",
+          "bytes": 91677
+        },
+        "webp": {
+          "path": "img/team/evgeny-zhalnin-2026-07.webp",
+          "sha256": "4519578fa9d4646de0580760c3b894723b6bdfaca85807a28b345bff2be8847c",
+          "bytes": 58306
+        }
+      }
+    },
+    {
+      "name": "Дмитрий Цветков",
+      "role": "Коммерческий директор",
+      "status": "approved_new_shoot",
+      "approval": {
+        "approver": "Саня",
+        "approved_at": "2026-07-13T21:34:00Z",
+        "method": "reaction to the private approval sheet; selection frozen in the project input set"
+      },
+      "raw": {
+        "path": ".tmp-inputs/team-shoot/dmitry-tsvetkov.jpg",
+        "sha256": "5ef6b0cb2d82048b8aa16a2a0dd976368513db3eecf8907fa2434b427983195f",
+        "width": 960,
+        "height": 1280,
+        "exif": "absent"
+      },
+      "crop": {
+        "x": 80,
+        "y": 130,
+        "width": 800,
+        "height": 1000,
+        "eye_line_source_y": 390,
+        "eye_line_output_ratio": 0.26,
+        "normalization": "crop and uniform resize only; identity and expression unchanged"
+      },
+      "html": {
+        "alt": "Дмитрий Цветков, коммерческий директор ОКНОТИКИ",
+        "width": 800,
+        "height": 1000,
+        "loading": "lazy",
+        "decoding": "async"
+      },
+      "outputs": {
+        "jpeg": {
+          "path": "img/team/dmitry-tsvetkov-2026-07.jpg",
+          "sha256": "507bae3a13d976091480f58377b5d36a134dcc5a48f2837cc6d57a0b423a5d20",
+          "bytes": 89329
+        },
+        "webp": {
+          "path": "img/team/dmitry-tsvetkov-2026-07.webp",
+          "sha256": "77d6c05217cd115046e5daba1f921be91c088379ac9366e8fb3de842bca4d703",
+          "bytes": 45142
+        }
+      }
+    },
+    {
+      "name": "Дмитрий Благочевский",
+      "role": "Исполнительный директор",
+      "status": "approved_new_shoot",
+      "approval": {
+        "approver": "Саня",
+        "approved_at": "2026-07-13T21:34:00Z",
+        "method": "reaction to the private approval sheet; selection frozen in the project input set"
+      },
+      "raw": {
+        "path": ".tmp-inputs/team-shoot/dmitry-blagochevsky.jpg",
+        "sha256": "a6d8e581e383405b7518abec1857fd5173286d0009792dd42a0318735b9719e1",
+        "width": 960,
+        "height": 1280,
+        "exif": "absent"
+      },
+      "crop": {
+        "x": 120,
+        "y": 320,
+        "width": 640,
+        "height": 800,
+        "eye_line_source_y": 525,
+        "eye_line_output_ratio": 0.2562,
+        "normalization": "crop and uniform resize only; identity and expression unchanged"
+      },
+      "html": {
+        "alt": "Дмитрий Благочевский, исполнительный директор ОКНОТИКИ",
+        "width": 800,
+        "height": 1000,
+        "loading": "lazy",
+        "decoding": "async"
+      },
+      "outputs": {
+        "jpeg": {
+          "path": "img/team/dmitry-blagochevsky-2026-07.jpg",
+          "sha256": "c878866c0b3ee23f7cb9a0d4583e240904888e7cb9313d453d0abbd6fdbeac5e",
+          "bytes": 68404
+        },
+        "webp": {
+          "path": "img/team/dmitry-blagochevsky-2026-07.webp",
+          "sha256": "6136a8add08b2698048f44660e7fd3639c521589a83f6f14e6ea5c5268360a38",
+          "bytes": 33160
+        }
+      }
+    },
+    {
+      "name": "Роман Водянов",
+      "role": "Руководитель проектов",
+      "status": "approved_new_shoot",
+      "approval": {
+        "approver": "Саня",
+        "approved_at": "2026-07-13T21:34:00Z",
+        "method": "reaction to the private approval sheet; selection frozen in the project input set"
+      },
+      "raw": {
+        "path": ".tmp-inputs/team-shoot/roman-vodyanov.jpg",
+        "sha256": "31193578a5606a387ed25d233df93b8279c6490ffb307c7a06be96db6ca8d8e3",
+        "width": 960,
+        "height": 1280,
+        "exif": "absent"
+      },
+      "crop": {
+        "x": 50,
+        "y": 205,
+        "width": 860,
+        "height": 1075,
+        "eye_line_source_y": 485,
+        "eye_line_output_ratio": 0.2605,
+        "normalization": "crop and uniform resize only; identity and expression unchanged"
+      },
+      "html": {
+        "alt": "Роман Водянов, руководитель проектов ОКНОТИКИ",
+        "width": 800,
+        "height": 1000,
+        "loading": "lazy",
+        "decoding": "async"
+      },
+      "outputs": {
+        "jpeg": {
+          "path": "img/team/roman-vodyanov-2026-07.jpg",
+          "sha256": "bddef216727b8d16baf254c5b6d82bad8f7de2b5504ef74b1dfbe918ea8099cb",
+          "bytes": 129719
+        },
+        "webp": {
+          "path": "img/team/roman-vodyanov-2026-07.webp",
+          "sha256": "8ac16728156045ad8af03b399c6ebf750edc47d7c78774cfbbcf213aa95f3286",
+          "bytes": 101442
+        }
+      }
+    },
+    {
+      "name": "Иван Рябоконь",
+      "role": "Менеджер проектов",
+      "status": "approved_new_shoot",
+      "approval": {
+        "approver": "Саня",
+        "approved_at": "2026-07-13T21:34:00Z",
+        "method": "reaction to the private approval sheet; selection frozen in the project input set"
+      },
+      "raw": {
+        "path": ".tmp-inputs/team-shoot/ivan-ryabokon.jpg",
+        "sha256": "c70027ac4b2ea0c56acdc2de719940c8ce11223fbb35fbc66a7c8fc3c473bb2c",
+        "width": 960,
+        "height": 1280,
+        "exif": "absent"
+      },
+      "crop": {
+        "x": 150,
+        "y": 210,
+        "width": 700,
+        "height": 875,
+        "eye_line_source_y": 420,
+        "eye_line_output_ratio": 0.24,
+        "normalization": "crop and uniform resize only; identity and expression unchanged"
+      },
+      "html": {
+        "alt": "Иван Рябоконь, менеджер проектов ОКНОТИКИ",
+        "width": 800,
+        "height": 1000,
+        "loading": "lazy",
+        "decoding": "async"
+      },
+      "outputs": {
+        "jpeg": {
+          "path": "img/team/ivan-ryabokon-2026-07.jpg",
+          "sha256": "58b652aaf6adf9aadad7bb2a3d4c38bf3b9b55ebce5f14ee77069c5a01803261",
+          "bytes": 71675
+        },
+        "webp": {
+          "path": "img/team/ivan-ryabokon-2026-07.webp",
+          "sha256": "4ac18ba9c2cad370108041dfee1d464c9455600bad67aa646d96269d52174df6",
+          "bytes": 34996
+        }
+      }
+    },
+    {
+      "name": "Сергей Бешенцев",
+      "role": "Руководитель проекта «Умное окно»",
+      "path": "img/team/beshentsev.jpg",
+      "sha256": "4e60d8339bc4989be4d67fa4b7bee57a3794a72744c60a36b971cc8007e68939",
+      "status": "retained_v227_unchanged",
+      "baseline_sha256": "4e60d8339bc4989be4d67fa4b7bee57a3794a72744c60a36b971cc8007e68939",
+      "current_sha256": "4e60d8339bc4989be4d67fa4b7bee57a3794a72744c60a36b971cc8007e68939"
+    },
+    {
+      "name": "Оксана Скопина",
+      "role": "Главный бухгалтер",
+      "path": "img/team/skopina.jpg",
+      "sha256": "9c6fd867ddef00c97ad5e5b4b80ea5cd0df5922350d57639eca04c0ce381ec5f",
+      "status": "retained_v227_unchanged",
+      "baseline_sha256": "9c6fd867ddef00c97ad5e5b4b80ea5cd0df5922350d57639eca04c0ce381ec5f",
+      "current_sha256": "9c6fd867ddef00c97ad5e5b4b80ea5cd0df5922350d57639eca04c0ce381ec5f"
+    }
+  ]
+}

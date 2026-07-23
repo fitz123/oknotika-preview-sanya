@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily OKNOTIKA admin backup (RPO 24 hours)
+
+[Timer]
+OnCalendar=*-*-* 03:17:00 Europe/Moscow
+Persistent=true
+RandomizedDelaySec=20m
+Unit=oknotika-admin-backup.service
+
+[Install]
+WantedBy=timers.target

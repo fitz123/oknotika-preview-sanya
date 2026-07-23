@@ -1,0 +1,62 @@
+[Unit]
+Description=OKNOTIKA private article editor
+After=network-online.target
+Wants=network-online.target
+RequiresMountsFor=/var/lib/oknotika-admin /opt/oknotika-admin
+
+[Service]
+Type=simple
+User=oknotika-admin
+Group=www-data
+UMask=0027
+WorkingDirectory=/opt/oknotika-admin/current/admin-app
+EnvironmentFile=/etc/oknotika-admin/oknotika-admin.env
+Environment=PATH=/opt/node-v24.18.0/bin:/usr/bin:/bin
+Environment=TELEGRAM_OIDC_CLIENT_ID_FILE=%d/telegram-oidc-client-id
+Environment=TELEGRAM_OIDC_CLIENT_SECRET_FILE=%d/telegram-oidc-client-secret
+LoadCredentialEncrypted=telegram-oidc-client-id
+LoadCredentialEncrypted=telegram-oidc-client-secret
+StateDirectory=oknotika-admin
+StateDirectoryMode=0750
+RuntimeDirectory=oknotika-admin
+RuntimeDirectoryMode=0750
+ExecStartPre=/opt/oknotika-admin/current/deploy/scripts/prepare-runtime.sh
+ExecStartPre=/opt/oknotika-admin/current/deploy/scripts/pre-migrate-backup.sh
+ExecStartPre=/opt/oknotika-admin/current/deploy/scripts/preflight.sh --service-start
+ExecStart=/opt/node-v24.18.0/bin/node /opt/oknotika-admin/current/admin-app/src/http/start.js
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=90s
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectClock=yes
+ProtectControlGroups=yes
+ProtectHome=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectProc=invisible
+ProtectSystem=strict
+ProcSubset=pid
+CapabilityBoundingSet=
+AmbientCapabilities=
+LockPersonality=yes
+MemoryMax=512M
+TasksMax=64
+RemoveIPC=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+ReadWritePaths=/var/lib/oknotika-admin /run/oknotika-admin
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,31 @@
+{
+  "name": "oknotika-admin",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "start": "node src/http/start.js",
+    "bootstrap-editor": "node scripts/bootstrap-editor.js",
+    "bootstrap-content": "node scripts/bootstrap-content.js",
+    "enroll": "node scripts/enroll-editor.js",
+    "disable-editor": "node scripts/disable-editor.js",
+    "lint": "eslint .",
+    "test": "node --test --test-reporter=spec tests/*.test.js",
+    "test:security": "node --test --test-reporter=spec tests/*security.test.js",
+    "build": "node scripts/build.js",
+    "render:fixture": "node src/render/fixture.js",
+    "rehearse:beta": "node scripts/rehearse-beta.js --output ../release-evidence/qa/editorial-rehearsal.json"
+  },
+  "dependencies": {
+    "markdown-it": "14.3.0",
+    "sanitize-html": "2.17.0",
+    "sharp": "0.35.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.2",
+    "eslint": "9.39.2"
+  }
+}

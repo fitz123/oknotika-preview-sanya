@@ -1,0 +1,9 @@
+[Unit]
+Description=Trigger OKNOTIKA backup after an atomic article publish switch
+
+[Path]
+PathChanged=/var/lib/oknotika-admin/article-releases/active
+Unit=oknotika-admin-backup.service
+
+[Install]
+WantedBy=multi-user.target

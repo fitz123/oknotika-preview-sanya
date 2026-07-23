@@ -1,0 +1,440 @@
+[
+  {
+    "path": "IMAGE_SOURCES.md",
+    "mode": "100644",
+    "git_blob": "08721371d770e635d3785c8848d02669d21e88af",
+    "sha256": "44c23fc7905b12a135d23cfa3b1d0b19a022bd2b1279da27f3959053e1b28456"
+  },
+  {
+    "path": "README.md",
+    "mode": "100644",
+    "git_blob": "bdc5350d1367455a6173c4ab6954d75991cab64f",
+    "sha256": "863a265f8cfc85a68936a36a00bda5e7f4725ea3386b0ed8e88e0ce74fa1d322"
+  },
+  {
+    "path": "aluminum/index.html",
+    "mode": "100644",
+    "git_blob": "fbdc1b96b67e5cb1b91201f822d1450e4cfb2b08",
+    "sha256": "d34d7d6a0bc7f0aa0cf2fbe0a14558f95d5c1e96fddb5a0ec4af9de0796dcfb7"
+  },
+  {
+    "path": "articles/al-bahr-towers-dynamic-facade/index.html",
+    "mode": "100644",
+    "git_blob": "0f8fa63ad37623af921a94bf4d339b80a65b82ef",
+    "sha256": "f1bdad9f6e25f5f683a98c53be3b3e0dcad4f02159bed588ae24ce4523b28379"
+  },
+  {
+    "path": "articles/index.html",
+    "mode": "100644",
+    "git_blob": "0f33bf5c65c2659582d6475d61465722c03d3a66",
+    "sha256": "b7699d5daaed4441b2066fa25dcc86726fba5af3d43db86b07d17357e42678a9"
+  },
+  {
+    "path": "carbon-glass/index.html",
+    "mode": "100644",
+    "git_blob": "59a22533adf44f3d18ba111c947818c3446a5d0d",
+    "sha256": "5dff5a0a20b43eaa4e2d0914edcbfe1eebee7b5eb5727fbf1c7e664a7ad52e10"
+  },
+  {
+    "path": "docs/README-requisites.txt",
+    "mode": "100644",
+    "git_blob": "5f664796075aedef88dc4295415b2a247b201ef6",
+    "sha256": "40f02bb82afc9a86729fa4d438b8fcad15141a674e0c367565535e7961ae89bb"
+  },
+  {
+    "path": "glass/index.html",
+    "mode": "100644",
+    "git_blob": "acbc089ce3414eec9bac1d8c4a4b994b32f31455",
+    "sha256": "7c2ebc681dfd2f249a351f08a34e5213e564c27b30526d7b69f6347dbcad7d00"
+  },
+  {
+    "path": "img/aluminum-world/automation.jpg",
+    "mode": "100644",
+    "git_blob": "994916e9cd8427a3865e7e4224ba21957150d318",
+    "sha256": "06a65736da8ad66fc6600423eea43d88cf33e4c4206d0aa416ac3b8d2410ebd4"
+  },
+  {
+    "path": "img/aluminum-world/facades.jpg",
+    "mode": "100644",
+    "git_blob": "4981bab16af533558d341ecdec15ddaadf4ab15a",
+    "sha256": "e794ac9b2fc096b47e5a406df2b6da3e9fb9a58323884161b8ddee34a81113a1"
+  },
+  {
+    "path": "img/aluminum-world/first-floors.jpg",
+    "mode": "100644",
+    "git_blob": "83c98a6ceeed7ef687c381f27d4a3e0d711c34ed",
+    "sha256": "a39f5f234095317fcc18ae36f47dcbc2b3d117e211d92bc5c691a7d194990aa0"
+  },
+  {
+    "path": "img/aluminum-world/premium.jpg",
+    "mode": "100644",
+    "git_blob": "a16f67fe16a1b0b6ee4a8b67b14972b3e9b7146d",
+    "sha256": "87853e0b968d34ad0957607259a69d8f9967963468eca8a5a903184a45a7bc8a"
+  },
+  {
+    "path": "img/cases/atrium.jpg",
+    "mode": "100644",
+    "git_blob": "e5c5c85401c4eac337ec3f0fe639e0699c011145",
+    "sha256": "832d501ad4ce262f8cd18b36326daf4765ecb304e6b654971148a3db84650dac"
+  },
+  {
+    "path": "img/cases/botanical-garden.jpg",
+    "mode": "100644",
+    "git_blob": "8de9d4221b2a2dc04b5710423daa2fdb0e267914",
+    "sha256": "7a1a735b460e009d6ea3b7376f80dc71b8469f81d7724ef133121c7fcda51641"
+  },
+  {
+    "path": "img/cases/leningradsky-vokzal.jpg",
+    "mode": "100644",
+    "git_blob": "10b5c450664982bf9458a70010c56d0ecb6699fc",
+    "sha256": "1afb4e50e28747ed5e7e00816c33ecbde8fe67198e1c2aeb778de4e41c7f3cb3"
+  },
+  {
+    "path": "img/cases/montage-mkd.jpg",
+    "mode": "100644",
+    "git_blob": "10c8415ae2cddfd563f9e36659539fabf866efff",
+    "sha256": "6719a1a90ffae5ff3bce99c79ef2b8aa0198c0c29fd9b334c3ca49464bd4d380"
+  },
+  {
+    "path": "img/cases/shalyapin.jpg",
+    "mode": "100644",
+    "git_blob": "4892e27e6fe4b9c06269087bc2c7ebad7dc54611",
+    "sha256": "b86d357229d60a8d0355e688cfc53c0fc1dcc14da0d6ac85d0f616c0367f65e3"
+  },
+  {
+    "path": "img/cases/thermopad-gorky.jpg",
+    "mode": "100644",
+    "git_blob": "e2f61d2f7916295b3a15d9b1534d4a6ec5908a88",
+    "sha256": "d35c18e645e4c72ace571310c4e0e67c93fca64552a865bff4cce8eb476bdc54"
+  },
+  {
+    "path": "img/cases/thermopad-process.jpg",
+    "mode": "100644",
+    "git_blob": "404e37b1840e6f0bca63ef8627eb3c00ee00afdf",
+    "sha256": "8e7f3ed1be643798fd82b328829bff66d58f36ca2a29efe1c17a73a9b0f1be1e"
+  },
+  {
+    "path": "img/hero-engineering.svg",
+    "mode": "100644",
+    "git_blob": "ad277335a26066a9a216654ea305eed203e37949",
+    "sha256": "4cacd36afe3ee4dcbef59fbe3b7b8a1859b43813b3999d8f9ff0e57c087a2ea2"
+  },
+  {
+    "path": "img/logo-oknotika.svg",
+    "mode": "100644",
+    "git_blob": "80fbf12546dae712e5e3fb3f6cb6d0472bc3e7a4",
+    "sha256": "9f6d1ff9e235d8052d03f1c1b166e95056048d8095cac00dc4ea17ff5a5acaad"
+  },
+  {
+    "path": "img/product-world/glass-art.jpg",
+    "mode": "100644",
+    "git_blob": "df21c271ec7329b59bfc48dcc684ed4343a62cfd",
+    "sha256": "9926f83016a1cd8d9a816d4c5b7601b7001ae70c309f2b499fc9367e9ac9ec97"
+  },
+  {
+    "path": "img/product-world/glass-facade.jpg",
+    "mode": "100644",
+    "git_blob": "b33552b7c0ee7eea04a1b734f57a2c3fd0093938",
+    "sha256": "f213e84307754302a7551ad3499943349c70f4800f552e1041e8a938b6764ce5"
+  },
+  {
+    "path": "img/product-world/glass-smart.jpg",
+    "mode": "100644",
+    "git_blob": "d76d7e58c2153349d7a0e87101e495eb298ec8d7",
+    "sha256": "de9cab6b71f1d215509e96150934fd48dde12336620f83a9a5b552a287996e02"
+  },
+  {
+    "path": "img/product-world/glass-thermo.jpg",
+    "mode": "100644",
+    "git_blob": "0f46da6237b232f92eacf29522aa72ad126caacc",
+    "sha256": "d7e0b27e42237e538b82de21a119ec7e66a0e4ff7c664b927571a43bd63c6c13"
+  },
+  {
+    "path": "img/product-world/pvc-apartment.jpg",
+    "mode": "100644",
+    "git_blob": "615a402b71c9ab1ce06fdf7b90de2cb724f95a7f",
+    "sha256": "277de377289e9021e4e47d2f9f418360a1fd8b41ed6ba022b542b3605cd1d1cc"
+  },
+  {
+    "path": "img/product-world/pvc-house.jpg",
+    "mode": "100644",
+    "git_blob": "0c8da35321ad15516af0ad95d2673211e3fb3d55",
+    "sha256": "c8279871200e8f5a966477d8e1850d1644d69750a12d688334e3c682479bc0a3"
+  },
+  {
+    "path": "img/product-world/pvc-windows.jpg",
+    "mode": "100644",
+    "git_blob": "14d57efbc00ad6f440180d52807e572a9997756a",
+    "sha256": "f8d2b914837656caba306e89e7979426217101c9aaf3dc11e45496a79aa3058f"
+  },
+  {
+    "path": "img/products/aluminum-skylight.jpg",
+    "mode": "100644",
+    "git_blob": "3b25379b571658c5f50d0fc8fa67b28d44ea8576",
+    "sha256": "cadc1246df272dff29bec6adbc0a316f7fad12a296d32ad8ff3919d0de5ce8f3"
+  },
+  {
+    "path": "img/products/carbon-bath.jpg",
+    "mode": "100644",
+    "git_blob": "bad1de136abc2eac411d5d6d0fdfe8b09f94755c",
+    "sha256": "ca15619484de5d25e0369b4d895e0631658151328ae9efa666a4b99cc845d01f"
+  },
+  {
+    "path": "img/products/carbon-glass-real.jpg",
+    "mode": "100644",
+    "git_blob": "52b5395a76eda8017ec0ae4819f1b14a3e630c3b",
+    "sha256": "9833c526a6ce33cab7e68b5619972173170682bf3694dfd0a8c841d0b79d41ca"
+  },
+  {
+    "path": "img/products/carbon-glass.svg",
+    "mode": "100644",
+    "git_blob": "22a5bd3c9e3762bced8f5a0d306bce8b3bb2f57d",
+    "sha256": "2f8cd2a03a88bb97a08583a9982f4b901c0d803e8c8e35e52dcf30b2a51a9523"
+  },
+  {
+    "path": "img/products/carbon-interior.jpg",
+    "mode": "100644",
+    "git_blob": "fd1d62ef616b30d789c2e0561fe7204cc1d81250",
+    "sha256": "9c8298886d4bd4bbc5a45465bef348b62ab95d97f5ba07f328944f3ba3195504"
+  },
+  {
+    "path": "img/products/carbon-main.jpg",
+    "mode": "100644",
+    "git_blob": "6808f7bf6e14b65775d761859b1cf731052ef1be",
+    "sha256": "04db4407ebe895e93b5e9b9c3c28882885e3a81a58c7f3fd826a7c57101b80be"
+  },
+  {
+    "path": "img/products/futuruss-child-safety.jpg",
+    "mode": "100644",
+    "git_blob": "d367b2aa4837f6b2f7fa905e00fd893f5cc29298",
+    "sha256": "9dbf548c0c1e126506ad25f952a5d599b3ff2ac4e47a70a93a911ed838d9b102"
+  },
+  {
+    "path": "img/products/futuruss.svg",
+    "mode": "100644",
+    "git_blob": "2a16342ab0510102699e832317ee9db9d3ec349e",
+    "sha256": "1d39b380ea21ff37991f45e5052a14296f8eca031c58a9a4b2191702e68fc8c7"
+  },
+  {
+    "path": "img/products/glass.svg",
+    "mode": "100644",
+    "git_blob": "18100be6aee11a4408a453f37049db0a7cd04c60",
+    "sha256": "93a1ee887e2b835d2b99bcb20cbe55096139cdb540f27583808ed6360b2293ea"
+  },
+  {
+    "path": "img/products/materials.svg",
+    "mode": "100644",
+    "git_blob": "2b6710e5e74be55cebdd4fab6116a6866e4602a2",
+    "sha256": "e8806202b60082bd24c7f24f97c2fcb07c033d4e6324ebcaa65b378cd73ad52c"
+  },
+  {
+    "path": "img/products/mkd-sergey.jpg",
+    "mode": "100644",
+    "git_blob": "9c022ccd20d077d55fb2d702e93686a90638ef89",
+    "sha256": "dcac057250d122dea806ff94cae7fbb103a3fa3a649f1907aef3ea3c18dc52c6"
+  },
+  {
+    "path": "img/products/oknotika-control-panel-close.jpg",
+    "mode": "100644",
+    "git_blob": "8998428766d29feecfae9d7d21678e9ddff61489",
+    "sha256": "64428e88b8d8e7765074ae354ae92725d3b58ed375646a415a1e33c0464fbff1"
+  },
+  {
+    "path": "img/products/oknotika-control-panel.jpg",
+    "mode": "100644",
+    "git_blob": "87bfd9ceedf4747e4ec9e6368903136b9f237372",
+    "sha256": "4ce6c0ebcd6830e8b0abe1dd7bdd6a6a5124a183f307bfc852973eb1d3770862"
+  },
+  {
+    "path": "img/products/oknotika-smart-window.svg",
+    "mode": "100644",
+    "git_blob": "d94047897b6ac9eab205069d8728ebafe041c082",
+    "sha256": "58e06a4b1f4a6a13e0cd47cfa47d58c6794dc312f9e1533e6e3ff87e2674f19a"
+  },
+  {
+    "path": "img/products/oknotika-window-demo-tight.jpg",
+    "mode": "100644",
+    "git_blob": "5c673dd32b4666c10b563fa9d393ef402e0357fd",
+    "sha256": "4bb0956f92978c9d860a2380c1705e14a1f5c8c282f53635e7cf900126244aba"
+  },
+  {
+    "path": "img/products/oknotika-window-demo.jpg",
+    "mode": "100644",
+    "git_blob": "bdd5bbf0090a44db88752b785b4de2efa2bff267",
+    "sha256": "84bb5a5a8d6f5b7abce27bc53eaa5efb0abaf16537aff77e52bea5b0b167db56"
+  },
+  {
+    "path": "img/products/oknotika-window-hero.jpg",
+    "mode": "100644",
+    "git_blob": "8cae018d1f9836c6c3de7bc79b02445d19efbdd4",
+    "sha256": "f39c501454714b4b2c276f1183cee33e5627039b141d1d2c7a16cafbb0573a1e"
+  },
+  {
+    "path": "img/products/protectapeel-application.jpg",
+    "mode": "100644",
+    "git_blob": "67d5c801cdb3ab80137c672d0c70e9e02c1de1db",
+    "sha256": "79a958cd275a2fef5c3ed447c95daf03f8a8cfc634155fe3c9640d5a4fad020e"
+  },
+  {
+    "path": "img/products/protectapeel-application.mp4",
+    "mode": "100644",
+    "git_blob": "781b3035294f6cd8077ee2095aa38b92a647a801",
+    "sha256": "16fde506a1aa9f199b7666a33a95591a89edc66a147bfb5273a7a8d8c3701ae7"
+  },
+  {
+    "path": "img/products/protectapeel-site.jpg",
+    "mode": "100644",
+    "git_blob": "13494e32fb0c10ec2f205f37f3663bdadd7907af",
+    "sha256": "a861936ab995b3f0575d0eca7aceba10e8e5a9cb02438bd693bebbc072005b2d"
+  },
+  {
+    "path": "img/products/protectapeel.svg",
+    "mode": "100644",
+    "git_blob": "e3a01076529973a71392597b0b5b18279f59859d",
+    "sha256": "bdceacf64184ce65693f099b78a0f70048d14d9ffdf27726cdae49a44bbedb84"
+  },
+  {
+    "path": "img/products/raluma-patio-life.jpg",
+    "mode": "100644",
+    "git_blob": "d766db2bc65102592769a598510fd1ebd1d82b57",
+    "sha256": "dfe91a2da10943c772c0ca3eb03807ce2f354622801ab9a83342d8367ecc439f"
+  },
+  {
+    "path": "img/products/stoller-distant-for-slide2.jpg",
+    "mode": "100644",
+    "git_blob": "65438353cb899bc4071729e606497a02deb906a1",
+    "sha256": "9cb86e7497e129fa15c8cf90596e4ed9869cd7f6a5db75b07a10d758a7da4a9b"
+  },
+  {
+    "path": "img/products/stoller-facade-green.jpg",
+    "mode": "100644",
+    "git_blob": "b429be8561ef8c99d393d27300bac5ab59a29435",
+    "sha256": "7f1688583457d8b900baf9edbc27b426bb6d97c003b1f5a576933b7ac5dd7294"
+  },
+  {
+    "path": "img/products/stoller-house.jpg",
+    "mode": "100644",
+    "git_blob": "9ab092a5710a6a5e3d614ffef872efd734f2d777",
+    "sha256": "3475c941fadd54866681692acfc2dfa36a9dae37ef218dd139423721b66eea01"
+  },
+  {
+    "path": "img/products/stoller.svg",
+    "mode": "100644",
+    "git_blob": "90b3ed91860f5e7ebeb62b2d1d1f853fb76ec3a2",
+    "sha256": "5c1023c72e73d2d490603e054008b40395de6b018a9c69f1ac41a2a6d6a1c4f7"
+  },
+  {
+    "path": "img/products/thermopad-cabinet.jpg",
+    "mode": "100644",
+    "git_blob": "c60f2e402f142b43dc7f31a54aa41a9b44135458",
+    "sha256": "f1ceafab343f83210612fe8fd751f0a48649a8df180ef1fe0570fa7093af65c3"
+  },
+  {
+    "path": "img/products/thermopad-install.jpg",
+    "mode": "100644",
+    "git_blob": "bcc3e45f38c7023b0cf6a31969aea9a384c670b4",
+    "sha256": "3acbe2826adc9a71ef61378cdacdf37cd929ee1051e7de3f9c46ac5397e10627"
+  },
+  {
+    "path": "img/team/beshentsev.jpg",
+    "mode": "100644",
+    "git_blob": "a132a180b1679decfed6e981c1a0eee9001b7310",
+    "sha256": "4e60d8339bc4989be4d67fa4b7bee57a3794a72744c60a36b971cc8007e68939"
+  },
+  {
+    "path": "img/team/blagochevsky.jpg",
+    "mode": "100644",
+    "git_blob": "28e6ef460b60147856ae981fc021a7a3b60d36ef",
+    "sha256": "7a1eace5c4c19be4d30a06925c8f8be795c041b8f318e1fffe9a0a9460839fc5"
+  },
+  {
+    "path": "img/team/ryabokon.jpg",
+    "mode": "100644",
+    "git_blob": "c71a1121d1a4ff30f2b33efc00930e2bdd404c9a",
+    "sha256": "1940b57fb09df9c3bfabbad631b2f35a1fbd1179b0b791575b502a81257bc4be"
+  },
+  {
+    "path": "img/team/rychkova.jpg",
+    "mode": "100644",
+    "git_blob": "1adcc844c75d936bf05d1ff80067037dce20a0d1",
+    "sha256": "d3788d5709c4d4c187c40c4b01bc3fa2b58382010e0393418bfeee0c969d9223"
+  },
+  {
+    "path": "img/team/skopina.jpg",
+    "mode": "100644",
+    "git_blob": "7e9f733367546b5d87f72d76158590a6c2dc228c",
+    "sha256": "9c6fd867ddef00c97ad5e5b4b80ea5cd0df5922350d57639eca04c0ce381ec5f"
+  },
+  {
+    "path": "img/team/tsvetkov.jpg",
+    "mode": "100644",
+    "git_blob": "aa6cb6911622a4835abc49bba1bfdf9f2761cef1",
+    "sha256": "035e1eecaeecb212d683ce6d9ef69839293ee0e096aca081a585ce2b1efef5fb"
+  },
+  {
+    "path": "img/team/vodyanov-v2.jpg",
+    "mode": "100644",
+    "git_blob": "ab7b4abc64093ac24e4e50bc1dcc03810ecb7050",
+    "sha256": "374f36d69a8f0124568c1f0cfe9b1e01a337366ad67eee2c7994412246b20dc4"
+  },
+  {
+    "path": "img/team/zhalnin.jpg",
+    "mode": "100644",
+    "git_blob": "748bfda94f4bda46fb5dd686bc00f3774b6f7964",
+    "sha256": "111c2ba0c42d6a338e284f72889672713a138e331107f6dae16414a1359fabc3"
+  },
+  {
+    "path": "img/team/zolotukhin.jpg",
+    "mode": "100644",
+    "git_blob": "6365fb72dd16537fef0fe50b045b9c2df9731a43",
+    "sha256": "81f5ab7545405426dd55e62ae6840c596979b60146a11a45b7a7fa1e7d349785"
+  },
+  {
+    "path": "index.html",
+    "mode": "100644",
+    "git_blob": "4ccfc64b8b18d100ff063a71153380c8ad996035",
+    "sha256": "984392c1c30b3e543dddcc6d2110034cabbcf1485a0996db098ae2322f307e79"
+  },
+  {
+    "path": "oknotika-smart-window/index.html",
+    "mode": "100644",
+    "git_blob": "2bdd25f5735cb83d79f6840631e0bdc025c94cef",
+    "sha256": "e7b38412be20efa733313aa95947885bc23ffe2ee53b2492fab657c024114bd5"
+  },
+  {
+    "path": "oknotika-smart-window/smart-window.css",
+    "mode": "100644",
+    "git_blob": "68a317f1e274eb02726c77bbe71134a00cdd500a",
+    "sha256": "f01308bd5a2acaa8c801530a50ce5a7984bbaa64b7dedd6345985ba6b498ba7e"
+  },
+  {
+    "path": "protectapeel/index.html",
+    "mode": "100644",
+    "git_blob": "ca967cfc0c3f13327c396f67f0addc175cc7a948",
+    "sha256": "4c028496292fd50dd52d8612751a823c4834b951f9028269ede80327316d1073"
+  },
+  {
+    "path": "pvc/index.html",
+    "mode": "100644",
+    "git_blob": "89e5568fb9873756166642ae19af7b059f5b814b",
+    "sha256": "1aeb796a92b2b29da888d727d68b19693508216a0f0946017de778c7fee25b02"
+  },
+  {
+    "path": "script.js",
+    "mode": "100644",
+    "git_blob": "761d7468506275d3ad8a5a47a89cb4ca3393e32a",
+    "sha256": "3ecf0bf296aac701f993c926d9019e537975942ef67c7e349fd10358072751f7"
+  },
+  {
+    "path": "style.css",
+    "mode": "100644",
+    "git_blob": "7b159272c1a4481bff59c0e9040891ccba0caeaa",
+    "sha256": "1d65a2f20bad11236140754899c821d868bdbf0c156737b7429fa75df186709d"
+  },
+  {
+    "path": "wood-stoller/index.html",
+    "mode": "100644",
+    "git_blob": "c5ff1e28406651d7873af770d2f94daa2ab74120",
+    "sha256": "a9c13e58cbc7b72d4ec85daa3a97d0ee3e9f57f930611c0a901653ff01beace5"
+  }
+]

@@ -1,0 +1,67 @@
+{
+  "baseline": {
+    "label": "V2.27",
+    "commit": "5364ff160ffa9b8e9f2d0998a5eef1cf6cd3f5ed",
+    "tree": "1025debb9c1d76f41fad3ed9d2ded8b3afa71d7b",
+    "commit_timestamp": "2026-07-10T21:11:32+03:00",
+    "tracked_files": 73
+  },
+  "capture": {
+    "captured_at": "2026-07-13T21:44:21.043067+00:00",
+    "source": "git archive of the pinned commit",
+    "page": "/index.html",
+    "playwright": "1.58.2",
+    "chromium": "145.0.7632.6",
+    "viewport_height": 1000,
+    "device_scale_factor": 1,
+    "locale": "ru-RU",
+    "timezone": "Europe/Moscow",
+    "color_scheme": "dark",
+    "animations": "disabled; reveal nodes forced visible",
+    "cookie_banner": "suppressed with the site's accepted localStorage value",
+    "screenshots": [
+      {
+        "filename": "index-1440.jpg",
+        "width": 1440,
+        "height": 7267,
+        "sha256": "979824eb6abceef08d1c749e4a2ff1d2a61c26fd00b82e1695b79a4a7453d1fd",
+        "bytes": 1000941
+      },
+      {
+        "filename": "index-1280.jpg",
+        "width": 1280,
+        "height": 7181,
+        "sha256": "32264dc900bbd1f18bf9d83f0902e79c6b0b4d7a738ffe610910989db9b332f8",
+        "bytes": 969182
+      },
+      {
+        "filename": "index-1180.jpg",
+        "width": 1180,
+        "height": 9309,
+        "sha256": "4b583650fc8d3dda627ac6fc70e23115eff153999425b16b68faf4f8bfc73e8c",
+        "bytes": 1130266
+      },
+      {
+        "filename": "index-768.jpg",
+        "width": 768,
+        "height": 9000,
+        "sha256": "99e8ada7956be80261f8e99d7c56d7edc14cfa29e09ba65650f0377feb9ccd76",
+        "bytes": 821821
+      },
+      {
+        "filename": "index-760.jpg",
+        "width": 760,
+        "height": 17273,
+        "sha256": "ed1d5157ba4c2092583cf97c36326cfb9a95d64c50287e5cdf9c5878d585dce3",
+        "bytes": 1631782
+      },
+      {
+        "filename": "index-390.jpg",
+        "width": 390,
+        "height": 14862,
+        "sha256": "eab1dc899ab79c2822a07bef406db10bc2b41f3ef2fca18e73033d8448c262a5",
+        "bytes": 896957
+      }
+    ]
+  }
+}

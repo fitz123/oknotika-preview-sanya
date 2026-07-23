@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-14T00:00:00Z",
+  "commands": [
+    "npm test",
+    "npm run test:security"
+  ],
+  "oidc": {
+    "fixture": "admin-app/tests/fixtures/telegram-oidc-conformance.json",
+    "testFile": "admin-app/tests/auth-security.test.js",
+    "cases": {
+      "valid": "pass",
+      "forgedSignature": "pass",
+      "staleOrExpired": "pass",
+      "replayedState": "pass",
+      "wrongIssuer": "pass",
+      "wrongAudience": "pass",
+      "wrongAlgorithm": "pass",
+      "unknownKidBoundedRefresh": "pass",
+      "nonAllowlistedSubject": "pass"
+    }
+  },
+  "webSecurity": {
+    "testFiles": [
+      "admin-app/tests/content-security.test.js",
+      "admin-app/tests/http-security.test.js",
+      "admin-app/tests/upload-security.test.js"
+    ],
+    "cases": {
+      "xssAndRawHtml": "pass",
+      "csrfOriginAndFetchMetadata": "pass",
+      "unsafeOrNonHttpsSourceUrl": "pass",
+      "mimeConfusionAndMalformedImages": "pass",
+      "oversizedImage": "pass",
+      "excessivePixelDecompressionBomb": "pass",
+      "svgAndGifRejected": "pass",
+      "exifStrippedAndReencoded": "pass"
+    }
+  },
+  "publisherCrashConsistency": {
+    "testFile": "admin-app/tests/publisher.test.js",
+    "boundaries": {
+      "beforeStageRender": "pass",
+      "afterStageRender": "pass",
+      "beforeImmutableRename": "pass",
+      "afterImmutableRename": "pass",
+      "beforeActiveSwitch": "pass",
+      "afterActiveSwitch": "pass",
+      "beforeDatabaseFinalize": "pass",
+      "afterDatabaseFinalize": "pass",
+      "startupReconciliation": "pass"
+    }
+  },
+  "liveTelegram": "deferred to release-evidence/qa/PRODUCTION_OIDC_REHEARSAL.md because the beta package intentionally contains no credentials",
+  "status": "pass"
+}

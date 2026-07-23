@@ -1,0 +1,34 @@
+[Unit]
+Description=Encrypted off-host backup for OKNOTIKA admin state
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/var/lib/oknotika-admin/db/admin.sqlite
+
+[Service]
+Type=oneshot
+User=oknotika-admin
+Group=www-data
+UMask=0077
+Environment=PATH=/opt/node-v24.18.0/bin:/usr/bin:/bin
+Environment=RESTIC_PASSWORD_FILE=%d/restic-password
+Environment=RESTIC_REPOSITORY_FILE=%d/restic-repository
+Environment=RESTIC_CACHE_DIR=/var/lib/oknotika-admin/backups/restic-cache
+LoadCredentialEncrypted=restic-password
+LoadCredentialEncrypted=restic-repository
+ExecStart=/opt/oknotika-admin/current/deploy/scripts/backup.sh
+
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+CapabilityBoundingSet=
+AmbientCapabilities=
+LockPersonality=yes
+MemoryMax=512M
+TasksMax=32
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+ReadWritePaths=/var/lib/oknotika-admin

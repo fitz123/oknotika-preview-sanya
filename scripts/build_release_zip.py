@@ -1,0 +1,229 @@
+#!/usr/bin/env python3
+"""Build a deterministic, versioned, secret-free OKNOTIKA release ZIP."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import shutil
+import stat
+import subprocess
+import sys
+import zipfile
+from pathlib import Path
+
+from scan_release_zip import scan_archive
+
+
+VERSION = "v2.28.0-beta.1"
+BASELINE_COMMIT = "5364ff160ffa9b8e9f2d0998a5eef1cf6cd3f5ed"
+FIXED_TIMESTAMP = (2026, 7, 14, 0, 0, 0)
+TOP_LEVEL_FILES = {
+    ".gitignore", "ALUMINUM_SOURCES.md", "CLAUDE.md", "IMAGE_SOURCES.md", "README.md", "index.html", "script.js", "style.css",
+}
+TOP_LEVEL_DIRECTORIES = {
+    "admin-app", "aluminum", "articles", "carbon-glass", "deploy", "docs", "glass", "img", "js",
+    "oknotika-smart-window", "protectapeel", "pvc", "release-evidence", "scripts", "tests", "tools", "wood-stoller",
+}
+EXCLUDED_COMPONENTS = {
+    ".git", ".ralphex", ".tmp-inputs", "__pycache__", "node_modules", "release", "uploads", "previews", "var",
+}
+
+
+def sha256(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def source_entries(repo: Path, commit: str = "HEAD") -> list[tuple[Path, int]]:
+    result = subprocess.run(
+        ["git", "-C", str(repo), "ls-tree", "-rz", commit],
+        check=True,
+        stdout=subprocess.PIPE,
+    )
+    entries = []
+    for item in result.stdout.split(b"\0"):
+        if not item:
+            continue
+        metadata, raw_path = item.split(b"\t", 1)
+        raw_mode, object_type, _object_id = metadata.split(b" ", 2)
+        if object_type != b"blob" or raw_mode not in {b"100644", b"100755"}:
+            continue
+        relative = Path(raw_path.decode())
+        if relative.name in {".DS_Store"} or any(part in EXCLUDED_COMPONENTS for part in relative.parts):
+            continue
+        if relative.parts[0] == "docs" and len(relative.parts) > 1 and relative.parts[1] == "plans":
+            continue
+        if relative.parts[0] not in TOP_LEVEL_DIRECTORIES and str(relative) not in TOP_LEVEL_FILES:
+            continue
+        entries.append((relative, int(raw_mode, 8)))
+    return sorted(entries, key=lambda entry: entry[0].as_posix())
+
+
+def source_paths(repo: Path, commit: str = "HEAD") -> list[Path]:
+    return [path for path, _mode in source_entries(repo, commit)]
+
+
+def git_blob(repo: Path, commit: str, path: Path) -> bytes:
+    return subprocess.run(
+        ["git", "-C", str(repo), "show", f"{commit}:{path.as_posix()}"],
+        check=True,
+        stdout=subprocess.PIPE,
+    ).stdout
+
+
+def ensure_clean_payload_worktree(repo: Path) -> None:
+    result = subprocess.run(
+        ["git", "-C", str(repo), "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+        check=True,
+        stdout=subprocess.PIPE,
+    )
+    records = result.stdout.split(b"\0")
+    dirty: list[str] = []
+    index = 0
+    while index < len(records):
+        record = records[index]
+        index += 1
+        if not record:
+            continue
+        status = record[:2].decode("ascii")
+        paths = [record[3:].decode()]
+        if "R" in status or "C" in status:
+            if index < len(records) and records[index]:
+                paths.append(records[index].decode())
+                index += 1
+        dirty.extend(path for path in paths if path != "release" and not path.startswith("release/"))
+    if dirty:
+        raise RuntimeError(f"release payload worktree must be clean: {', '.join(sorted(set(dirty)))}")
+
+
+def changed_payload_inventory(repo: Path, paths: list[Path], implementation_commit: str) -> bytes:
+    baseline_output = subprocess.run(
+        ["git", "-C", str(repo), "ls-tree", "-r", "--name-only", "-z", BASELINE_COMMIT],
+        check=True,
+        stdout=subprocess.PIPE,
+    ).stdout
+    baseline_paths = {item.decode() for item in baseline_output.split(b"\0") if item}
+    lines = [
+        "# OKNOTIKA v2.28.0-beta.1 release payload changes",
+        f"# Baseline: {BASELINE_COMMIT}",
+        f"# Verified implementation: {implementation_commit}",
+        "# Status: A = added to payload, M = modified from baseline",
+        "A\tCHANGED_FILES.txt",
+        "A\tRELEASE_NOTES.md",
+    ]
+    for path in paths:
+        relative = path.as_posix()
+        if relative not in baseline_paths:
+            status = "A"
+        else:
+            baseline_data = git_blob(repo, BASELINE_COMMIT, path)
+            if baseline_data == git_blob(repo, implementation_commit, path):
+                continue
+            status = "M"
+        lines.append(f"{status}\t{relative}")
+    return ("\n".join(lines) + "\n").encode()
+
+
+def zip_info(name: str, mode: int = 0o644) -> zipfile.ZipInfo:
+    info = zipfile.ZipInfo(name, FIXED_TIMESTAMP)
+    info.compress_type = zipfile.ZIP_DEFLATED
+    info.create_system = 3
+    info.external_attr = (stat.S_IFREG | mode) << 16
+    return info
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repo", type=Path, default=Path("."))
+    parser.add_argument("--version", default=VERSION)
+    parser.add_argument("--notes", type=Path)
+    args = parser.parse_args()
+    repo = args.repo.resolve()
+    try:
+        ensure_clean_payload_worktree(repo)
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    release = repo / "release"
+    release.mkdir(parents=True, exist_ok=True)
+    version = args.version
+    expected_notes = (release / f"RELEASE_NOTES-{version}.md").resolve()
+    notes = (args.notes or expected_notes).resolve()
+    if notes != expected_notes:
+        print(f"release notes must use the controlled path: {expected_notes}", file=sys.stderr)
+        return 1
+    if not notes.is_file():
+        print(f"release notes are missing: {notes}", file=sys.stderr)
+        return 1
+    payload_root = f"oknotika-final-{version}"
+    implementation_commit = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"], check=True, stdout=subprocess.PIPE, text=True
+    ).stdout.strip()
+    entries = source_entries(repo, implementation_commit)
+    paths = [path for path, _mode in entries]
+    modes = {path.as_posix(): mode for path, mode in entries}
+    payload: dict[str, bytes] = {
+        path.as_posix(): git_blob(repo, implementation_commit, path) for path in paths
+    }
+    payload["RELEASE_NOTES.md"] = notes.read_bytes()
+    inventory = changed_payload_inventory(repo, paths, implementation_commit)
+    payload["CHANGED_FILES.txt"] = inventory
+    (release / f"CHANGED_FILES-{version}.txt").write_bytes(inventory)
+    manifest = {
+        "schemaVersion": 1,
+        "version": version,
+        "implementationCommit": implementation_commit,
+        "baselineCommit": BASELINE_COMMIT,
+        "generatedAt": "2026-07-14T00:00:00Z",
+        "files": {
+            path: {
+                "sha256": sha256(data),
+                "bytes": len(data),
+                "mode": "0755" if modes.get(path, 0) & stat.S_IXUSR else "0644",
+            }
+            for path, data in sorted(payload.items())
+        },
+    }
+    payload["RELEASE_MANIFEST.json"] = (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode()
+    versioned = release / f"oknotika-final-{version}.zip"
+    with zipfile.ZipFile(versioned, "w", compresslevel=9) as archive:
+        for path, data in sorted(payload.items()):
+            executable = bool(modes.get(path, 0) & stat.S_IXUSR)
+            archive.writestr(zip_info(f"{payload_root}/{path}", 0o755 if executable else 0o644), data)
+    stable = release / "oknotika-final.zip"
+    shutil.copyfile(versioned, stable)
+    result = scan_archive(str(versioned))
+    if result["errors"]:
+        for error in result["errors"]:
+            print(f"release ZIP scan failed: {error}", file=sys.stderr)
+        return 1
+    archive_hash = sha256(versioned.read_bytes())
+    (release / "SHA256SUMS").write_text(
+        f"{archive_hash}  {versioned.name}\n{archive_hash}  {stable.name}\n",
+        encoding="utf-8",
+    )
+    external_manifest = {
+        "schemaVersion": 1,
+        "version": version,
+        "payloadRoot": payload_root,
+        "archiveSha256": archive_hash,
+        "archiveBytes": versioned.stat().st_size,
+        "files": result["files"],
+        "uncompressedBytes": result["uncompressedBytes"],
+        "implementationCommit": implementation_commit,
+        "baselineCommit": BASELINE_COMMIT,
+        "changedFiles": sum(1 for line in inventory.decode().splitlines() if line[:2] in {"A\t", "M\t"}),
+        "changedFilesPath": f"CHANGED_FILES-{version}.txt",
+        "secretScan": "pass",
+    }
+    (release / f"release-manifest-{version}.json").write_text(
+        json.dumps(external_manifest, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    print(f"Built {versioned.name}: {result['files']} files, sha256 {archive_hash}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
