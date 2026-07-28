@@ -4,7 +4,7 @@ Beta-пакет сохраняет утверждённую композицию
 
 ## Идентификация релиза
 
-- Verified implementation SHA: `0856c50c765a11d8d64213a6b278f11c0b16a98c` (weekly-news ingestion, mobile editor, public rendering and all code-review hardening complete before regeneration).
+- Verified implementation SHA: `69b4555792673a4cffb497f682be183df97ad371` (weekly-news ingestion, exact four-destination social contract, mobile editor, public rendering and compatibility hardening complete before regeneration).
 - V2.27 baseline SHA: `5364ff160ffa9b8e9f2d0998a5eef1cf6cd3f5ed`.
 - Archive SHA-256 and byte/file counts: `release/release-manifest-v2.28.0-beta.1.json`.
 - Проверяемые checksums двух имён одного архива: `release/SHA256SUMS`.
@@ -24,7 +24,7 @@ Beta-пакет сохраняет утверждённую композицию
 - Tuesday weekly ingestion authentication with transport-safe credential validation, 128 KiB contract, idempotent retry, manual-edit conflict and proof that the machine credential cannot publish.
 - Exact 3–5-item weekly validation on ingestion/editor/restore/publication, durable publish/withdraw overwrite locks across rollback and exact `https://t.me/oknotika` enforcement.
 - Validated reusable-cover registration, editor-denied operational rollback, confirmed social-link release activation and fail-closed production smoke response checks.
-- Mobile «Новости» editor flow, rollback-compatible legacy source preservation, multiple verified source links, configured-only Telegram/YouTube/VK CTA and manual Friday publication.
+- Mobile «Новости» editor flow, rollback-compatible legacy source preservation, multiple verified source links, exact default Telegram `https://t.me/oknotika`, YouTube `https://youtube.com/@oknotika`, VK `https://vk.ru/oknotika` and FUTUCHAT `https://t.me/FUTU_CHAT` CTA, plus manual Friday publication.
 - Public weekly rendering with 3–5 digest items while preserving the imported Al Bahr URL, canonical metadata, latest fallback and withdrawn HTTP 410 behavior.
 - Secret-free ZIP scanner rejects credentials, SQLite/WAL/SHM, uploads, private previews, raw shoot inputs, logs, runtime releases, unsafe paths, symlinks and manifest tampering.
 

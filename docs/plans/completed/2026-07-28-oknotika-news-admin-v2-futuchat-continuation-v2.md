@@ -59,11 +59,11 @@ python3 -m unittest tests/test_release_guardrails.py tests/test_release_package.
 
 **Serves:** Sanya's direct correction that every weekly digest CTA must contain Telegram, YouTube, VK and FUTUCHAT using the exact official links he supplied.
 
-- [ ] Add an additive/backward-compatible schema migration and service contract for `futuchatUrl`; existing databases/releases/articles must remain readable and rollback-safe.
-- [ ] Seed or document the four exact non-secret official destinations where the architecture permits defaults. Preserve Telegram's current fixed rule; accept canonical `vk.ru`; validate FUTUCHAT separately while allowing its `t.me` host.
-- [ ] Extend admin load/save UI, HTTP/API payloads, validation, immutable release manifests/hashes, renderer/templates, rollback/legacy normalization and ingestion/social snapshots to carry FUTUCHAT as a distinct optional CTA.
-- [ ] Render all four configured CTAs with correct Russian labels; missing optional destinations must not create blank/broken links. Keep manual publication and draft-only ingestion authority unchanged.
-- [ ] Add focused tests for the exact four URLs, `vk.ru`, FUTUCHAT host/path handling, partial configuration, round-trip persistence, public rendering, immutable release activation, rollback/legacy compatibility and ingestion capability boundaries.
-- [ ] Update README, enrollment, Zhenya runbook, deployment smoke/config examples, release manifest/notes and weekly-ingestion docs so no text still claims YouTube/VK are pending.
-- [ ] Run the full validation set, production dependency audit, deterministic double rebuild and secret scan; commit source and controlled release artifacts separately if required by the packager.
-- [ ] Leave the worktree clean and move this plan to `docs/plans/completed/` only after review is objectively clean. PR/merge/deployment remain parent-owned.
+- [x] Add an additive/backward-compatible schema migration and service contract for `futuchatUrl`; existing databases/releases/articles must remain readable and rollback-safe.
+- [x] Seed or document the four exact non-secret official destinations where the architecture permits defaults. Preserve Telegram's current fixed rule; accept canonical `vk.ru`; validate FUTUCHAT separately while allowing its `t.me` host.
+- [x] Extend admin load/save UI, HTTP/API payloads, validation, immutable release manifests/hashes, renderer/templates, rollback/legacy normalization and ingestion/social snapshots to carry FUTUCHAT as a distinct optional CTA.
+- [x] Render all four configured CTAs with correct Russian labels; missing optional destinations must not create blank/broken links. Keep manual publication and draft-only ingestion authority unchanged.
+- [x] Add focused tests for the exact four URLs, `vk.ru`, FUTUCHAT host/path handling, partial configuration, round-trip persistence, public rendering, immutable release activation, rollback/legacy compatibility and ingestion capability boundaries.
+- [x] Update README, enrollment, Zhenya runbook, deployment smoke/config examples, release manifest/notes and weekly-ingestion docs so no text still claims YouTube/VK are pending.
+- [x] Run the full validation set, production dependency audit, deterministic double rebuild and secret scan; commit source and controlled release artifacts separately if required by the packager.
+- [x] Leave the worktree clean and move this plan to `docs/plans/completed/` only after review is objectively clean. PR/merge/deployment remain parent-owned.
