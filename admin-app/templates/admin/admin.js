@@ -132,6 +132,7 @@ socialForm.addEventListener('submit', async (event) => {
         telegramUrl: fields.get('telegramUrl'),
         youtubeUrl: fields.get('youtubeUrl'),
         vkUrl: fields.get('vkUrl'),
+        futuchatUrl: fields.get('futuchatUrl'),
         confirmation: 'SOCIAL_LINKS',
       }),
     });

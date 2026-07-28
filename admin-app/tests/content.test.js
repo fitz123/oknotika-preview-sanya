@@ -58,18 +58,32 @@ test('global social links validate platform hosts and retain nullable destinatio
   const { db, service, editorId } = createHarness(t);
   assert.deepEqual(service.getSocialLinks(), {
     telegramUrl: 'https://t.me/oknotika',
-    youtubeUrl: null,
-    vkUrl: null,
+    youtubeUrl: 'https://youtube.com/@oknotika',
+    vkUrl: 'https://vk.ru/oknotika',
+    futuchatUrl: 'https://t.me/FUTU_CHAT',
     updatedAt: '1970-01-01T00:00:00.000Z',
   });
   const prepared = service.prepareSocialLinks({
     telegramUrl: 'https://t.me/oknotika',
     youtubeUrl: 'https://www.youtube.com/@oknotika',
-    vkUrl: 'https://vk.com/oknotika',
+    vkUrl: 'https://vk.ru/oknotika',
+    futuchatUrl: 'https://t.me/FUTU_CHAT',
   }, editorId);
   assert.equal(prepared.youtubeUrl, 'https://www.youtube.com/@oknotika');
-  assert.equal(prepared.vkUrl, 'https://vk.com/oknotika');
-  assert.equal(service.getSocialLinks().youtubeUrl, null);
+  assert.equal(prepared.vkUrl, 'https://vk.ru/oknotika');
+  assert.equal(prepared.futuchatUrl, 'https://t.me/FUTU_CHAT');
+  assert.equal(service.getSocialLinks().youtubeUrl, 'https://youtube.com/@oknotika');
+  assert.deepEqual(service.prepareSocialLinks({
+    telegramUrl: 'https://t.me/oknotika',
+    youtubeUrl: null,
+    vkUrl: null,
+    futuchatUrl: null,
+  }, editorId), {
+    telegramUrl: 'https://t.me/oknotika',
+    youtubeUrl: null,
+    vkUrl: null,
+    futuchatUrl: null,
+  });
   assert.equal(
     db.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE event_type = 'social_links.updated'").get().count,
     0,
@@ -78,6 +92,7 @@ test('global social links validate platform hosts and retain nullable destinatio
     telegramUrl: 'https://evil.example/oknotika',
     youtubeUrl: null,
     vkUrl: null,
+    futuchatUrl: null,
   }, editorId), /approved telegram host/);
   for (const telegramUrl of [
     'https://t.me/not-oknotika',
@@ -88,8 +103,29 @@ test('global social links validate platform hosts and retain nullable destinatio
       telegramUrl,
       youtubeUrl: null,
       vkUrl: null,
+      futuchatUrl: null,
     }, editorId), /must be exactly/);
   }
+  for (const futuchatUrl of [
+    'https://telegram.me/FUTU_CHAT',
+    'https://t.me/',
+    'https://t.me/FUTU_CHAT/extra',
+    'https://t.me/FUTU_CHAT?start=redirect',
+  ]) {
+    assert.throws(() => service.prepareSocialLinks({
+      telegramUrl: 'https://t.me/oknotika',
+      youtubeUrl: null,
+      vkUrl: null,
+      futuchatUrl,
+    }, editorId), /approved futuchat host|one Telegram channel path/);
+  }
+  const legacyCompatible = service.prepareSocialLinks({
+    telegramUrl: 'https://t.me/oknotika',
+    youtubeUrl: null,
+    vkUrl: 'https://vk.com/legacy-oknotika',
+    futuchatUrl: null,
+  }, editorId);
+  assert.equal(legacyCompatible.vkUrl, 'https://vk.com/legacy-oknotika');
 });
 
 test('weekly editor and ingestion require one ordered list of 3–5 items and verified sources', (t) => {
@@ -224,6 +260,11 @@ test('weekly migration backfills legacy source rows and marks pre-existing artic
        payload_sha256, created_at, updated_at)
     VALUES ('2026-W27', ?, 1, ?, ?, '2026-07-02T00:00:00.000Z', '2026-07-02T00:00:00.000Z')
   `).run(weeklyArticleId, weeklyRevisionId, 'b'.repeat(64));
+  versionFour.prepare(`
+    UPDATE site_social_links
+    SET youtube_url = 'https://youtube.com/@existing-channel'
+    WHERE singleton = 1
+  `).run();
   versionFour.close();
 
   const upgraded = openDatabase(databasePath);
@@ -243,6 +284,28 @@ test('weekly migration backfills legacy source rows and marks pre-existing artic
     upgraded.prepare('SELECT content_kind FROM articles WHERE id = ?')
       .get(weeklyArticleId).content_kind,
     'weekly_digest',
+  );
+  assert.deepEqual(
+    { ...upgraded.prepare(`
+      SELECT telegram_url, youtube_url, vk_url, futuchat_url
+      FROM site_social_links WHERE singleton = 1
+    `).get() },
+    {
+      telegram_url: 'https://t.me/oknotika',
+      youtube_url: 'https://youtube.com/@existing-channel',
+      vk_url: 'https://vk.ru/oknotika',
+      futuchat_url: 'https://t.me/FUTU_CHAT',
+    },
+  );
+  upgraded.prepare(`
+    UPDATE site_social_links
+    SET youtube_url = NULL, vk_url = NULL
+    WHERE singleton = 1
+  `).run();
+  assert.equal(
+    upgraded.prepare('SELECT futuchat_url FROM site_social_links WHERE singleton = 1').get()
+      .futuchat_url,
+    'https://t.me/FUTU_CHAT',
   );
 });
 

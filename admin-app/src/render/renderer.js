@@ -290,13 +290,14 @@ function hydratePublicRows(db, rows) {
 
 export function loadSocialLinks(db) {
   const social = db.prepare(`
-    SELECT telegram_url, youtube_url, vk_url
+    SELECT telegram_url, youtube_url, vk_url, futuchat_url
     FROM site_social_links WHERE singleton = 1
   `).get();
   return validateSocialLinks({
     telegramUrl: social.telegram_url,
     youtubeUrl: social.youtube_url,
     vkUrl: social.vk_url,
+    futuchatUrl: social.futuchat_url,
   });
 }
 
@@ -341,6 +342,7 @@ function renderSocialCta(value) {
     ['Telegram', links.telegramUrl],
     ['YouTube', links.youtubeUrl],
     ['VK', links.vkUrl],
+    ['FUTUCHAT', links.futuchatUrl],
   ].filter((destination) => destination[1] !== null);
   const items = destinations.map(([name, url]) => `            <li><a href="${escapeAttribute(url)}" target="_blank" rel="noreferrer noopener">${name}</a></li>`).join('\n');
   return `        <section class="article-social" aria-labelledby="article-social-title">
@@ -364,7 +366,7 @@ function buildManifest(outputDirectory, base) {
     };
   }
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     ...base,
     files,
   };

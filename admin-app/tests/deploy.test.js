@@ -91,6 +91,13 @@ test('deployment manifest pins Node 24, bundled SQLite and the exact npm lockfil
   assert.match(manifest.runtime.sqliteVersion, /^3\.\d+\.\d+$/);
   assert.equal(manifest.runtime.packageLockVersion, 3);
   assert.match(manifest.runtime.packageLockSha256, /^[a-f0-9]{64}$/);
+  assert.deepEqual(manifest.editorial.socialDestinations, {
+    telegram: 'https://t.me/oknotika',
+    youtube: 'https://youtube.com/@oknotika',
+    vk: 'https://vk.ru/oknotika',
+    futuchat: 'https://t.me/FUTU_CHAT',
+    configuration: 'confirmed editor action atomically activates validated values in a new immutable article release; null destinations are not rendered',
+  });
 });
 
 test('weekly ingestion smoke retries idempotently and proves its credential has no editorial authority', async (t) => {

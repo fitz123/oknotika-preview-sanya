@@ -124,6 +124,7 @@ test('weekly digests render three-to-five items, verified sources and only confi
     telegramUrl: 'https://t.me/oknotika',
     youtubeUrl: 'https://youtube.com/@oknotika',
     vkUrl: null,
+    futuchatUrl: 'https://t.me/FUTU_CHAT',
   }, harness.editorId);
 
   const snapshot = [
@@ -164,23 +165,56 @@ test('weekly digests render three-to-five items, verified sources and only confi
   assert.match(threeItemDetail, /class="article-sources"/);
   assert.match(threeItemDetail, /href="https:\/\/t\.me\/oknotika"/);
   assert.match(threeItemDetail, /href="https:\/\/youtube\.com\/@oknotika"/);
-  assert.doesNotMatch(threeItemDetail, /vk\.com|VK:|не настроен/);
+  assert.match(threeItemDetail, /href="https:\/\/t\.me\/FUTU_CHAT"[^>]*>FUTUCHAT</);
+  assert.doesNotMatch(threeItemDetail, /vk\.(?:com|ru)|>VK<|не настроен/);
   assert.equal(latest.category, 'Новости');
 });
 
-test('weekly social CTA omits missing YouTube and VK destinations without inventing links', (t) => {
+test('weekly social CTA renders exact official destinations and omits optional missing links', (t) => {
   const harness = createHarness(t);
   const created = harness.service.ingestWeeklyDraft(weeklyIngestionInput(harness.coverAssetId));
   const article = loadRevisionSnapshot(
     harness.db, created.articleId, created.revisionId, 'published',
   );
-  const { outputDirectory } = render(harness, 'telegram-only-digest', [article]);
+  const official = {
+    telegramUrl: 'https://t.me/oknotika',
+    youtubeUrl: 'https://youtube.com/@oknotika',
+    vkUrl: 'https://vk.ru/oknotika',
+    futuchatUrl: 'https://t.me/FUTU_CHAT',
+  };
+  const { outputDirectory, manifest } = render(
+    harness, 'official-destinations-digest', [article], official,
+  );
   const detail = readFileSync(
     resolve(outputDirectory, `articles/${created.slug}/index.html`),
     'utf8',
   );
-  assert.match(detail, /href="https:\/\/t\.me\/oknotika"/);
-  assert.doesNotMatch(detail, /youtube\.com|youtu\.be|vk\.com|YouTube|>VK</);
+  assert.equal(manifest.schemaVersion, 4);
+  assert.deepEqual(manifest.socialLinks, official);
+  for (const [url, label] of [
+    ['https://t.me/oknotika', 'Telegram'],
+    ['https://youtube.com/@oknotika', 'YouTube'],
+    ['https://vk.ru/oknotika', 'VK'],
+    ['https://t.me/FUTU_CHAT', 'FUTUCHAT'],
+  ]) {
+    assert.ok(
+      detail.includes(`href="${url}" target="_blank" rel="noreferrer noopener">${label}</a>`),
+      `${label} CTA is missing`,
+    );
+  }
+
+  const partialDirectory = render(harness, 'partial-destinations-digest', [article], {
+    telegramUrl: official.telegramUrl,
+    youtubeUrl: null,
+    vkUrl: null,
+    futuchatUrl: null,
+  }).outputDirectory;
+  const partial = readFileSync(
+    resolve(partialDirectory, `articles/${created.slug}/index.html`),
+    'utf8',
+  );
+  assert.match(partial, /href="https:\/\/t\.me\/oknotika"/);
+  assert.doesNotMatch(partial, /youtube\.com|youtu\.be|vk\.(?:com|ru)|FUTU_CHAT|YouTube|>VK<|FUTUCHAT/);
 });
 
 test('public release rejects a weekly snapshot that violates the digest contract', (t) => {

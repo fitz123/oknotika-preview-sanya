@@ -126,6 +126,12 @@ test('weekly ingestion validates payload and cannot use its token for editorial 
   });
   assert.equal(publishField.status, 400);
   assert.match((await publishField.json()).error, /unsupported field/);
+  const socialField = await ingest(handler, {
+    ...payload,
+    socialLinks: { futuchatUrl: 'https://t.me/FUTU_CHAT' },
+  });
+  assert.equal(socialField.status, 400);
+  assert.match((await socialField.json()).error, /unsupported field/);
 
   const createdResponse = await ingest(handler, payload);
   assert.equal(createdResponse.status, 201);
@@ -140,6 +146,7 @@ test('weekly ingestion validates payload and cannot use its token for editorial 
     `/api/revisions/${created.revisionId}/preview`,
     `/api/articles/${created.articleId}/publish`,
     `/api/articles/${created.articleId}/withdraw`,
+    '/api/social-links',
     '/api/releases/rollback',
   ]) {
     const response = await handler(new Request(`${ADMIN_ORIGIN}${path}`, {

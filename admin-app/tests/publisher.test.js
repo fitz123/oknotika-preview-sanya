@@ -78,8 +78,9 @@ for (const boundary of BOUNDARIES) {
     });
     const proposed = harness.service.prepareSocialLinks({
       telegramUrl: 'https://t.me/oknotika',
-      youtubeUrl: 'https://youtube.com/@oknotika',
-      vkUrl: 'https://vk.com/oknotika',
+      youtubeUrl: 'https://youtube.com/@oknotika-updated',
+      vkUrl: 'https://www.vk.ru/oknotika',
+      futuchatUrl: 'https://t.me/FUTU_CHAT_TEST',
     }, harness.editorId);
 
     await assert.rejects(publisher.publish({
@@ -93,8 +94,11 @@ for (const boundary of BOUNDARIES) {
     const switched = ['after-active-switch', 'before-db-finalize', 'after-db-finalize'].includes(boundary);
     assert.deepEqual(harness.service.getSocialLinks(), {
       telegramUrl: 'https://t.me/oknotika',
-      youtubeUrl: switched ? 'https://youtube.com/@oknotika' : null,
-      vkUrl: switched ? 'https://vk.com/oknotika' : null,
+      youtubeUrl: switched
+        ? 'https://youtube.com/@oknotika-updated'
+        : 'https://youtube.com/@oknotika',
+      vkUrl: switched ? 'https://www.vk.ru/oknotika' : 'https://vk.ru/oknotika',
+      futuchatUrl: switched ? 'https://t.me/FUTU_CHAT_TEST' : 'https://t.me/FUTU_CHAT',
       updatedAt: switched ? '2026-07-13T12:00:00.000Z' : '1970-01-01T00:00:00.000Z',
     });
     assert.equal(
@@ -151,18 +155,30 @@ test('rollback restores release social links and unrelated publication keeps the
   });
   const proposed = harness.service.prepareSocialLinks({
     telegramUrl: 'https://t.me/oknotika',
-    youtubeUrl: 'https://youtube.com/@oknotika',
-    vkUrl: 'https://vk.com/oknotika',
+    youtubeUrl: 'https://youtube.com/@oknotika-updated',
+    vkUrl: null,
+    futuchatUrl: null,
   }, harness.editorId);
   const second = await publisher.publish({
     editorId: harness.editorId,
     transition: { type: 'social_links', socialLinks: proposed },
   });
-  assert.equal(second.socialLinks.youtubeUrl, 'https://youtube.com/@oknotika');
+  assert.equal(second.socialLinks.youtubeUrl, 'https://youtube.com/@oknotika-updated');
+  assert.equal(second.socialLinks.futuchatUrl, null);
 
   await publisher.rollback(first.releaseId, { editorId: harness.editorId });
-  assert.equal(harness.service.getSocialLinks().youtubeUrl, null);
-  assert.equal(harness.service.getSocialLinks().vkUrl, null);
+  const restoredOfficial = harness.service.getSocialLinks();
+  assert.deepEqual({
+    telegramUrl: restoredOfficial.telegramUrl,
+    youtubeUrl: restoredOfficial.youtubeUrl,
+    vkUrl: restoredOfficial.vkUrl,
+    futuchatUrl: restoredOfficial.futuchatUrl,
+  }, {
+    telegramUrl: 'https://t.me/oknotika',
+    youtubeUrl: 'https://youtube.com/@oknotika',
+    vkUrl: 'https://vk.ru/oknotika',
+    futuchatUrl: 'https://t.me/FUTU_CHAT',
+  });
 
   const unrelated = harness.service.createArticle(articleInput(harness.coverAssetId, {
     title: 'Новая публикация после rollback',
@@ -173,8 +189,9 @@ test('rollback restores release social links and unrelated publication keeps the
     transition: publication(unrelated),
   });
   assert.deepEqual(afterRollback.socialLinks, first.socialLinks);
-  assert.equal(harness.service.getSocialLinks().youtubeUrl, null);
-  assert.equal(harness.service.getSocialLinks().vkUrl, null);
+  assert.equal(harness.service.getSocialLinks().youtubeUrl, 'https://youtube.com/@oknotika');
+  assert.equal(harness.service.getSocialLinks().vkUrl, 'https://vk.ru/oknotika');
+  assert.equal(harness.service.getSocialLinks().futuchatUrl, 'https://t.me/FUTU_CHAT');
 });
 
 test('rollback to a legacy manifest clears optional social links', async (t) => {
@@ -202,7 +219,8 @@ test('rollback to a legacy manifest clears optional social links', async (t) => 
       socialLinks: harness.service.prepareSocialLinks({
         telegramUrl: 'https://t.me/oknotika',
         youtubeUrl: 'https://youtube.com/@oknotika',
-        vkUrl: 'https://vk.com/oknotika',
+        vkUrl: 'https://vk.ru/oknotika',
+        futuchatUrl: 'https://t.me/FUTU_CHAT',
       }, harness.editorId),
     },
   });
@@ -212,6 +230,66 @@ test('rollback to a legacy manifest clears optional social links', async (t) => 
   assert.equal(restored.telegramUrl, 'https://t.me/oknotika');
   assert.equal(restored.youtubeUrl, null);
   assert.equal(restored.vkUrl, null);
+  assert.equal(restored.futuchatUrl, null);
+});
+
+test('rollback reads a schema-three social snapshot with FUTUCHAT absent', async (t) => {
+  let tick = 0;
+  const harness = createHarness(t, {
+    clock: () => new Date(Date.parse('2026-07-13T12:00:00.000Z') + tick++ * 1000),
+  });
+  const releasesRoot = resolve(harness.root, 'schema-three-social-rollback');
+  const publisher = createPublisher(harness.db, {
+    releasesRoot,
+    publicOrigin: 'https://oknotika.ru',
+    clock: () => new Date(Date.parse('2026-07-14T12:00:00.000Z') + tick++ * 1000),
+  });
+  const weekly = harness.service.ingestWeeklyDraft(weeklyIngestionInput(harness.coverAssetId));
+  const first = await publisher.publish({
+    editorId: harness.editorId,
+    transition: publication(weekly),
+  });
+  rewriteAsSchemaThreeRelease(
+    harness.db,
+    releasesRoot,
+    first.releaseId,
+    weekly.slug,
+  );
+
+  await publisher.publish({
+    editorId: harness.editorId,
+    transition: {
+      type: 'social_links',
+      socialLinks: harness.service.prepareSocialLinks({
+        telegramUrl: 'https://t.me/oknotika',
+        youtubeUrl: null,
+        vkUrl: null,
+        futuchatUrl: 'https://t.me/FUTU_CHAT_TEST',
+      }, harness.editorId),
+    },
+  });
+  const restoredManifest = await publisher.rollback(first.releaseId, {
+    editorId: harness.editorId,
+  });
+
+  assert.equal(restoredManifest.schemaVersion, 3);
+  assert.equal(restoredManifest.socialLinks.futuchatUrl, undefined);
+  assert.deepEqual(
+    (({ telegramUrl, youtubeUrl, vkUrl, futuchatUrl }) => ({
+      telegramUrl, youtubeUrl, vkUrl, futuchatUrl,
+    }))(harness.service.getSocialLinks()),
+    {
+      telegramUrl: 'https://t.me/oknotika',
+      youtubeUrl: 'https://youtube.com/@oknotika',
+      vkUrl: 'https://vk.ru/oknotika',
+      futuchatUrl: null,
+    },
+  );
+  const activeHtml = readFileSync(
+    resolve(releasesRoot, readlinkSync(publisher.activePath), `articles/${weekly.slug}/index.html`),
+    'utf8',
+  );
+  assert.doesNotMatch(activeHtml, /FUTU_CHAT|FUTUCHAT/);
 });
 
 test('rollback rejects on-disk manifest divergence before switching the active release', async (t) => {
@@ -559,6 +637,32 @@ function rewriteAsLegacyRelease(db, releasesRoot, releaseId) {
     ...manifest.files['articles/latest.json'],
     sha256: createHash('sha256').update(latestText).digest('hex'),
     bytes: Buffer.byteLength(latestText),
+  };
+  writeJson(manifestPath, manifest);
+  db.prepare('UPDATE releases SET manifest_json = ? WHERE id = ?')
+    .run(JSON.stringify(manifest), releaseId);
+}
+
+function rewriteAsSchemaThreeRelease(db, releasesRoot, releaseId, slug) {
+  const releaseDirectory = resolve(releasesRoot, 'releases', releaseId);
+  const articlePath = `articles/${slug}/index.html`;
+  const detailPath = resolve(releaseDirectory, articlePath);
+  const detail = readFileSync(detailPath, 'utf8');
+  const legacyDetail = detail.replace(
+    /\n\s*<li><a href="https:\/\/t\.me\/FUTU_CHAT"[^\n]+\n/,
+    '\n',
+  );
+  assert.notEqual(legacyDetail, detail);
+  writeFileSync(detailPath, legacyDetail);
+
+  const manifestPath = resolve(releaseDirectory, 'manifest.json');
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  manifest.schemaVersion = 3;
+  delete manifest.socialLinks.futuchatUrl;
+  manifest.files[articlePath] = {
+    ...manifest.files[articlePath],
+    sha256: createHash('sha256').update(legacyDetail).digest('hex'),
+    bytes: Buffer.byteLength(legacyDetail),
   };
   writeJson(manifestPath, manifest);
   db.prepare('UPDATE releases SET manifest_json = ? WHERE id = ?')

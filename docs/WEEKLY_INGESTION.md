@@ -11,7 +11,8 @@ Content-Type: application/json
 The endpoint accepts at most 128 KiB. It can create or revise only the private
 draft associated with one ISO week. The bearer token is not a Telegram editor
 session and is rejected by article listing, preview, upload, publish, withdraw,
-revision restore, release rollback and editor-management paths.
+revision restore, social-link configuration, release rollback and
+editor-management paths.
 
 ## Content contract
 
@@ -58,6 +59,15 @@ created or updated; it cannot upload or list assets or other private content.
 
 All accepted machine changes remain drafts. Publication is always a separate
 Telegram-authenticated editor action.
+
+Social destinations are not part of the ingestion payload. Each immutable
+publication snapshots the separately editor-controlled global values:
+Telegram `https://t.me/oknotika`, YouTube
+`https://youtube.com/@oknotika`, VK `https://vk.ru/oknotika` and FUTUCHAT
+`https://t.me/FUTU_CHAT` are the shipped non-secret defaults. Telegram remains
+fixed; YouTube, VK and FUTUCHAT are distinct optional fields, and a cleared
+field is omitted from public markup. The Tuesday credential cannot read or
+change this configuration.
 
 ## Response contract
 
@@ -151,5 +161,5 @@ body or draft identifiers.
 
 Sanya must then confirm that the result is a `Черновик` in `Новости`. The
 public listing and `latest.json` must remain unchanged until his explicit
-Friday publish. Never use a fabricated cover ID or an invented YouTube/VK URL
-to make the smoke test pass.
+Friday publish. Never use a fabricated cover ID or replace any of the exact
+YouTube, VK or FUTUCHAT destinations to make the smoke test pass.

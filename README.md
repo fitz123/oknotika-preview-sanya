@@ -35,7 +35,7 @@ python3 -m http.server 8080
 
 Tuesday research run в 12:00 MSK создаёт или обновляет один private draft через отдельный draft-only bearer credential. `issueId` и монотонный `contentVersion` делают retry идемпотентным; ручная правка, публикация или withdrawal блокирует машинную перезапись конфликтом. В пятницу к 18:00 MSK Саня проверяет draft и публикует его только явным Telegram-authenticated действием. Точный contract и encrypted caller path описаны в `docs/WEEKLY_INGESTION.md`.
 
-Финальный CTA использует глобальные validated destinations: Telegram зафиксирован как `https://t.me/oknotika`, а YouTube/VK остаются пустыми до передачи точных URL и настраиваются из редактора без code edit. Явно подтверждённое сохранение социальных ссылок строит и атомарно активирует новый immutable article release, поэтому уже опубликованные дайджесты обновляются сразу; незаданные площадки публично не рендерятся.
+Финальный CTA использует четыре глобальных validated destinations с точными non-secret defaults: Telegram `https://t.me/oknotika`, YouTube `https://youtube.com/@oknotika`, VK `https://vk.ru/oknotika` и отдельный FUTUCHAT `https://t.me/FUTU_CHAT`. Telegram зафиксирован; остальные три поля можно независимо изменить или очистить в редакторе без code edit. Явно подтверждённое сохранение строит и атомарно активирует новый immutable article release, поэтому уже опубликованные дайджесты обновляются сразу; очищенная optional-площадка публично не рендерится.
 
 Slug создаётся при первом сохранении из title как lowercase ASCII. Collision получает суффикс `-2`, `-3` и далее. После создания slug и публичный URL неизменяемы, даже если title изменён.
 

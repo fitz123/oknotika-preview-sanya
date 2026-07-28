@@ -121,14 +121,16 @@ test('mobile news editor wires weekly form, social links, preview, publish, with
   formValues = new Map([
     ['telegramUrl', 'https://t.me/oknotika'],
     ['youtubeUrl', 'https://youtube.com/@oknotika'],
-    ['vkUrl', ''],
+    ['vkUrl', 'https://vk.ru/oknotika'],
+    ['futuchatUrl', 'https://t.me/FUTU_CHAT'],
   ]);
   await socialListeners.submit({ preventDefault: () => {} });
   const socialRequest = requests.find(request => request.path === '/api/social-links');
   assert.deepEqual(JSON.parse(socialRequest.options.body), {
     telegramUrl: 'https://t.me/oknotika',
     youtubeUrl: 'https://youtube.com/@oknotika',
-    vkUrl: '',
+    vkUrl: 'https://vk.ru/oknotika',
+    futuchatUrl: 'https://t.me/FUTU_CHAT',
     confirmation: 'SOCIAL_LINKS',
   });
   assert.ok(reloads >= 6);

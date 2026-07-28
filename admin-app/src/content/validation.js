@@ -11,12 +11,13 @@ const WEEKLY_ARTICLE_FIELDS = new Set([
   'coverAlt',
   'sourceUrls',
 ]);
-const SOCIAL_FIELDS = new Set(['telegramUrl', 'youtubeUrl', 'vkUrl']);
+const SOCIAL_FIELDS = new Set(['telegramUrl', 'youtubeUrl', 'vkUrl', 'futuchatUrl']);
 export const FIXED_TELEGRAM_URL = 'https://t.me/oknotika';
 const SOCIAL_HOSTS = Object.freeze({
   telegramUrl: new Set(['t.me']),
   youtubeUrl: new Set(['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be']),
-  vkUrl: new Set(['vk.com', 'www.vk.com']),
+  vkUrl: new Set(['vk.ru', 'www.vk.ru', 'vk.com', 'www.vk.com']),
+  futuchatUrl: new Set(['t.me']),
 });
 const WEEKLY_TEXT_LIMITS = Object.freeze({ bodyMarkdown: 100_000, coverAlt: 500 });
 export const ARTICLE_TEXT_LIMITS = Object.freeze({ title: 240, lead: 1200 });
@@ -100,6 +101,7 @@ export function validateSocialLinks(input) {
     telegramUrl: validatePlatformUrl(input.telegramUrl, 'telegramUrl', { required: true }),
     youtubeUrl: validatePlatformUrl(input.youtubeUrl, 'youtubeUrl'),
     vkUrl: validatePlatformUrl(input.vkUrl, 'vkUrl'),
+    futuchatUrl: validatePlatformUrl(input.futuchatUrl, 'futuchatUrl'),
   };
 }
 
@@ -201,6 +203,10 @@ function validatePlatformUrl(value, field, { required = false } = {}) {
   }
   if (field === 'telegramUrl' && parsed.href !== FIXED_TELEGRAM_URL) {
     throw new TypeError(`telegramUrl must be exactly ${FIXED_TELEGRAM_URL}`);
+  }
+  if (field === 'futuchatUrl'
+      && (!/^\/[A-Za-z0-9_]{5,32}$/.test(parsed.pathname) || parsed.search || parsed.hash)) {
+    throw new TypeError('futuchatUrl must identify one Telegram channel path without query or fragment');
   }
   return parsed.href;
 }

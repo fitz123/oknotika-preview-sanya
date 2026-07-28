@@ -362,13 +362,14 @@ function readRevisionSourceUrls(db, revisionId, fallbackSourceUrl) {
 
 function readSocialLinks(db) {
   const links = db.prepare(`
-    SELECT telegram_url, youtube_url, vk_url, updated_at
+    SELECT telegram_url, youtube_url, vk_url, futuchat_url, updated_at
     FROM site_social_links WHERE singleton = 1
   `).get();
   return {
     telegramUrl: links.telegram_url,
     youtubeUrl: links.youtube_url,
     vkUrl: links.vk_url,
+    futuchatUrl: links.futuchat_url,
     updatedAt: links.updated_at,
   };
 }

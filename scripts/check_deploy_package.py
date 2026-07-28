@@ -50,6 +50,17 @@ def main() -> None:
             or ingestion.get("credential") != "weekly-ingest-token" \
             or ingestion.get("authority") != "create-or-update-private-weekly-draft-only":
         fail("weekly ingestion deployment contract is stale")
+    if editorial.get("socialDestinations") != {
+        "telegram": "https://t.me/oknotika",
+        "youtube": "https://youtube.com/@oknotika",
+        "vk": "https://vk.ru/oknotika",
+        "futuchat": "https://t.me/FUTU_CHAT",
+        "configuration": (
+            "confirmed editor action atomically activates validated values in a new immutable "
+            "article release; null destinations are not rendered"
+        ),
+    }:
+        fail("official social destinations are stale")
     credentials = manifest.get("credentials", {})
     if credentials.get("provider") != "systemd LoadCredentialEncrypted" \
             or credentials.get("environmentValuesForbidden") is not True \
@@ -163,6 +174,13 @@ def main() -> None:
         "weekly_ingestion_issues",
     )
     require_text(
+        root / "admin-app/migrations/006_futuchat_social_destination.sql",
+        "ADD COLUMN futuchat_url",
+        "https://youtube.com/@oknotika",
+        "https://vk.ru/oknotika",
+        "https://t.me/FUTU_CHAT",
+    )
+    require_text(
         deploy / "systemd/oknotika-admin-backup.timer",
         "OnCalendar=",
         "Persistent=true",
@@ -214,6 +232,14 @@ def main() -> None:
         "weekly ingestion retry is not idempotent",
         "/api/releases/rollback",
         "editorialCapabilities: 'denied'",
+    )
+    require_text(
+        deploy / "scripts/smoke-test.sh",
+        "--weekly-path",
+        "https://t.me/oknotika|Telegram",
+        "https://youtube.com/@oknotika|YouTube",
+        "https://vk.ru/oknotika|VK",
+        "https://t.me/FUTU_CHAT|FUTUCHAT",
     )
 
     scripts = sorted((deploy / "scripts").glob("*.sh"))

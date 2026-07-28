@@ -285,8 +285,25 @@ test('weekly draft can be edited after Tuesday ingestion and manually published 
   assert.match(draftHtml, />Предпросмотр</);
   assert.match(draftHtml, /Последнее изменение:/);
   assert.match(draftHtml, /Telegram: настроен/);
-  assert.match(draftHtml, /YouTube: не настроен/);
+  assert.match(draftHtml, /YouTube: настроен/);
+  assert.match(draftHtml, /VK: настроен/);
+  assert.match(draftHtml, /FUTUCHAT: настроен/);
   assert.doesNotMatch(draftHtml, /Operational rollback|data-action="rollback"/);
+
+  const loadedSocial = await (await handler(new Request(`${ADMIN_ORIGIN}/api/social-links`, {
+    headers: { cookie },
+  }))).json();
+  assert.deepEqual({
+    telegramUrl: loadedSocial.telegramUrl,
+    youtubeUrl: loadedSocial.youtubeUrl,
+    vkUrl: loadedSocial.vkUrl,
+    futuchatUrl: loadedSocial.futuchatUrl,
+  }, {
+    telegramUrl: 'https://t.me/oknotika',
+    youtubeUrl: 'https://youtube.com/@oknotika',
+    vkUrl: 'https://vk.ru/oknotika',
+    futuchatUrl: 'https://t.me/FUTU_CHAT',
+  });
 
   const listed = await (await handler(new Request(`${ADMIN_ORIGIN}/api/articles`, {
     headers: { cookie },
@@ -323,11 +340,33 @@ test('weekly draft can be edited after Tuesday ingestion and manually published 
   const socialResponse = await mutate('/api/social-links', {
     telegramUrl: 'https://t.me/oknotika',
     youtubeUrl: 'https://youtube.com/@oknotika',
-    vkUrl: 'https://vk.com/oknotika',
+    vkUrl: 'https://vk.ru/oknotika',
+    futuchatUrl: 'https://t.me/FUTU_CHAT',
     confirmation: 'SOCIAL_LINKS',
   });
   assert.equal(socialResponse.status, 200);
-  assert.equal((await socialResponse.json()).vkUrl, 'https://vk.com/oknotika');
+  assert.deepEqual(
+    (({ telegramUrl, youtubeUrl, vkUrl, futuchatUrl }) => ({
+      telegramUrl, youtubeUrl, vkUrl, futuchatUrl,
+    }))(await socialResponse.json()),
+    {
+      telegramUrl: 'https://t.me/oknotika',
+      youtubeUrl: 'https://youtube.com/@oknotika',
+      vkUrl: 'https://vk.ru/oknotika',
+      futuchatUrl: 'https://t.me/FUTU_CHAT',
+    },
+  );
+  const socialAudit = harness.db.prepare(`
+    SELECT details_json FROM audit_events
+    WHERE event_type = 'social_links.updated'
+    ORDER BY id DESC LIMIT 1
+  `).get();
+  assert.deepEqual(JSON.parse(socialAudit.details_json), {
+    telegramConfigured: true,
+    youtubeConfigured: true,
+    vkConfigured: true,
+    futuchatConfigured: true,
+  });
 
   const publishResponse = await mutate(`/api/articles/${ingested.articleId}/publish`, {
     expectedRevisionId: revised.revisionId,
@@ -341,26 +380,46 @@ test('weekly draft can be edited after Tuesday ingestion and manually published 
   assert.match(publishedHtml, />Опубликовано</);
   assert.match(publishedHtml, /https:\/\/oknotika\.ru\/articles\/[^/]+\/</);
   assert.match(publishedHtml, /YouTube: настроен/);
+  assert.match(publishedHtml, /FUTUCHAT: настроен/);
   assert.equal(harness.service.getArticle(ingested.articleId).state, 'published');
+
+  let activeDirectory = resolve(
+    harness.root,
+    'friday-releases',
+    readlinkSync(publisher.activePath),
+  );
+  let publicHtml = readFileSync(
+    resolve(activeDirectory, `articles/${ingested.slug}/index.html`),
+    'utf8',
+  );
+  for (const destination of [
+    'https://t.me/oknotika',
+    'https://youtube.com/@oknotika',
+    'https://vk.ru/oknotika',
+    'https://t.me/FUTU_CHAT',
+  ]) {
+    assert.match(publicHtml, new RegExp(destination.replaceAll('.', '\\.')));
+  }
 
   const updatedSocial = await mutate('/api/social-links', {
     telegramUrl: 'https://t.me/oknotika',
     youtubeUrl: 'https://youtube.com/@oknotika-updated',
     vkUrl: '',
+    futuchatUrl: '',
     confirmation: 'SOCIAL_LINKS',
   });
   assert.equal(updatedSocial.status, 200);
-  const activeDirectory = resolve(
+  activeDirectory = resolve(
     harness.root,
     'friday-releases',
     readlinkSync(publisher.activePath),
   );
-  const publicHtml = readFileSync(
+  publicHtml = readFileSync(
     resolve(activeDirectory, `articles/${ingested.slug}/index.html`),
     'utf8',
   );
   assert.match(publicHtml, /https:\/\/youtube\.com\/@oknotika-updated/);
-  assert.doesNotMatch(publicHtml, /https:\/\/vk\.com\/oknotika/);
+  assert.doesNotMatch(publicHtml, /https:\/\/vk\.(?:com|ru)\/oknotika|https:\/\/t\.me\/FUTU_CHAT/);
 });
 
 test('admin handler wires login, editor lifecycle, preview assets, upload and logout routes', async (t) => {

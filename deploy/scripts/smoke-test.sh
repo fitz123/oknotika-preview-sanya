@@ -4,12 +4,14 @@ set -euo pipefail
 base_url=""
 admin_url=""
 withdrawn_path=""
+weekly_path=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --base-url) base_url="${2%/}"; shift 2 ;;
     --admin-url) admin_url="${2%/}"; shift 2 ;;
     --withdrawn-path) withdrawn_path="${2:-}"; shift 2 ;;
-    *) echo "usage: smoke-test.sh --base-url HTTPS_ORIGIN --admin-url HTTPS_ORIGIN [--withdrawn-path /articles/slug/]" >&2; exit 2 ;;
+    --weekly-path) weekly_path="${2:-}"; shift 2 ;;
+    *) echo "usage: smoke-test.sh --base-url HTTPS_ORIGIN --admin-url HTTPS_ORIGIN [--weekly-path /articles/slug/] [--withdrawn-path /articles/slug/]" >&2; exit 2 ;;
   esac
 done
 
@@ -17,6 +19,10 @@ done
 [[ "$admin_url" =~ ^https://[^/]+$ ]] || { echo "--admin-url must be an HTTPS origin" >&2; exit 2; }
 [[ -z "$withdrawn_path" || "$withdrawn_path" =~ ^/articles/[a-z0-9]+(-[a-z0-9]+)*/$ ]] || {
   echo "--withdrawn-path must be an article detail path" >&2
+  exit 2
+}
+[[ -z "$weekly_path" || "$weekly_path" =~ ^/articles/[a-z0-9]+(-[a-z0-9]+)*/$ ]] || {
+  echo "--weekly-path must be an article detail path" >&2
   exit 2
 }
 
@@ -54,6 +60,25 @@ rg --quiet 'Новости' "$work/articles.body" || { echo "article listing con
 rg --quiet 'Новости' "$work/admin.body" || { echo "admin login is missing the news section label" >&2; exit 1; }
 rg --quiet 'Дайджеста недели' "$work/admin.body" || { echo "admin login is missing the weekly digest label" >&2; exit 1; }
 node -e 'const fs=require("node:fs"); JSON.parse(fs.readFileSync(process.argv[1], "utf8"))' "$work/latest.body"
+
+if [[ -n "$weekly_path" ]]; then
+  fetch weekly "$base_url$weekly_path"
+  while IFS='|' read -r destination label; do
+    rg --fixed-strings --quiet "href=\"$destination\"" "$work/weekly.body" || {
+      echo "$label destination is missing from the weekly digest" >&2
+      exit 1
+    }
+    rg --fixed-strings --quiet ">$label</a>" "$work/weekly.body" || {
+      echo "$label CTA label is missing from the weekly digest" >&2
+      exit 1
+    }
+  done <<'DESTINATIONS'
+https://t.me/oknotika|Telegram
+https://youtube.com/@oknotika|YouTube
+https://vk.ru/oknotika|VK
+https://t.me/FUTU_CHAT|FUTUCHAT
+DESTINATIONS
+fi
 
 if [[ -n "$withdrawn_path" ]]; then
   withdrawn_status="$(curl --silent --show-error --output "$work/withdrawn.body" --write-out '%{http_code}' \

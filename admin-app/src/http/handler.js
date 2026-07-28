@@ -201,9 +201,11 @@ function renderDashboard(actions, session) {
     telegramUrl: escapeAttribute(social.telegramUrl),
     youtubeUrl: escapeAttribute(social.youtubeUrl ?? ''),
     vkUrl: escapeAttribute(social.vkUrl ?? ''),
+    futuchatUrl: escapeAttribute(social.futuchatUrl ?? ''),
     telegramStatus: renderSocialStatus('Telegram', social.telegramUrl),
     youtubeStatus: renderSocialStatus('YouTube', social.youtubeUrl),
     vkStatus: renderSocialStatus('VK', social.vkUrl),
+    futuchatStatus: renderSocialStatus('FUTUCHAT', social.futuchatUrl),
   });
 }
 

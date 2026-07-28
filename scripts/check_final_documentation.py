@@ -42,6 +42,9 @@ def validate_readme_text(text: str) -> list[str]:
         "deploy/README_ZHENYA.md",
         "docs/WEEKLY_INGESTION.md",
         "Tuesday ingestion smoke",
+        "https://youtube.com/@oknotika",
+        "https://vk.ru/oknotika",
+        "https://t.me/FUTU_CHAT",
         "npm run rollback-release",
         "release/CHANGED_FILES-v2.28.0-beta.1.txt",
         "Архитектурный ADR намеренно не создан",
@@ -113,6 +116,7 @@ def validate(root: Path) -> list[str]:
         "редактор «Новости»",
         "draft-only smoke",
         "npm run register-weekly-cover",
+        "https://t.me/FUTU_CHAT",
     ), errors)
 
     maintenance = (root / "CLAUDE.md").read_text(encoding="utf-8")
@@ -138,6 +142,8 @@ def validate(root: Path) -> list[str]:
         "Restore:",
         "run register-weekly-cover",
         "run rollback-release",
+        "https://vk.ru/oknotika",
+        "https://t.me/FUTU_CHAT",
     ), errors)
 
     ingestion = (root / "docs/WEEKLY_INGESTION.md").read_text(encoding="utf-8")
@@ -151,6 +157,9 @@ def validate(root: Path) -> list[str]:
         "## Response contract",
         "## Reusable cover provisioning",
         "3–5 top-level editorial",
+        "https://youtube.com/@oknotika",
+        "https://vk.ru/oknotika",
+        "https://t.me/FUTU_CHAT",
     ), errors)
 
     release = root / "release"
@@ -186,6 +195,9 @@ def validate(root: Path) -> list[str]:
         f"CHANGED_FILES-{VERSION}.txt",
         "Tuesday weekly ingestion",
         "weekly-ingestion HTTPS smoke",
+        "https://youtube.com/@oknotika",
+        "https://vk.ru/oknotika",
+        "https://t.me/FUTU_CHAT",
     ), errors)
 
     versioned_name = f"oknotika-final-{VERSION}.zip"

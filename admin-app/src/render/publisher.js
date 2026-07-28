@@ -28,6 +28,7 @@ const LEGACY_SOCIAL_LINKS = Object.freeze({
   telegramUrl: FIXED_TELEGRAM_URL,
   youtubeUrl: null,
   vkUrl: null,
+  futuchatUrl: null,
 });
 
 export function createPublisher(db, {
@@ -336,13 +337,17 @@ function reconcileTransitionAudit(db, manifest, timestamp) {
 }
 
 function insertSocialTransitionAudit(db, editorId, manifest, timestamp) {
+  const socialLinks = validateSocialLinks(
+    manifest.schemaVersion >= 3 ? manifest.socialLinks : LEGACY_SOCIAL_LINKS,
+  );
   db.prepare(`
     INSERT INTO audit_events (editor_id, event_type, release_id, details_json, created_at)
     VALUES (?, 'social_links.updated', ?, ?, ?)
   `).run(editorId, manifest.releaseId, JSON.stringify({
     telegramConfigured: true,
-    youtubeConfigured: manifest.socialLinks.youtubeUrl !== null,
-    vkConfigured: manifest.socialLinks.vkUrl !== null,
+    youtubeConfigured: socialLinks.youtubeUrl !== null,
+    vkConfigured: socialLinks.vkUrl !== null,
+    futuchatConfigured: socialLinks.futuchatUrl !== null,
   }), timestamp);
 }
 
@@ -423,12 +428,14 @@ function synchronizeSocialLinks(db, manifest, timestamp, editorId = null) {
   if (JSON.stringify(current) === JSON.stringify(socialLinks)) return;
   const result = db.prepare(`
     UPDATE site_social_links
-    SET telegram_url = ?, youtube_url = ?, vk_url = ?, updated_by = ?, updated_at = ?
+    SET telegram_url = ?, youtube_url = ?, vk_url = ?, futuchat_url = ?,
+        updated_by = ?, updated_at = ?
     WHERE singleton = 1
   `).run(
     socialLinks.telegramUrl,
     socialLinks.youtubeUrl,
     socialLinks.vkUrl,
+    socialLinks.futuchatUrl,
     editorId,
     timestamp,
   );

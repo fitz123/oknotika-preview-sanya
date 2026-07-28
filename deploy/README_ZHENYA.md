@@ -207,7 +207,7 @@ systemd-run --pty --wait --collect --unit=oknotika-bootstrap-editor \
 
 4. Открыть выданный one-time authorization URL в браузере Сани. После redirect вставить полный callback URL только в prompt, не в shell command/history. Скрипт выполняет code+PKCE exchange и полную проверку ID token, затем показывает локально verified `sub`/fingerprint. Сверить identity с Саней отдельным каналом и ввести `ENROLL-<fingerprint>`.
 5. Сохранить в evidence только timestamp, approvers и fingerprint, не callback/code/token/subject. Процедура подробно описана в `admin-app/ENROLLMENT.md`.
-6. После включения admin vhost Саня входит в «Новости», проверяет Telegram `https://t.me/oknotika`, оставляет YouTube/VK пустыми до получения точных URL и подтверждает, что незаданные площадки не показываются публично. Затем выполнить draft-only ingestion smoke из предыдущего раздела.
+6. После включения admin vhost Саня входит в «Новости» и сверяет четыре точных non-secret default: Telegram `https://t.me/oknotika`, YouTube `https://youtube.com/@oknotika`, VK `https://vk.ru/oknotika` и отдельный FUTUCHAT `https://t.me/FUTU_CHAT`. Telegram должен быть readonly; очищенная optional-площадка не должна показываться публично. Затем выполнить draft-only ingestion smoke из предыдущего раздела.
 
 Удаление доступа: остановить admin, сделать verified backup, выполнить `npm run disable-editor -- --database /var/lib/oknotika-admin/db/admin.sqlite`, запустить service и убедиться, что старые sessions отозваны и вход запрещён. Для нового subject требуется reviewed maintenance change; автоматической замены editor/RBAC нет.
 
@@ -291,7 +291,7 @@ npm run render:fixture
 - [ ] Linux config: выполнить `nginx -t` и все четыре `systemd-analyze verify`, затем проверить enabled/active units, file ownership/modes и journal без credentials.
 - [ ] Live auth: пройти реальный Telegram login, logout, replay rejection, non-allowlisted rejection, session revocation и credential rotation по `release-evidence/qa/PRODUCTION_OIDC_REHEARSAL.md`.
 - [ ] Weekly ingestion: из credential-scoped Tuesday unit выполнить `smoke-weekly-ingestion.mjs` с реальным private payload, подтвердить identical retry, draft-only статус в «Новости» и отсутствие публичного изменения.
-- [ ] Public smoke: выполнить `smoke-test.sh` на двух canonical HTTPS origins; после первого withdrawal повторить его с HTTP 410 path.
+- [ ] Public smoke: выполнить `smoke-test.sh` на двух canonical HTTPS origins; для опубликованного weekly digest передать `--weekly-path` и проверить четыре точных CTA, после первого withdrawal повторить его с HTTP 410 path.
 - [ ] Restore: настроить реальный encrypted off-host restic repository, сделать backup и isolated restore drill, проверить SQLite/releases/active symlink и уложиться в RPO 24 часа / RTO 2 часа.
 - [ ] Activation: переключать production symlinks и включать vhosts только после явного разрешения на deployment; записать pass/fail gates и rollback decision вне ZIP без private identifiers.
 
@@ -300,9 +300,10 @@ Live gate после включения TLS/vhosts:
 ```bash
 ./deploy/scripts/smoke-test.sh \
   --base-url "$OKNOTIKA_PUBLIC_ORIGIN" \
-  --admin-url "$OKNOTIKA_ADMIN_ORIGIN"
+  --admin-url "$OKNOTIKA_ADMIN_ORIGIN" \
+  --weekly-path /articles/<published-weekly-slug>/
 ```
 
-После первого реального withdrawal повторить smoke с `--withdrawn-path /articles/<slug>/`: gate требует HTTP 410 и generated gone body, а не только текст «410» при HTTP 200.
+До первой weekly publication параметр `--weekly-path` опустить. После неё он обязателен и проверяет exact href/labels Telegram, YouTube, VK и FUTUCHAT. После первого реального withdrawal повторить smoke с `--withdrawn-path /articles/<slug>/`: gate требует HTTP 410 и generated gone body, а не только текст «410» при HTTP 200.
 
 Если gate не проходит, не продолжать активацию: application symlink вернуть по Application rollback, marketing — только по Marketing rollback, а active article release менять только через Content/operational rollback.
