@@ -77,12 +77,12 @@ python3 -m unittest tests/test_release_guardrails.py tests/test_release_package.
 
 **Serves:** Sanya's request to sign in through Telegram and personally edit/site-publish updates without touching files or deployment tooling.
 
-- [ ] Rename the editorial surface to `Новости` and the weekly template/material to `Дайджест недели`.
-- [ ] Add a focused weekly-digest form for title, publication date, lead, body, cover/alt, multiple sources and social CTA configuration/status.
-- [ ] Show clear `Черновик`, `Предпросмотр`, `Опубликовано` state, last-change information and the public URL when available.
-- [ ] Preserve create/edit/preview/publish/withdraw/revision restore while moving whole-release operational rollback out of the everyday editorial screen.
-- [ ] Add restrained mobile-first styling consistent with the Oknotika site; keep the admin usable without a frontend framework.
-- [ ] Add/update UI and HTTP tests, including edit after automatic ingestion and manual Friday publish.
+- [x] Rename the editorial surface to `Новости` and the weekly template/material to `Дайджест недели`.
+- [x] Add a focused weekly-digest form for title, publication date, lead, body, cover/alt, multiple sources and social CTA configuration/status.
+- [x] Show clear `Черновик`, `Предпросмотр`, `Опубликовано` state, last-change information and the public URL when available.
+- [x] Preserve create/edit/preview/publish/withdraw/revision restore while moving whole-release operational rollback out of the everyday editorial screen.
+- [x] Add restrained mobile-first styling consistent with the Oknotika site; keep the admin usable without a frontend framework.
+- [x] Add/update UI and HTTP tests, including edit after automatic ingestion and manual Friday publish.
 
 ### Task 3: Render the public `Новости` / `Дайджест недели` experience
 

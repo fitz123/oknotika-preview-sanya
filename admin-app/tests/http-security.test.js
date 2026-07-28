@@ -7,7 +7,7 @@ import { createAdminHandler } from '../src/http/handler.js';
 import { createProxiedRequest } from '../src/http/node-adapter.js';
 import { assertMutationRequest, assertTrustedProxyHeaders } from '../src/http/security.js';
 import { createPublisher } from '../src/render/publisher.js';
-import { articleInput, createHarness } from './helpers.js';
+import { articleInput, createHarness, weeklyIngestionInput } from './helpers.js';
 
 const ADMIN_ORIGIN = 'https://admin.oknotika.ru';
 
@@ -54,6 +54,18 @@ test('Node adapter authenticates before buffering and applies route-specific bod
   });
   assert.deepEqual(Buffer.from(await accepted.arrayBuffer()), Buffer.from([0x89, 0x50]));
   assert.equal(upload.iterated, true);
+
+  const socialLinks = fakeIncoming({
+    url: '/api/social-links',
+    body: Buffer.from('{}'),
+    headers: mutationHeaders({ contentType: 'application/json', contentLength: 2 }),
+  });
+  const acceptedSocialLinks = await createProxiedRequest(socialLinks, {
+    adminOrigin: ADMIN_ORIGIN,
+    sessionService: authenticatedSessionService,
+  });
+  assert.equal(await acceptedSocialLinks.text(), '{}');
+  assert.equal(socialLinks.iterated, true);
 });
 
 test('Unix-socket proxy headers must be single-valued and match the canonical origin', () => {
@@ -193,6 +205,114 @@ test('admin handler keeps XSS escaped and rejects raw HTML through authenticated
   assert.match((await response.json()).error, /raw HTML/);
 });
 
+test('weekly draft can be edited after Tuesday ingestion and manually published Friday from the admin', async (t) => {
+  const harness = createHarness(t, {
+    clock: () => new Date('2026-07-28T09:00:00.000Z'),
+  });
+  const ingested = harness.service.ingestWeeklyDraft(weeklyIngestionInput(harness.coverAssetId));
+  const sessions = createSessionService(harness.db);
+  const createdSession = sessions.create(harness.editorId);
+  const cookie = sessionCookie(createdSession.token);
+  const publisher = createPublisher(harness.db, {
+    releasesRoot: resolve(harness.root, 'friday-releases'),
+    publicOrigin: 'https://oknotika.ru',
+    clock: () => new Date('2026-07-31T15:00:00.000Z'),
+  });
+  const actions = createAdminActions({
+    db: harness.db,
+    contentService: harness.service,
+    publisher,
+    uploadStore: { store: async () => ({}) },
+    previewsRoot: `${harness.root}/friday-previews`,
+    publicOrigin: 'https://oknotika.ru',
+  });
+  const handler = createAdminHandler({
+    adminOrigin: ADMIN_ORIGIN,
+    oidcService: {},
+    sessionService: sessions,
+    actions,
+    previewsRoot: `${harness.root}/friday-previews`,
+  });
+  const mutate = (path, body) => handler(new Request(`${ADMIN_ORIGIN}${path}`, {
+    method: 'POST',
+    headers: {
+      cookie,
+      origin: ADMIN_ORIGIN,
+      'sec-fetch-site': 'same-origin',
+      'sec-fetch-mode': 'cors',
+      'x-csrf-token': createdSession.csrfToken,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  }));
+
+  const draftDashboard = await handler(new Request(`${ADMIN_ORIGIN}/`, { headers: { cookie } }));
+  const draftHtml = await draftDashboard.text();
+  assert.match(draftHtml, /<h1>Новости<\/h1>/);
+  assert.match(draftHtml, /Дайджест недели/);
+  assert.match(draftHtml, /2026-W31/);
+  assert.match(draftHtml, />Черновик</);
+  assert.match(draftHtml, />Предпросмотр</);
+  assert.match(draftHtml, /Последнее изменение:/);
+  assert.match(draftHtml, /Telegram: настроен/);
+  assert.match(draftHtml, /YouTube: не настроен/);
+  assert.doesNotMatch(draftHtml, /Operational rollback|data-action="rollback"/);
+
+  const listed = await (await handler(new Request(`${ADMIN_ORIGIN}/api/articles`, {
+    headers: { cookie },
+  }))).json();
+  assert.deepEqual(listed.articles[0].source_urls, [
+    'https://example.com/news/one',
+    'https://example.org/news/two',
+  ]);
+
+  const editedArticle = weeklyIngestionInput(harness.coverAssetId, {
+    article: {
+      title: 'Дайджест недели: проверено редактором',
+      lead: 'Проверенные главные новости оконной отрасли.',
+      sourceUrls: [
+        'https://example.com/news/one',
+        'https://example.org/news/two',
+        'https://example.net/news/three',
+      ],
+    },
+  }).article;
+  const revisedResponse = await mutate(`/api/articles/${ingested.articleId}/revisions`, {
+    article: editedArticle,
+    expectedRevisionId: ingested.revisionId,
+  });
+  assert.equal(revisedResponse.status, 201);
+  const revised = await revisedResponse.json();
+  assert.notEqual(revised.revisionId, ingested.revisionId);
+  assert.equal(
+    harness.db.prepare('SELECT current_revision_id FROM articles WHERE id = ?').get(ingested.articleId)
+      .current_revision_id,
+    revised.revisionId,
+  );
+
+  const socialResponse = await mutate('/api/social-links', {
+    telegramUrl: 'https://t.me/oknotika',
+    youtubeUrl: 'https://youtube.com/@oknotika',
+    vkUrl: 'https://vk.com/oknotika',
+  });
+  assert.equal(socialResponse.status, 200);
+  assert.equal((await socialResponse.json()).vkUrl, 'https://vk.com/oknotika');
+
+  const publishResponse = await mutate(`/api/articles/${ingested.articleId}/publish`, {
+    expectedRevisionId: revised.revisionId,
+    confirmation: 'PUBLISH',
+  });
+  assert.equal(publishResponse.status, 200);
+  assert.match((await publishResponse.json()).releaseId, /^20260731150000-/);
+
+  const publishedDashboard = await handler(new Request(`${ADMIN_ORIGIN}/`, { headers: { cookie } }));
+  const publishedHtml = await publishedDashboard.text();
+  assert.match(publishedHtml, />Опубликовано</);
+  assert.match(publishedHtml, /https:\/\/oknotika\.ru\/articles\/[^/]+\/</);
+  assert.match(publishedHtml, /YouTube: настроен/);
+  assert.equal(harness.service.getArticle(ingested.articleId).state, 'published');
+});
+
 test('admin handler wires login, editor lifecycle, preview assets, upload, rollback and logout routes', async (t) => {
   let tick = 0;
   const harness = createHarness(t, {
@@ -315,6 +435,9 @@ test('admin handler wires login, editor lifecycle, preview assets, upload, rollb
   assert.equal((await uploadResponse.json()).assetId, harness.coverAssetId);
   assert.equal((await handler(new Request(`${ADMIN_ORIGIN}/api/articles`, { headers: { cookie } }))).status, 200);
   assert.equal((await handler(new Request(`${ADMIN_ORIGIN}/admin.js`, { headers: { cookie } }))).status, 200);
+  const stylesheet = await handler(new Request(`${ADMIN_ORIGIN}/admin.css`));
+  assert.equal(stylesheet.status, 200);
+  assert.match(await stylesheet.text(), /@media \(max-width: 560px\)/);
 
   const logout = await mutate('/logout', undefined, { contentType: 'text/plain' });
   assert.equal(logout.status, 303);

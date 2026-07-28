@@ -6,6 +6,7 @@ const JSON_BODY_MAXIMUM = 1024 * 1024;
 const UPLOAD_BODY_MAXIMUM = 10 * 1024 * 1024;
 const JSON_MUTATION_PATHS = [
   /^\/api\/articles$/,
+  /^\/api\/social-links$/,
   /^\/api\/articles\/\d+\/revisions$/,
   /^\/api\/articles\/\d+\/(?:publish|withdraw|restore)$/,
   /^\/api\/releases\/rollback$/,

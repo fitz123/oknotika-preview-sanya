@@ -4,22 +4,26 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 
-test('browser editor client wires form, preview, publish, withdraw, restore, rollback and logout actions', async () => {
+test('mobile news editor wires weekly form, social links, preview, publish, withdraw, restore and logout', async () => {
   const listeners = {};
   const formListeners = {};
+  const socialListeners = {};
   const logoutListeners = {};
   const requests = [];
   const assigned = [];
   let reloads = 0;
   let formValues = new Map();
   const elements = Object.fromEntries([
-    'title', 'publicationDate', 'lead', 'bodyMarkdown', 'coverAlt', 'sourceUrl',
+    'title', 'publicationDate', 'lead', 'bodyMarkdown', 'coverAlt', 'sourceUrls',
     'articleId', 'expectedRevisionId', 'coverAssetId',
   ].map(name => [name, { value: '' }]));
   const articleForm = {
     elements,
     addEventListener: (name, callback) => { formListeners[name] = callback; },
     scrollIntoView: () => {},
+  };
+  const socialForm = {
+    addEventListener: (name, callback) => { socialListeners[name] = callback; },
   };
   const logoutForm = { addEventListener: (name, callback) => { logoutListeners[name] = callback; } };
   const status = { textContent: '' };
@@ -31,6 +35,7 @@ test('browser editor client wires form, preview, publish, withdraw, restore, rol
     body_markdown: 'Existing body',
     cover_alt: 'Existing alt',
     source_url: 'https://example.com/source',
+    source_urls: ['https://example.com/source', 'https://example.org/second-source'],
     current_revision_id: 11,
     cover_asset_id: 3,
   };
@@ -51,6 +56,7 @@ test('browser editor client wires form, preview, publish, withdraw, restore, rol
         'meta[name="csrf-token"]': { content: 'csrf-token' },
         '#status': status,
         '#article-form': articleForm,
+        '#social-form': socialForm,
         '#logout': logoutForm,
       })[selector];
     },
@@ -79,26 +85,31 @@ test('browser editor client wires form, preview, publish, withdraw, restore, rol
   assert.equal(elements.title.value, articleRecord.title);
   assert.equal(elements.articleId.value, 5);
   assert.equal(elements.expectedRevisionId.value, 11);
+  assert.equal(elements.sourceUrls.value, articleRecord.source_urls.join('\n'));
 
   await click({ action: 'preview', revision: '11' });
   assert.deepEqual(assigned, ['/previews/token/']);
   await click({ action: 'restore', id: '5', source: '7', revision: '11' });
-  await click({ action: 'rollback', release: 'release-old' });
   await click({ action: 'publish', id: '5', revision: '11' });
   await click({ action: 'withdraw', id: '5', revision: '11' });
   assert.ok(requests.some(request => request.path === '/api/articles/5/restore'));
-  assert.ok(requests.some(request => request.path === '/api/releases/rollback'));
+  assert.ok(!requests.some(request => request.path === '/api/releases/rollback'));
   assert.ok(requests.some(request => request.path === '/api/articles/5/publish'));
   assert.ok(requests.some(request => request.path === '/api/articles/5/withdraw'));
 
   formValues = new Map([
     ['title', 'New title'], ['publicationDate', '2026-07-14'], ['lead', 'Lead'],
-    ['bodyMarkdown', 'Body'], ['coverAlt', 'Alt'], ['sourceUrl', ''],
+    ['bodyMarkdown', 'Body'], ['coverAlt', 'Alt'],
+    ['sourceUrls', 'https://example.com/one\n\n https://example.org/two '],
     ['articleId', ''], ['expectedRevisionId', ''], ['coverAssetId', '3'],
     ['cover', { size: 0 }],
   ]);
   await formListeners.submit({ preventDefault: () => {} });
-  assert.ok(requests.some(request => request.path === '/api/articles' && request.options.method === 'POST'));
+  const createRequest = requests.find(request => request.path === '/api/articles' && request.options.method === 'POST');
+  assert.deepEqual(
+    JSON.parse(createRequest.options.body).sourceUrls,
+    ['https://example.com/one', 'https://example.org/two'],
+  );
 
   formValues.set('articleId', '5');
   formValues.set('expectedRevisionId', '11');
@@ -106,7 +117,20 @@ test('browser editor client wires form, preview, publish, withdraw, restore, rol
   await formListeners.submit({ preventDefault: () => {} });
   assert.ok(requests.some(request => request.path === '/api/uploads'));
   assert.ok(requests.some(request => request.path === '/api/articles/5/revisions'));
-  assert.ok(reloads >= 5);
+
+  formValues = new Map([
+    ['telegramUrl', 'https://t.me/oknotika'],
+    ['youtubeUrl', 'https://youtube.com/@oknotika'],
+    ['vkUrl', ''],
+  ]);
+  await socialListeners.submit({ preventDefault: () => {} });
+  const socialRequest = requests.find(request => request.path === '/api/social-links');
+  assert.deepEqual(JSON.parse(socialRequest.options.body), {
+    telegramUrl: 'https://t.me/oknotika',
+    youtubeUrl: 'https://youtube.com/@oknotika',
+    vkUrl: '',
+  });
+  assert.ok(reloads >= 6);
 
   await logoutListeners.submit({ preventDefault: () => {} });
   assert.equal(assigned.at(-1), '/login');

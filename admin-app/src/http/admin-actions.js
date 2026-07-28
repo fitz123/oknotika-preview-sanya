@@ -10,15 +10,27 @@ export function createAdminActions({
   clock = () => new Date(),
 } = {}) {
   function listArticles() {
-    return db.prepare(`
+    const articles = db.prepare(`
       SELECT a.id, a.slug, a.state, a.public_state, a.current_revision_id,
-             a.published_revision_id, r.revision_number,
+             a.published_revision_id, a.updated_at, r.revision_number,
              r.title, r.publication_at, r.lead, r.body_markdown, r.cover_asset_id,
-             r.cover_alt, r.source_url
+             r.cover_alt, r.source_url, w.issue_id AS weekly_issue_id
       FROM articles a
       JOIN article_revisions r ON r.id = a.current_revision_id
+      LEFT JOIN weekly_ingestion_issues w ON w.article_id = a.id
       ORDER BY a.updated_at DESC, a.id DESC
     `).all();
+    const sources = db.prepare(`
+      SELECT url FROM article_revision_sources
+      WHERE revision_id = ? ORDER BY position
+    `);
+    return articles.map((article) => ({
+      ...article,
+      source_urls: sources.all(article.current_revision_id).map((source) => source.url),
+      public_url: article.public_state === 'published'
+        ? new URL(`/articles/${article.slug}/`, publicOrigin).href
+        : null,
+    }));
   }
 
   function listRevisions(articleId) {
@@ -40,6 +52,14 @@ export function createAdminActions({
 
   function createDraft(input, editorId) {
     return contentService.createArticle(input, editorId);
+  }
+
+  function getSocialLinks() {
+    return contentService.getSocialLinks();
+  }
+
+  function configureSocialLinks(input, editorId) {
+    return contentService.configureSocialLinks(input, editorId);
   }
 
   function reviseDraft(articleId, input, editorId, expectedRevisionId) {
@@ -126,6 +146,8 @@ export function createAdminActions({
     listRevisions,
     listReleases,
     createDraft,
+    getSocialLinks,
+    configureSocialLinks,
     reviseDraft,
     preview,
     publish,
