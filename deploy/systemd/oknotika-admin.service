@@ -14,8 +14,10 @@ EnvironmentFile=/etc/oknotika-admin/oknotika-admin.env
 Environment=PATH=/opt/node-v24.18.0/bin:/usr/bin:/bin
 Environment=TELEGRAM_OIDC_CLIENT_ID_FILE=%d/telegram-oidc-client-id
 Environment=TELEGRAM_OIDC_CLIENT_SECRET_FILE=%d/telegram-oidc-client-secret
+Environment=OKNOTIKA_WEEKLY_INGEST_TOKEN_FILE=%d/weekly-ingest-token
 LoadCredentialEncrypted=telegram-oidc-client-id
 LoadCredentialEncrypted=telegram-oidc-client-secret
+LoadCredentialEncrypted=weekly-ingest-token
 StateDirectory=oknotika-admin
 StateDirectoryMode=0750
 RuntimeDirectory=oknotika-admin

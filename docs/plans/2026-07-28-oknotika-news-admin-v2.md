@@ -64,12 +64,12 @@ python3 -m unittest tests/test_release_guardrails.py tests/test_release_package.
 
 **Serves:** Sanya's request that each Tuesday news run automatically creates an editable site draft with Telegram, YouTube and VK links while he remains the person who publishes Friday.
 
-- [ ] Add only additive/backward-compatible storage and validation needed for the weekly digest, multiple source URLs and global social URLs.
-- [ ] Add a narrowly scoped, authenticated machine-ingestion path or equivalent reviewed mechanism that can create/update a weekly draft but cannot preview private data, publish, withdraw, restore, rollback, manage editors or change unrelated articles.
-- [ ] Make retries idempotent for the same weekly issue and protect manual edits from silent overwrite with an explicit conflict/version rule.
-- [ ] Keep ingestion credentials outside environment files committed to Git and document the supported encrypted credential path for both server and cron-side caller.
-- [ ] Add tests for authentication failure, oversized/invalid payloads, URL validation, retry/idempotency, edit conflicts and proof that ingestion cannot publish.
-- [ ] Validate the task outcome with the narrow relevant test set before continuing.
+- [x] Add only additive/backward-compatible storage and validation needed for the weekly digest, multiple source URLs and global social URLs.
+- [x] Add a narrowly scoped, authenticated machine-ingestion path or equivalent reviewed mechanism that can create/update a weekly draft but cannot preview private data, publish, withdraw, restore, rollback, manage editors or change unrelated articles.
+- [x] Make retries idempotent for the same weekly issue and protect manual edits from silent overwrite with an explicit conflict/version rule.
+- [x] Keep ingestion credentials outside environment files committed to Git and document the supported encrypted credential path for both server and cron-side caller.
+- [x] Add tests for authentication failure, oversized/invalid payloads, URL validation, retry/idempotency, edit conflicts and proof that ingestion cannot publish.
+- [x] Validate the task outcome with the narrow relevant test set before continuing.
 
 ### Task 2: Make the Telegram admin a simple mobile weekly-news editor
 

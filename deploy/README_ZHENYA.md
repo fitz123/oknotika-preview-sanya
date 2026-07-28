@@ -62,12 +62,20 @@ deploy/scripts/install-marketing.sh \
 
 - `telegram-oidc-client-id`;
 - `telegram-oidc-client-secret`;
+- `weekly-ingest-token` — общий bearer token сервера и Tuesday caller, минимум 32 случайных байта;
 - `restic-repository` — строка encrypted off-host repository;
 - `restic-password` — отдельный сильный пароль репозитория.
 
 Исходные значения принимать только по согласованному секретному каналу, не вставлять в shell history, ticket, Telegram или journal. Файлы credentials — `root:root 0600`. Units используют `LoadCredentialEncrypted`; Node читает временные файлы из `%d`, а restic получает `RESTIC_PASSWORD_FILE` и repository file.
 
 Rotation Telegram: создать новые credential-файлы под временными именами, проверить ownership/mode, остановить admin, атомарно заменить `.cred`, запустить сервис и выполнить login/logout/revocation gate. Старый client secret отозвать только после успешной проверки. Rotation restic: сначала создать и проверить новый repository/password и полный backup/restore drill; старый repository сохранять до подтверждённого restore и истечения retention.
+
+Weekly ingestion использует отдельный `weekly-ingest-token`, который не даёт
+Telegram-сессию и принимается только на draft-only endpoint. Server unit читает
+его из `%d/weekly-ingest-token`; cron-side research unit должен загрузить то же
+значение как собственный encrypted systemd credential и собрать Authorization
+header только в памяти. Контракт, version/conflict rule, rotation и запрет
+секрета в argv/env/log описаны в `docs/WEEKLY_INGESTION.md`.
 
 ## nginx
 

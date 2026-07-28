@@ -1,6 +1,23 @@
 const REQUIRED_TEXT = ['title', 'lead', 'bodyMarkdown', 'coverAlt'];
 const RAW_HTML = /<\/?[a-z][^>]*>/i;
+const WEEKLY_ARTICLE_FIELDS = new Set([
+  'title',
+  'publicationDate',
+  'lead',
+  'bodyMarkdown',
+  'coverAssetId',
+  'coverAlt',
+  'sourceUrls',
+]);
+const SOCIAL_FIELDS = new Set(['telegramUrl', 'youtubeUrl', 'vkUrl']);
+const SOCIAL_HOSTS = Object.freeze({
+  telegramUrl: new Set(['t.me']),
+  youtubeUrl: new Set(['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be']),
+  vkUrl: new Set(['vk.com', 'www.vk.com']),
+});
+const WEEKLY_TEXT_LIMITS = Object.freeze({ bodyMarkdown: 100_000, coverAlt: 500 });
 export const ARTICLE_TEXT_LIMITS = Object.freeze({ title: 240, lead: 1200 });
+export const WEEKLY_INGESTION_BODY_MAXIMUM = 128 * 1024;
 
 export function normalizePublicationDate(value) {
   if (typeof value !== 'string' || value.trim() === '') {
@@ -48,8 +65,44 @@ export function validateSourceUrl(value) {
   return parsed.href;
 }
 
+export function validateSourceUrls(value, fallbackSourceUrl = undefined) {
+  if (value === undefined) {
+    const fallback = validateSourceUrl(fallbackSourceUrl);
+    return fallback ? [fallback] : [];
+  }
+  if (!Array.isArray(value)) throw new TypeError('sourceUrls must be an array');
+  if (value.length > 20) throw new TypeError('sourceUrls must not contain more than 20 URLs');
+  const normalized = value.map((url, index) => {
+    if (typeof url === 'string' && url.length > 2048) {
+      throw new TypeError(`sourceUrls[${index}]: sourceUrl must not exceed 2048 characters`);
+    }
+    try {
+      return validateSourceUrl(url);
+    } catch (error) {
+      throw new TypeError(`sourceUrls[${index}]: ${error.message}`);
+    }
+  });
+  if (normalized.some((url) => url === null)) {
+    throw new TypeError('sourceUrls must not contain empty URLs');
+  }
+  if (new Set(normalized).size !== normalized.length) {
+    throw new TypeError('sourceUrls must not contain duplicate URLs');
+  }
+  return normalized;
+}
+
+export function validateSocialLinks(input) {
+  assertObject(input, 'social links');
+  assertKnownFields(input, SOCIAL_FIELDS, 'social links');
+  return {
+    telegramUrl: validatePlatformUrl(input.telegramUrl, 'telegramUrl', { required: true }),
+    youtubeUrl: validatePlatformUrl(input.youtubeUrl, 'youtubeUrl'),
+    vkUrl: validatePlatformUrl(input.vkUrl, 'vkUrl'),
+  };
+}
+
 export function validateArticleInput(input) {
-  if (!input || typeof input !== 'object') throw new TypeError('article input is required');
+  assertObject(input, 'article input');
   const normalized = {};
   for (const field of REQUIRED_TEXT) {
     if (typeof input[field] !== 'string' || input[field].trim() === '') {
@@ -67,10 +120,73 @@ export function validateArticleInput(input) {
   if (!Number.isInteger(input.coverAssetId) || input.coverAssetId < 1) {
     throw new TypeError('coverAssetId is required');
   }
+  const sourceUrls = validateSourceUrls(input.sourceUrls, input.sourceUrl);
   return {
     ...normalized,
     coverAssetId: input.coverAssetId,
     publicationAt: normalizePublicationDate(input.publicationDate),
-    sourceUrl: validateSourceUrl(input.sourceUrl),
+    sourceUrl: sourceUrls[0] ?? null,
+    sourceUrls,
   };
+}
+
+export function validateWeeklyIngestionInput(input) {
+  assertObject(input, 'weekly ingestion payload');
+  assertKnownFields(input, new Set(['issueId', 'contentVersion', 'article']), 'weekly ingestion payload');
+  if (typeof input.issueId !== 'string'
+      || !/^\d{4}-W(?:0[1-9]|[1-4]\d|5[0-3])$/.test(input.issueId)) {
+    throw new TypeError('issueId must use the ISO week format YYYY-Www');
+  }
+  if (!Number.isInteger(input.contentVersion) || input.contentVersion < 1) {
+    throw new TypeError('contentVersion must be a positive integer');
+  }
+  assertObject(input.article, 'article');
+  assertKnownFields(input.article, WEEKLY_ARTICLE_FIELDS, 'article');
+  const article = validateArticleInput(input.article);
+  for (const [field, maximum] of Object.entries(WEEKLY_TEXT_LIMITS)) {
+    if (article[field].length > maximum) {
+      throw new TypeError(`${field} must not exceed ${maximum} characters`);
+    }
+  }
+  if (article.sourceUrls.length === 0) {
+    throw new TypeError('sourceUrls must contain at least one verified source URL');
+  }
+  return {
+    issueId: input.issueId,
+    contentVersion: input.contentVersion,
+    article,
+  };
+}
+
+function validatePlatformUrl(value, field, { required = false } = {}) {
+  if (value === undefined || value === null || value === '') {
+    if (required) throw new TypeError(`${field} is required`);
+    return null;
+  }
+  if (typeof value !== 'string') throw new TypeError(`${field} must be a string`);
+  if (value.length > 2048) throw new TypeError(`${field} must not exceed 2048 characters`);
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new TypeError(`${field} must be a valid URL`);
+  }
+  if (parsed.protocol !== 'https:' || parsed.username || parsed.password) {
+    throw new TypeError(`${field} must be an HTTPS URL without credentials`);
+  }
+  if (!SOCIAL_HOSTS[field].has(parsed.hostname.toLowerCase())) {
+    throw new TypeError(`${field} must use an approved ${field.replace('Url', '')} host`);
+  }
+  return parsed.href;
+}
+
+function assertObject(value, name) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new TypeError(`${name} is required`);
+  }
+}
+
+function assertKnownFields(value, allowed, name) {
+  const unknown = Object.keys(value).filter((field) => !allowed.has(field));
+  if (unknown.length > 0) throw new TypeError(`${name} contains unsupported field: ${unknown[0]}`);
 }

@@ -1,4 +1,6 @@
 import { assertMutationRequest } from './security.js';
+import { WEEKLY_INGESTION_BODY_MAXIMUM } from '../content/validation.js';
+import { WEEKLY_INGESTION_PATH } from './ingestion-auth.js';
 
 const JSON_BODY_MAXIMUM = 1024 * 1024;
 const UPLOAD_BODY_MAXIMUM = 10 * 1024 * 1024;
@@ -9,17 +11,28 @@ const JSON_MUTATION_PATHS = [
   /^\/api\/releases\/rollback$/,
 ];
 
-export async function createProxiedRequest(incoming, { adminOrigin, sessionService }) {
+export async function createProxiedRequest(incoming, {
+  adminOrigin,
+  sessionService,
+  ingestionAuthenticator,
+}) {
   const method = String(incoming.method ?? 'GET').toUpperCase();
   const target = new URL(incoming.url ?? '/', adminOrigin);
   const init = { method, headers: incoming.headers };
   const headerOnlyRequest = new Request(target, init);
   if (['GET', 'HEAD'].includes(method)) return headerOnlyRequest;
 
-  const session = sessionService.authenticate(headerOnlyRequest.headers.get('cookie'));
-  if (!session || !hasValidMutationHeaders(headerOnlyRequest, adminOrigin, session, sessionService)) {
-    discardBody(incoming);
-    return headerOnlyRequest;
+  if (method === 'POST' && target.pathname === WEEKLY_INGESTION_PATH) {
+    if (!ingestionAuthenticator?.authenticate(headerOnlyRequest.headers.get('authorization'))) {
+      discardBody(incoming);
+      return headerOnlyRequest;
+    }
+  } else {
+    const session = sessionService.authenticate(headerOnlyRequest.headers.get('cookie'));
+    if (!session || !hasValidMutationHeaders(headerOnlyRequest, adminOrigin, session, sessionService)) {
+      discardBody(incoming);
+      return headerOnlyRequest;
+    }
   }
 
   const maximum = requestBodyMaximum(headerOnlyRequest);
@@ -33,6 +46,10 @@ export async function createProxiedRequest(incoming, { adminOrigin, sessionServi
 
 export function requestBodyMaximum(request) {
   const url = new URL(request.url);
+  if (request.method === 'POST' && url.pathname === WEEKLY_INGESTION_PATH
+      && request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) {
+    return WEEKLY_INGESTION_BODY_MAXIMUM;
+  }
   if (request.method === 'POST' && url.pathname === '/api/uploads') return UPLOAD_BODY_MAXIMUM;
   if (request.method === 'POST'
       && request.headers.get('content-type')?.toLowerCase().startsWith('application/json')

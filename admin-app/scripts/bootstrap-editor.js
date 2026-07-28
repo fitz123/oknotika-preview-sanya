@@ -8,7 +8,7 @@ import { createOidcService } from '../src/auth/oidc.js';
 import { openDatabase } from '../src/content/database.js';
 import { createContentService } from '../src/content/service.js';
 
-const config = loadConfiguration();
+const config = loadConfiguration(process.env, { requireWeeklyIngestionToken: false });
 const db = openDatabase(config.databasePath);
 const prompt = createInterface({ input: stdin, output: stdout, terminal: true });
 try {

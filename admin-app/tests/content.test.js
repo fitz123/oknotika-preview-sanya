@@ -2,17 +2,122 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { renderMarkdown } from '../src/content/markdown.js';
 import { formatMoscowDate, normalizePublicationDate } from '../src/content/validation.js';
-import { articleInput, createHarness } from './helpers.js';
+import { articleInput, createHarness, weeklyIngestionInput } from './helpers.js';
 
 test('schema models editor, immutable revisions, assets, releases and audit events', (t) => {
   const { db } = createHarness(t);
   const tables = new Set(db.prepare("SELECT name FROM sqlite_schema WHERE type = 'table'").all().map((row) => row.name));
   for (const expected of [
     'configured_editors', 'articles', 'article_revisions', 'assets', 'releases',
-    'release_articles', 'site_state', 'audit_events',
+    'release_articles', 'site_state', 'audit_events', 'article_revision_sources',
+    'weekly_ingestion_issues', 'site_social_links',
   ]) {
     assert.ok(tables.has(expected), `${expected} table is missing`);
   }
+});
+
+test('multiple source URLs are stored immutably with the legacy first-source column', (t) => {
+  const { db, service, editorId, coverAssetId } = createHarness(t);
+  const sourceUrls = [
+    'https://example.com/first',
+    'https://example.org/second',
+    'https://example.net/third',
+  ];
+  const created = service.createArticle(articleInput(coverAssetId, {
+    sourceUrl: undefined,
+    sourceUrls,
+  }), editorId);
+  const stored = db.prepare(`
+    SELECT position, url FROM article_revision_sources
+    WHERE revision_id = ? ORDER BY position
+  `).all(created.revisionId);
+  assert.deepEqual(stored.map((source) => source.url), sourceUrls);
+  assert.equal(
+    db.prepare('SELECT source_url FROM article_revisions WHERE id = ?').get(created.revisionId).source_url,
+    sourceUrls[0],
+  );
+  assert.throws(
+    () => db.prepare('UPDATE article_revision_sources SET url = ? WHERE revision_id = ? AND position = 0')
+      .run('https://example.com/changed', created.revisionId),
+    /immutable/,
+  );
+
+  const restoredId = service.restoreRevision(created.articleId, created.revisionId, editorId);
+  assert.deepEqual(
+    db.prepare('SELECT url FROM article_revision_sources WHERE revision_id = ? ORDER BY position')
+      .all(restoredId).map((source) => source.url),
+    sourceUrls,
+  );
+});
+
+test('global social links validate platform hosts and retain nullable destinations', (t) => {
+  const { service, editorId } = createHarness(t);
+  assert.deepEqual(service.getSocialLinks(), {
+    telegramUrl: 'https://t.me/oknotika',
+    youtubeUrl: null,
+    vkUrl: null,
+    updatedAt: '1970-01-01T00:00:00.000Z',
+  });
+  const configured = service.configureSocialLinks({
+    telegramUrl: 'https://t.me/oknotika',
+    youtubeUrl: 'https://www.youtube.com/@oknotika',
+    vkUrl: 'https://vk.com/oknotika',
+  }, editorId);
+  assert.equal(configured.youtubeUrl, 'https://www.youtube.com/@oknotika');
+  assert.equal(configured.vkUrl, 'https://vk.com/oknotika');
+  assert.throws(() => service.configureSocialLinks({
+    telegramUrl: 'https://evil.example/oknotika',
+    youtubeUrl: null,
+    vkUrl: null,
+  }, editorId), /approved telegram host/);
+});
+
+test('weekly ingestion is versioned, idempotent and refuses silent manual overwrite', (t) => {
+  const { db, service, editorId, coverAssetId } = createHarness(t);
+  const payload = weeklyIngestionInput(coverAssetId);
+  const created = service.ingestWeeklyDraft(payload);
+  assert.equal(created.created, true);
+  assert.equal(service.getArticle(created.articleId).state, 'draft');
+
+  const retry = service.ingestWeeklyDraft(payload);
+  assert.equal(retry.idempotent, true);
+  assert.equal(retry.revisionId, created.revisionId);
+  assert.equal(
+    db.prepare('SELECT COUNT(*) AS count FROM article_revisions WHERE article_id = ?')
+      .get(created.articleId).count,
+    1,
+  );
+
+  assert.throws(
+    () => service.ingestWeeklyDraft(weeklyIngestionInput(coverAssetId, {
+      article: { lead: 'Different content under a reused version.' },
+    })),
+    (error) => error.status === 409 && /already used/.test(error.message),
+  );
+
+  const updated = service.ingestWeeklyDraft(weeklyIngestionInput(coverAssetId, {
+    contentVersion: 2,
+    article: { lead: 'A corrected weekly lead.' },
+  }));
+  assert.equal(updated.created, false);
+  assert.equal(updated.idempotent, false);
+  assert.notEqual(updated.revisionId, created.revisionId);
+
+  service.reviseArticle(
+    created.articleId,
+    weeklyIngestionInput(coverAssetId, {
+      article: { lead: 'Manual editor correction.' },
+    }).article,
+    editorId,
+    { expectedRevisionId: updated.revisionId },
+  );
+  assert.throws(
+    () => service.ingestWeeklyDraft(weeklyIngestionInput(coverAssetId, {
+      contentVersion: 3,
+      article: { lead: 'Machine correction after a manual edit.' },
+    })),
+    (error) => error.status === 409 && /manual edits/.test(error.message),
+  );
 });
 
 test('database enforces one configured editor plus immutable slugs and revisions', (t) => {

@@ -9,6 +9,8 @@ import {
   SESSION_COOKIE,
   sessionCookie,
 } from '../auth/sessions.js';
+import { WEEKLY_INGESTION_BODY_MAXIMUM } from '../content/validation.js';
+import { WEEKLY_INGESTION_PATH } from './ingestion-auth.js';
 import { assertMutationRequest, assertSameOriginNavigation, httpError } from './security.js';
 
 const TEMPLATE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../templates/admin');
@@ -18,6 +20,8 @@ export function createAdminHandler({
   oidcService,
   sessionService,
   actions,
+  weeklyIngestion,
+  ingestionAuthenticator,
   previewsRoot,
 } = {}) {
   return async function handle(request) {
@@ -41,6 +45,15 @@ export function createAdminHandler({
           sessionCookie(session.token),
           expireCookie(OIDC_BINDING_COOKIE),
         ]);
+      }
+
+      if (request.method === 'POST' && url.pathname === WEEKLY_INGESTION_PATH) {
+        if (!ingestionAuthenticator?.authenticate(request.headers.get('authorization'))) {
+          throw httpError(401, 'Authentication required');
+        }
+        const body = await readJson(request, WEEKLY_INGESTION_BODY_MAXIMUM);
+        const result = weeklyIngestion.upsertDraft(body);
+        return json(result, result.created ? 201 : 200);
       }
 
       const session = sessionService.authenticate(request.headers.get('cookie'));
@@ -179,12 +192,12 @@ function renderRevisions(revisions, article) {
   return `<details><summary>История редакций</summary><ul>${items}</ul></details>`;
 }
 
-async function readJson(request) {
+async function readJson(request, maximum = 1024 * 1024) {
   if (!request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) {
     throw httpError(415, 'Content-Type must be application/json');
   }
   const text = await request.text();
-  if (Buffer.byteLength(text) > 1024 * 1024) throw httpError(413, 'JSON request is too large');
+  if (Buffer.byteLength(text) > maximum) throw httpError(413, 'JSON request is too large');
   try {
     const value = JSON.parse(text);
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error();

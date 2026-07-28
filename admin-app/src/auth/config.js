@@ -1,7 +1,7 @@
 import { readFileSync, realpathSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 
-export function loadConfiguration(env = process.env) {
+export function loadConfiguration(env = process.env, { requireWeeklyIngestionToken = true } = {}) {
   const adminOrigin = exactHttpsOrigin(requireValue(env, 'OKNOTIKA_ADMIN_ORIGIN'), 'OKNOTIKA_ADMIN_ORIGIN');
   const publicOrigin = exactHttpsOrigin(requireValue(env, 'OKNOTIKA_PUBLIC_ORIGIN'), 'OKNOTIKA_PUBLIC_ORIGIN');
   const redirectUri = requireValue(env, 'TELEGRAM_OIDC_REDIRECT_URI');
@@ -11,6 +11,12 @@ export function loadConfiguration(env = process.env) {
   }
   const signingAlgorithm = env.TELEGRAM_OIDC_SIGNING_ALG ?? 'RS256';
   if (signingAlgorithm !== 'RS256') throw new Error('TELEGRAM_OIDC_SIGNING_ALG must be pinned to RS256');
+  const weeklyIngestionToken = requireWeeklyIngestionToken
+    ? requireSecret(env, 'OKNOTIKA_WEEKLY_INGEST_TOKEN')
+    : null;
+  if (weeklyIngestionToken !== null && Buffer.byteLength(weeklyIngestionToken) < 32) {
+    throw new Error('OKNOTIKA_WEEKLY_INGEST_TOKEN must contain at least 32 bytes');
+  }
   const databasePath = resolve(requireValue(env, 'OKNOTIKA_DATABASE_PATH'));
   const uploadsRoot = resolve(requireValue(env, 'OKNOTIKA_UPLOADS_ROOT'));
   const previewsRoot = resolve(requireValue(env, 'OKNOTIKA_PREVIEWS_ROOT'));
@@ -28,6 +34,7 @@ export function loadConfiguration(env = process.env) {
     redirectUri,
     clientId: requireSecret(env, 'TELEGRAM_OIDC_CLIENT_ID'),
     clientSecret: requireSecret(env, 'TELEGRAM_OIDC_CLIENT_SECRET'),
+    weeklyIngestionToken,
     signingAlgorithm,
     databasePath,
     uploadsRoot,

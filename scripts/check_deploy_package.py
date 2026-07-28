@@ -61,8 +61,8 @@ def main() -> None:
         "OKNOTIKA_PUBLIC_ROOT=/srv/oknotika/current",
         "OKNOTIKA_LISTEN_SOCKET=/run/oknotika-admin/app.sock",
     )
-    if re.search(r"TELEGRAM_OIDC_CLIENT_(?:ID|SECRET)=", config):
-        fail("sample environment must not contain direct OIDC credential values")
+    if re.search(r"(?:TELEGRAM_OIDC_CLIENT_(?:ID|SECRET)|OKNOTIKA_WEEKLY_INGEST_TOKEN)=", config):
+        fail("sample environment must not contain direct credential values")
 
     require_text(
         deploy / "nginx/oknotika-public.conf",
@@ -98,6 +98,7 @@ def main() -> None:
         "Group=www-data",
         "UMask=0027",
         "LoadCredentialEncrypted=telegram-oidc-client-secret",
+        "LoadCredentialEncrypted=weekly-ingest-token",
         "NoNewPrivileges=yes",
         "ProtectSystem=strict",
         "CapabilityBoundingSet=",

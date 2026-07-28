@@ -11,6 +11,7 @@ import { createContentService } from '../content/service.js';
 import { createPublisher } from '../render/publisher.js';
 import { createAdminActions } from './admin-actions.js';
 import { createAdminHandler } from './handler.js';
+import { createIngestionAuthenticator } from './ingestion-auth.js';
 import { createUploadStore } from './uploads.js';
 import { createProxiedRequest } from './node-adapter.js';
 import { assertTrustedProxyHeaders } from './security.js';
@@ -48,6 +49,10 @@ const actions = createAdminActions({
   previewsRoot: config.previewsRoot,
   publicOrigin: config.publicOrigin,
 });
+const weeklyIngestion = Object.freeze({
+  upsertDraft: (input) => contentService.ingestWeeklyDraft(input),
+});
+const ingestionAuthenticator = createIngestionAuthenticator(config.weeklyIngestionToken);
 const sessionService = createSessionService(db);
 const oidcService = createOidcService(db, {
   clientId: config.clientId,
@@ -61,6 +66,8 @@ const handler = createAdminHandler({
   oidcService,
   sessionService,
   actions,
+  weeklyIngestion,
+  ingestionAuthenticator,
   previewsRoot: config.previewsRoot,
 });
 
@@ -70,6 +77,7 @@ const server = createServer(async (incoming, outgoing) => {
     const request = await createProxiedRequest(incoming, {
       adminOrigin: config.adminOrigin,
       sessionService,
+      ingestionAuthenticator,
     });
     const response = await handler(request);
     outgoing.statusCode = response.status;

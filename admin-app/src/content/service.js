@@ -3,7 +3,11 @@ import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { allocateSlug } from './slug.js';
 import { transaction } from './database.js';
-import { validateArticleInput } from './validation.js';
+import {
+  validateArticleInput,
+  validateSocialLinks,
+  validateWeeklyIngestionInput,
+} from './validation.js';
 
 function now(clock) {
   return clock().toISOString();
@@ -81,7 +85,7 @@ export function createContentService(db, { clock = () => new Date() } = {}) {
           VALUES (?, 'draft', ?, ?)
         `).run(slug, timestamp, timestamp);
         const articleId = Number(articleResult.lastInsertRowid);
-        const revisionId = insertRevision(db, articleId, data, editorId, timestamp, importedMetadata);
+        const revisionId = insertRevision(db, articleId, data, editorId, timestamp, { importedMetadata });
         db.prepare('UPDATE articles SET current_revision_id = ? WHERE id = ?').run(revisionId, articleId);
         insertAudit(db, { type: 'article.created', editorId, articleId, revisionId }, clock);
         return { articleId, revisionId, slug };
@@ -114,26 +118,190 @@ export function createContentService(db, { clock = () => new Date() } = {}) {
         const source = db.prepare('SELECT * FROM article_revisions WHERE id = ? AND article_id = ?')
           .get(sourceRevisionId, articleId);
         if (!source) throw new Error('Revision not found for article');
-        const revisionNumber = nextRevisionNumber(db, articleId);
-        const result = db.prepare(`
-          INSERT INTO article_revisions
-            (article_id, revision_number, title, publication_at, lead, body_markdown,
-             legacy_eyebrow, legacy_meta_description, legacy_listing_excerpt, cover_asset_id,
-             cover_alt, source_url, created_by, created_at, restored_from_id)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
-          articleId, revisionNumber, source.title, source.publication_at, source.lead,
-          source.body_markdown, source.legacy_eyebrow, source.legacy_meta_description,
-          source.legacy_listing_excerpt, source.cover_asset_id, source.cover_alt,
-          source.source_url, editorId, timestamp, sourceRevisionId,
-        );
-        const revisionId = Number(result.lastInsertRowid);
+        const sourceUrls = readRevisionSourceUrls(db, sourceRevisionId, source.source_url);
+        const revisionId = insertRevision(db, articleId, {
+          title: source.title,
+          publicationAt: source.publication_at,
+          lead: source.lead,
+          bodyMarkdown: source.body_markdown,
+          coverAssetId: Number(source.cover_asset_id),
+          coverAlt: source.cover_alt,
+          sourceUrl: sourceUrls[0] ?? null,
+          sourceUrls,
+        }, editorId, timestamp, {
+          importedMetadata: {
+            eyebrow: source.legacy_eyebrow,
+            description: source.legacy_meta_description,
+            listingExcerpt: source.legacy_listing_excerpt,
+          },
+          restoredFromId: sourceRevisionId,
+        });
         db.prepare(`UPDATE articles SET current_revision_id = ?, state = 'draft', updated_at = ? WHERE id = ?`)
           .run(revisionId, timestamp, articleId);
         insertAudit(db, {
           type: 'revision.restored', editorId, articleId, revisionId, details: { sourceRevisionId },
         }, clock);
         return revisionId;
+      });
+    },
+
+    ingestWeeklyDraft(input) {
+      const data = validateWeeklyIngestionInput(input);
+      const payloadSha256 = weeklyPayloadHash(data);
+      const timestamp = now(clock);
+      return transaction(db, () => {
+        const owner = db.prepare(
+          'SELECT * FROM configured_editors WHERE enabled = 1 ORDER BY id LIMIT 1',
+        ).get();
+        if (!owner) throw new Error('A configured, enabled editor is required');
+        if (!db.prepare('SELECT 1 FROM assets WHERE id = ?').get(data.article.coverAssetId)) {
+          throw new TypeError('coverAssetId does not identify a registered private asset');
+        }
+        const existing = db.prepare(`
+          SELECT w.*, a.slug, a.state, a.current_revision_id
+          FROM weekly_ingestion_issues w
+          JOIN articles a ON a.id = w.article_id
+          WHERE w.issue_id = ?
+        `).get(data.issueId);
+        if (!existing) {
+          if (data.contentVersion !== 1) {
+            throw conflictError('A new weekly issue must start at contentVersion 1');
+          }
+          const slug = allocateSlug(db, `${data.article.title} ${data.issueId}`);
+          const articleResult = db.prepare(`
+            INSERT INTO articles (slug, state, created_at, updated_at)
+            VALUES (?, 'draft', ?, ?)
+          `).run(slug, timestamp, timestamp);
+          const articleId = Number(articleResult.lastInsertRowid);
+          const revisionId = insertRevision(
+            db,
+            articleId,
+            data.article,
+            Number(owner.id),
+            timestamp,
+          );
+          db.prepare('UPDATE articles SET current_revision_id = ? WHERE id = ?')
+            .run(revisionId, articleId);
+          db.prepare(`
+            INSERT INTO weekly_ingestion_issues
+              (issue_id, article_id, content_version, last_ingestion_revision_id,
+               payload_sha256, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+          `).run(
+            data.issueId,
+            articleId,
+            data.contentVersion,
+            revisionId,
+            payloadSha256,
+            timestamp,
+            timestamp,
+          );
+          insertAudit(db, {
+            type: 'weekly_draft.ingested',
+            articleId,
+            revisionId,
+            details: { issueId: data.issueId, contentVersion: data.contentVersion },
+          }, clock);
+          return {
+            articleId,
+            revisionId,
+            slug,
+            issueId: data.issueId,
+            contentVersion: data.contentVersion,
+            created: true,
+            idempotent: false,
+          };
+        }
+        if (existing.state !== 'draft') {
+          throw conflictError('Weekly ingestion cannot change an article that is no longer a private draft');
+        }
+        if (Number(existing.current_revision_id) !== Number(existing.last_ingestion_revision_id)) {
+          throw conflictError('Weekly draft has manual edits; submit changes through the editor');
+        }
+        if (data.contentVersion < Number(existing.content_version)) {
+          throw conflictError('contentVersion is older than the stored weekly issue version');
+        }
+        if (data.contentVersion === Number(existing.content_version)) {
+          if (payloadSha256 !== existing.payload_sha256) {
+            throw conflictError('contentVersion was already used for different weekly content');
+          }
+          return {
+            articleId: Number(existing.article_id),
+            revisionId: Number(existing.last_ingestion_revision_id),
+            slug: existing.slug,
+            issueId: data.issueId,
+            contentVersion: data.contentVersion,
+            created: false,
+            idempotent: true,
+          };
+        }
+        const articleId = Number(existing.article_id);
+        const revisionId = insertRevision(
+          db,
+          articleId,
+          data.article,
+          Number(owner.id),
+          timestamp,
+        );
+        db.prepare(`
+          UPDATE articles
+          SET current_revision_id = ?, state = 'draft', updated_at = ?
+          WHERE id = ?
+        `).run(revisionId, timestamp, articleId);
+        db.prepare(`
+          UPDATE weekly_ingestion_issues
+          SET content_version = ?, last_ingestion_revision_id = ?,
+              payload_sha256 = ?, updated_at = ?
+          WHERE issue_id = ?
+        `).run(data.contentVersion, revisionId, payloadSha256, timestamp, data.issueId);
+        insertAudit(db, {
+          type: 'weekly_draft.ingested',
+          articleId,
+          revisionId,
+          details: { issueId: data.issueId, contentVersion: data.contentVersion },
+        }, clock);
+        return {
+          articleId,
+          revisionId,
+          slug: existing.slug,
+          issueId: data.issueId,
+          contentVersion: data.contentVersion,
+          created: false,
+          idempotent: false,
+        };
+      });
+    },
+
+    getSocialLinks() {
+      return readSocialLinks(db);
+    },
+
+    configureSocialLinks(input, editorId) {
+      assertEditor(db, editorId);
+      const links = validateSocialLinks(input);
+      const timestamp = now(clock);
+      return transaction(db, () => {
+        db.prepare(`
+          UPDATE site_social_links
+          SET telegram_url = ?, youtube_url = ?, vk_url = ?, updated_by = ?, updated_at = ?
+          WHERE singleton = 1
+        `).run(
+          links.telegramUrl,
+          links.youtubeUrl,
+          links.vkUrl,
+          editorId,
+          timestamp,
+        );
+        insertAudit(db, {
+          type: 'social_links.updated',
+          editorId,
+          details: {
+            telegramConfigured: true,
+            youtubeConfigured: links.youtubeUrl !== null,
+            vkConfigured: links.vkUrl !== null,
+          },
+        }, clock);
+        return readSocialLinks(db);
       });
     },
 
@@ -156,18 +324,63 @@ function nextRevisionNumber(db, articleId) {
   `).get(articleId).next);
 }
 
-function insertRevision(db, articleId, data, editorId, timestamp, importedMetadata = null) {
+function insertRevision(db, articleId, data, editorId, timestamp, {
+  importedMetadata = null,
+  restoredFromId = null,
+} = {}) {
   const result = db.prepare(`
     INSERT INTO article_revisions
       (article_id, revision_number, title, publication_at, lead, body_markdown,
        legacy_eyebrow, legacy_meta_description, legacy_listing_excerpt, cover_asset_id,
-       cover_alt, source_url, created_by, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       cover_alt, source_url, created_by, created_at, restored_from_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     articleId, nextRevisionNumber(db, articleId), data.title, data.publicationAt, data.lead,
     data.bodyMarkdown, importedMetadata?.eyebrow ?? null, importedMetadata?.description ?? null,
     importedMetadata?.listingExcerpt ?? null, data.coverAssetId, data.coverAlt, data.sourceUrl,
-    editorId, timestamp,
+    editorId, timestamp, restoredFromId,
   );
-  return Number(result.lastInsertRowid);
+  const revisionId = Number(result.lastInsertRowid);
+  const insertSource = db.prepare(`
+    INSERT INTO article_revision_sources (revision_id, position, url)
+    VALUES (?, ?, ?)
+  `);
+  data.sourceUrls.forEach((url, position) => insertSource.run(revisionId, position, url));
+  return revisionId;
+}
+
+function readRevisionSourceUrls(db, revisionId, fallbackSourceUrl) {
+  const sourceUrls = db.prepare(`
+    SELECT url FROM article_revision_sources
+    WHERE revision_id = ? ORDER BY position
+  `).all(revisionId).map((row) => row.url);
+  if (sourceUrls.length > 0) return sourceUrls;
+  return fallbackSourceUrl ? [fallbackSourceUrl] : [];
+}
+
+function readSocialLinks(db) {
+  const links = db.prepare(`
+    SELECT telegram_url, youtube_url, vk_url, updated_at
+    FROM site_social_links WHERE singleton = 1
+  `).get();
+  return {
+    telegramUrl: links.telegram_url,
+    youtubeUrl: links.youtube_url,
+    vkUrl: links.vk_url,
+    updatedAt: links.updated_at,
+  };
+}
+
+function weeklyPayloadHash(data) {
+  return createHash('sha256').update(JSON.stringify({
+    issueId: data.issueId,
+    contentVersion: data.contentVersion,
+    article: data.article,
+  })).digest('hex');
+}
+
+function conflictError(message) {
+  const error = new Error(message);
+  error.status = 409;
+  return error;
 }

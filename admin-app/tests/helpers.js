@@ -41,3 +41,25 @@ export function articleInput(coverAssetId, overrides = {}) {
     ...overrides,
   };
 }
+
+export function weeklyIngestionInput(coverAssetId, overrides = {}) {
+  const articleOverrides = overrides.article ?? {};
+  return {
+    issueId: '2026-W31',
+    contentVersion: 1,
+    ...overrides,
+    article: {
+      title: 'Дайджест недели',
+      publicationDate: '2026-07-31',
+      lead: 'Главные новости оконной отрасли за неделю.',
+      bodyMarkdown: '1. Первая новость.\n\n2. Вторая новость.\n\n3. Третья новость.',
+      coverAssetId,
+      coverAlt: 'Обложка дайджеста недели',
+      sourceUrls: [
+        'https://example.com/news/one',
+        'https://example.org/news/two',
+      ],
+      ...articleOverrides,
+    },
+  };
+}

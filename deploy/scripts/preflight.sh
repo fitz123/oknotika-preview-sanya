@@ -72,7 +72,8 @@ if $service_start; then
     exit 1
   }
   for name in OKNOTIKA_ADMIN_ORIGIN OKNOTIKA_PUBLIC_ORIGIN TELEGRAM_OIDC_REDIRECT_URI \
-    TELEGRAM_OIDC_CLIENT_ID_FILE TELEGRAM_OIDC_CLIENT_SECRET_FILE; do
+    TELEGRAM_OIDC_CLIENT_ID_FILE TELEGRAM_OIDC_CLIENT_SECRET_FILE \
+    OKNOTIKA_WEEKLY_INGEST_TOKEN_FILE; do
     [[ -n "${!name:-}" ]] || { echo "$name is required" >&2; exit 1; }
   done
   [[ "$OKNOTIKA_ADMIN_ORIGIN" == "https://admin.oknotika.ru" ]] || {
@@ -89,6 +90,10 @@ if $service_start; then
   }
   [[ -r "$TELEGRAM_OIDC_CLIENT_ID_FILE" && -r "$TELEGRAM_OIDC_CLIENT_SECRET_FILE" ]] || {
     echo "systemd OIDC credentials are not readable" >&2
+    exit 1
+  }
+  [[ -r "$OKNOTIKA_WEEKLY_INGEST_TOKEN_FILE" ]] || {
+    echo "systemd weekly-ingestion credential is not readable" >&2
     exit 1
   }
 fi
