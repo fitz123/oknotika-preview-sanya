@@ -153,13 +153,23 @@ export function createPublisher(db, {
       });
       return null;
     }
-    if (activeManifest.schemaVersion >= 4
-        && isDeepStrictEqual(validateSocialLinks(activeManifest.socialLinks), pending)) {
+    if (activeManifest.schemaVersion >= 4) {
       transaction(db, () => clearPendingSocialDefaults(db));
       return activeManifest;
     }
+    const activeSocialLinks = activeManifest.schemaVersion >= 3
+      ? validateSocialLinks(activeManifest.socialLinks)
+      : LEGACY_SOCIAL_LINKS;
     return publish({
-      transition: { type: 'social_links', socialLinks: pending },
+      transition: {
+        type: 'social_links',
+        socialLinks: {
+          telegramUrl: activeSocialLinks.telegramUrl,
+          youtubeUrl: activeSocialLinks.youtubeUrl ?? pending.youtubeUrl,
+          vkUrl: activeSocialLinks.vkUrl ?? pending.vkUrl,
+          futuchatUrl: activeSocialLinks.futuchatUrl ?? pending.futuchatUrl,
+        },
+      },
     });
   }
 

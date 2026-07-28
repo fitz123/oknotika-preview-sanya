@@ -249,6 +249,122 @@ test('startup activates pending official defaults after reconciling a schema-thr
   );
 });
 
+test('pending defaults cannot overwrite a schema-three snapshot switched before a hard crash', async (t) => {
+  let tick = 0;
+  const harness = createHarness(t);
+  const releasesRoot = resolve(harness.root, 'pending-social-defaults-crash');
+  const publisher = createPublisher(harness.db, {
+    releasesRoot,
+    publicOrigin: 'https://oknotika.ru',
+    clock: () => new Date(Date.parse('2026-07-14T12:00:00.000Z') + tick++ * 1000),
+  });
+  const weekly = harness.service.ingestWeeklyDraft(weeklyIngestionInput(harness.coverAssetId));
+  const confirmed = harness.service.prepareSocialLinks({
+    telegramUrl: 'https://t.me/oknotika',
+    youtubeUrl: 'https://youtube.com/@confirmed-channel',
+    vkUrl: 'https://vk.ru/confirmed-channel',
+    futuchatUrl: 'https://t.me/FUTU_CHAT',
+  }, harness.editorId);
+  await publisher.publish({
+    editorId: harness.editorId,
+    transition: publication(weekly),
+  });
+  const switched = await publisher.publish({
+    editorId: harness.editorId,
+    transition: { type: 'social_links', socialLinks: confirmed },
+  });
+  rewriteAsSchemaThreeRelease(
+    harness.db,
+    releasesRoot,
+    switched.releaseId,
+    weekly.slug,
+  );
+  harness.db.prepare(`
+    UPDATE site_social_links
+    SET youtube_url = 'https://youtube.com/@stale-channel',
+        vk_url = 'https://vk.ru/stale-channel',
+        futuchat_url = 'https://t.me/FUTU_CHAT'
+    WHERE singleton = 1
+  `).run();
+  harness.db.prepare(`
+    INSERT INTO pending_social_link_defaults
+      (singleton, telegram_url, youtube_url, vk_url, futuchat_url)
+    SELECT singleton, telegram_url, youtube_url, vk_url, futuchat_url
+    FROM site_social_links WHERE singleton = 1
+  `).run();
+
+  const reconciled = publisher.reconcile();
+  assert.equal(reconciled.schemaVersion, 3);
+  assert.deepEqual(
+    (({ telegramUrl, youtubeUrl, vkUrl, futuchatUrl }) => ({
+      telegramUrl, youtubeUrl, vkUrl, futuchatUrl,
+    }))(harness.service.getSocialLinks()),
+    {
+      telegramUrl: 'https://t.me/oknotika',
+      youtubeUrl: 'https://youtube.com/@confirmed-channel',
+      vkUrl: 'https://vk.ru/confirmed-channel',
+      futuchatUrl: null,
+    },
+  );
+
+  const activated = await publisher.activatePendingSocialDefaults(reconciled);
+  assert.deepEqual(activated.socialLinks, {
+    telegramUrl: 'https://t.me/oknotika',
+    youtubeUrl: 'https://youtube.com/@confirmed-channel',
+    vkUrl: 'https://vk.ru/confirmed-channel',
+    futuchatUrl: 'https://t.me/FUTU_CHAT',
+  });
+  assert.notEqual(activated.releaseId, switched.releaseId);
+  assert.equal(
+    harness.db.prepare('SELECT COUNT(*) AS count FROM pending_social_link_defaults').get().count,
+    0,
+  );
+});
+
+test('a reconciled schema-four snapshot supersedes stale pending defaults', async (t) => {
+  const harness = createHarness(t);
+  const releasesRoot = resolve(harness.root, 'stale-pending-schema-four');
+  const publisher = createPublisher(harness.db, {
+    releasesRoot,
+    publicOrigin: 'https://oknotika.ru',
+    clock: () => new Date('2026-07-14T12:00:00.000Z'),
+  });
+  const weekly = harness.service.ingestWeeklyDraft(weeklyIngestionInput(harness.coverAssetId));
+  const active = await publisher.publish({
+    editorId: harness.editorId,
+    transition: publication(weekly),
+  });
+  harness.db.prepare(`
+    UPDATE site_social_links
+    SET youtube_url = 'https://youtube.com/@stale-channel',
+        vk_url = 'https://vk.ru/stale-channel',
+        futuchat_url = NULL
+    WHERE singleton = 1
+  `).run();
+  harness.db.prepare(`
+    INSERT INTO pending_social_link_defaults
+      (singleton, telegram_url, youtube_url, vk_url, futuchat_url)
+    SELECT singleton, telegram_url, youtube_url, vk_url, futuchat_url
+    FROM site_social_links WHERE singleton = 1
+  `).run();
+
+  const reconciled = publisher.reconcile();
+  const activated = await publisher.activatePendingSocialDefaults(reconciled);
+
+  assert.equal(activated.releaseId, active.releaseId);
+  assert.deepEqual(activated.socialLinks, active.socialLinks);
+  assert.deepEqual(
+    (({ telegramUrl, youtubeUrl, vkUrl, futuchatUrl }) => ({
+      telegramUrl, youtubeUrl, vkUrl, futuchatUrl,
+    }))(harness.service.getSocialLinks()),
+    active.socialLinks,
+  );
+  assert.equal(
+    harness.db.prepare('SELECT COUNT(*) AS count FROM pending_social_link_defaults').get().count,
+    0,
+  );
+});
+
 test('rollback to a legacy manifest clears optional social links', async (t) => {
   let tick = 0;
   const harness = createHarness(t, {
