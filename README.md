@@ -35,7 +35,7 @@ python3 -m http.server 8080
 
 Tuesday research run в 12:00 MSK создаёт или обновляет один private draft через отдельный draft-only bearer credential. `issueId` и монотонный `contentVersion` делают retry идемпотентным; ручная правка, публикация или withdrawal блокирует машинную перезапись конфликтом. В пятницу к 18:00 MSK Саня проверяет draft и публикует его только явным Telegram-authenticated действием. Точный contract и encrypted caller path описаны в `docs/WEEKLY_INGESTION.md`.
 
-Финальный CTA использует глобальные validated destinations: Telegram зафиксирован как `https://t.me/oknotika`, а YouTube/VK остаются пустыми до передачи точных URL и настраиваются из редактора без code edit. Незаданные площадки публично не рендерятся.
+Финальный CTA использует глобальные validated destinations: Telegram зафиксирован как `https://t.me/oknotika`, а YouTube/VK остаются пустыми до передачи точных URL и настраиваются из редактора без code edit. Явно подтверждённое сохранение социальных ссылок строит и атомарно активирует новый immutable article release, поэтому уже опубликованные дайджесты обновляются сразу; незаданные площадки публично не рендерятся.
 
 Slug создаётся при первом сохранении из title как lowercase ASCII. Collision получает суффикс `-2`, `-3` и далее. После создания slug и публичный URL неизменяемы, даже если title изменён.
 
@@ -61,7 +61,7 @@ SQLite schema находится в `admin-app/migrations/`; renderer и publish
 4. Preview открывается только в текущей authenticated session по unguessable URL, с `no-store` и `noindex`.
 5. Publish требует явного подтверждения. Publisher сначала получает crash-recoverable single lock, строит один immutable prospective snapshot, рендерит и валидирует staging release, затем атомарно переключает `article-releases/active` и только после switch синхронизирует public state/audit в DB. Ошибка до switch не меняет editorial/public state; startup reconciliation завершает post-switch crash.
 6. Withdraw также требует подтверждения и создаёт новый release с 410 для прежнего URL.
-7. Editorial restore копирует выбранную старую revision в новый draft. Operational rollback отдельно переключает весь active article release, остаётся operator-only и не показывается на ежедневном экране Сани. Оба действия пишутся в audit log.
+7. Editorial restore копирует выбранную старую revision в новый draft. Operational rollback отдельно переключает весь active article release, остаётся operator-only, отсутствует в editor HTTP API и запускается Женей только через root-controlled `npm run rollback-release`. Оба действия пишутся в audit log.
 
 Главная не переписывается при публикации: `js/latest-fact.js` читает `/articles/latest.json`, сохраняя статический fallback при сетевой ошибке.
 

@@ -129,6 +129,7 @@ test('mobile news editor wires weekly form, social links, preview, publish, with
     telegramUrl: 'https://t.me/oknotika',
     youtubeUrl: 'https://youtube.com/@oknotika',
     vkUrl: '',
+    confirmation: 'SOCIAL_LINKS',
   });
   assert.ok(reloads >= 6);
 

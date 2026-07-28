@@ -9,7 +9,7 @@ import {
   createPublisher,
   releasePublisherLock,
 } from '../src/render/publisher.js';
-import { articleInput, createHarness } from './helpers.js';
+import { articleInput, createHarness, weeklyIngestionInput } from './helpers.js';
 
 const BOUNDARIES = [
   'before-stage-render',
@@ -88,6 +88,63 @@ test('publisher switches one symlink atomically and operational rollback restore
   );
   const event = harness.db.prepare("SELECT details_json FROM audit_events WHERE event_type = 'release.rolled_back'").get();
   assert.equal(JSON.parse(event.details_json).previous, second.releaseId);
+});
+
+test('publication and withdrawal permanently block weekly machine overwrite across rollback', async (t) => {
+  let tick = 0;
+  const harness = createHarness(t, {
+    clock: () => new Date(Date.parse('2026-07-13T12:00:00.000Z') + tick++ * 1000),
+  });
+  const publisher = createPublisher(harness.db, {
+    releasesRoot: resolve(harness.root, 'weekly-lock-releases'),
+    publicOrigin: 'https://oknotika.ru',
+    clock: () => new Date(Date.parse('2026-07-14T12:00:00.000Z') + tick++ * 1000),
+  });
+  const baseline = harness.service.createArticle(
+    articleInput(harness.coverAssetId),
+    harness.editorId,
+  );
+  const baselineRelease = await publisher.publish({
+    editorId: harness.editorId,
+    transition: publication(baseline),
+  });
+  const weekly = harness.service.ingestWeeklyDraft(weeklyIngestionInput(harness.coverAssetId));
+  const published = await publisher.publish({
+    editorId: harness.editorId,
+    transition: publication(weekly),
+  });
+  const revisionCount = () => Number(harness.db.prepare(`
+    SELECT COUNT(*) AS count FROM article_revisions WHERE article_id = ?
+  `).get(weekly.articleId).count);
+  const higherVersion = weeklyIngestionInput(harness.coverAssetId, {
+    contentVersion: 2,
+    article: { lead: 'Machine overwrite after editorial publication.' },
+  });
+
+  assert.throws(
+    () => harness.service.ingestWeeklyDraft(higherVersion),
+    (error) => error.status === 409 && /no longer a private draft/.test(error.message),
+  );
+  await publisher.publish({
+    editorId: harness.editorId,
+    transition: {
+      type: 'withdraw',
+      articleId: weekly.articleId,
+      expectedRevisionId: weekly.revisionId,
+    },
+  });
+  assert.throws(
+    () => harness.service.ingestWeeklyDraft(higherVersion),
+    (error) => error.status === 409 && /no longer a private draft/.test(error.message),
+  );
+  await publisher.rollback(baselineRelease.releaseId);
+  assert.equal(harness.service.getArticle(weekly.articleId).state, 'draft');
+  assert.throws(
+    () => harness.service.ingestWeeklyDraft(higherVersion),
+    (error) => error.status === 409 && /no longer a private draft/.test(error.message),
+  );
+  assert.equal(revisionCount(), 1);
+  assert.notEqual(published.releaseId, baselineRelease.releaseId);
 });
 
 test('draft edits keep the last published revision in unrelated releases', async (t) => {

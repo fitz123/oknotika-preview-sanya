@@ -123,6 +123,7 @@ document.addEventListener('click', async (event) => {
 socialForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   try {
+    if (!confirm('Обновить ссылки во всех опубликованных дайджестах?')) return;
     const fields = new FormData(socialForm);
     await api('/api/social-links', {
       method: 'POST',
@@ -131,9 +132,10 @@ socialForm.addEventListener('submit', async (event) => {
         telegramUrl: fields.get('telegramUrl'),
         youtubeUrl: fields.get('youtubeUrl'),
         vkUrl: fields.get('vkUrl'),
+        confirmation: 'SOCIAL_LINKS',
       }),
     });
-    report('Ссылки социальных сетей сохранены.');
+    report('Ссылки социальных сетей опубликованы.');
     location.reload();
   } catch (error) {
     report(error.message);

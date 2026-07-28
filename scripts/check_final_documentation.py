@@ -42,6 +42,7 @@ def validate_readme_text(text: str) -> list[str]:
         "deploy/README_ZHENYA.md",
         "docs/WEEKLY_INGESTION.md",
         "Tuesday ingestion smoke",
+        "npm run rollback-release",
         "release/CHANGED_FILES-v2.28.0-beta.1.txt",
         "Архитектурный ADR намеренно не создан",
     ), errors)
@@ -111,6 +112,15 @@ def validate(root: Path) -> list[str]:
         "не используются как идентификатор доступа",
         "редактор «Новости»",
         "draft-only smoke",
+        "npm run register-weekly-cover",
+    ), errors)
+
+    maintenance = (root / "CLAUDE.md").read_text(encoding="utf-8")
+    require(maintenance, "CLAUDE.md", (
+        "POST /api/ingestion/weekly-drafts",
+        "content_kind",
+        "npm run rollback-release",
+        "docs/WEEKLY_INGESTION.md",
     ), errors)
 
     deploy = (root / "deploy/README_ZHENYA.md").read_text(encoding="utf-8")
@@ -126,6 +136,8 @@ def validate(root: Path) -> list[str]:
         "Pinned runtime",
         "Enrollment Сани",
         "Restore:",
+        "run register-weekly-cover",
+        "run rollback-release",
     ), errors)
 
     ingestion = (root / "docs/WEEKLY_INGESTION.md").read_text(encoding="utf-8")
@@ -136,6 +148,9 @@ def validate(root: Path) -> list[str]:
         "## Production smoke",
         "smoke-weekly-ingestion.mjs",
         "Черновик",
+        "## Response contract",
+        "## Reusable cover provisioning",
+        "3–5 top-level editorial",
     ), errors)
 
     release = root / "release"

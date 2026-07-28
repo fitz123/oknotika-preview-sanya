@@ -49,7 +49,7 @@
       "telegram": "https://t.me/oknotika",
       "youtube": null,
       "vk": null,
-      "configuration": "validated editor-managed database values; null destinations are not rendered"
+      "configuration": "confirmed editor action atomically activates validated values in a new immutable article release; null destinations are not rendered"
     }
   },
   "credentials": {

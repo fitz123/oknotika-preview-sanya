@@ -40,26 +40,19 @@ export function createAdminActions({
     `).all(integer(articleId, 'articleId'));
   }
 
-  function listReleases() {
-    return db.prepare(`
-      SELECT r.id, r.created_at, r.activated_at,
-             CASE WHEN s.active_release_id = r.id THEN 1 ELSE 0 END AS active
-      FROM releases r CROSS JOIN site_state s
-      WHERE r.status = 'complete'
-      ORDER BY r.activated_at DESC, r.created_at DESC LIMIT 20
-    `).all();
-  }
-
   function createDraft(input, editorId) {
-    return contentService.createArticle(input, editorId);
+    return contentService.createArticle(input, editorId, { contentKind: 'weekly_digest' });
   }
 
   function getSocialLinks() {
     return contentService.getSocialLinks();
   }
 
-  function configureSocialLinks(input, editorId) {
-    return contentService.configureSocialLinks(input, editorId);
+  async function configureSocialLinks(input, editorId, confirmation) {
+    requireConfirmation(confirmation, 'SOCIAL_LINKS');
+    const links = contentService.configureSocialLinks(input, editorId);
+    const manifest = await publisher.publish({ editorId, transition: null });
+    return { ...links, releaseId: manifest.releaseId };
   }
 
   function reviseDraft(articleId, input, editorId, expectedRevisionId) {
@@ -110,14 +103,6 @@ export function createAdminActions({
     });
   }
 
-  async function rollbackRelease(releaseId, editorId, confirmation) {
-    requireConfirmation(confirmation, 'ROLLBACK');
-    if (typeof releaseId !== 'string' || !/^[a-zA-Z0-9._-]+$/.test(releaseId)) {
-      throw new TypeError('releaseId is invalid');
-    }
-    return publisher.rollback(releaseId, { editorId });
-  }
-
   function restoreRevision(articleId, sourceRevisionId, expectedRevisionId, editorId, confirmation) {
     requireConfirmation(confirmation, 'RESTORE');
     return contentService.restoreRevision(
@@ -144,7 +129,6 @@ export function createAdminActions({
   return {
     listArticles,
     listRevisions,
-    listReleases,
     createDraft,
     getSocialLinks,
     configureSocialLinks,
@@ -152,7 +136,6 @@ export function createAdminActions({
     preview,
     publish,
     withdraw,
-    rollbackRelease,
     restoreRevision,
     upload,
   };

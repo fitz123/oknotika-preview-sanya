@@ -16,6 +16,7 @@ import {
   ARTICLE_TEXT_LIMITS,
   formatMoscowDate,
   validateSocialLinks,
+  validateWeeklyArticleInput,
 } from '../content/validation.js';
 
 const TEMPLATE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../templates/public');
@@ -25,7 +26,8 @@ const CACHE_IMMUTABLE = 'public, max-age=31536000, immutable';
 export function loadPublicSnapshot(db) {
   const rows = db.prepare(`
     SELECT
-      a.id AS article_id, a.slug, a.public_state AS state, r.id AS revision_id, r.title,
+      a.id AS article_id, a.slug, a.content_kind, a.public_state AS state,
+      r.id AS revision_id, r.title,
       r.publication_at, r.lead, r.body_markdown, r.legacy_eyebrow,
       r.legacy_meta_description, r.legacy_listing_excerpt, r.cover_alt, r.source_url,
       s.id AS asset_id, s.private_path, s.sha256 AS asset_sha256, s.media_type,
@@ -44,7 +46,7 @@ export function loadRevisionSnapshot(db, articleId, revisionId, state) {
   if (!['published', 'withdrawn'].includes(state)) throw new TypeError('A public state is required');
   const row = db.prepare(`
     SELECT
-      a.id AS article_id, a.slug, ? AS state, r.id AS revision_id, r.title,
+      a.id AS article_id, a.slug, a.content_kind, ? AS state, r.id AS revision_id, r.title,
       r.publication_at, r.lead, r.body_markdown, r.legacy_eyebrow,
       r.legacy_meta_description, r.legacy_listing_excerpt, r.cover_alt, r.source_url,
       s.id AS asset_id, s.private_path, s.sha256 AS asset_sha256, s.media_type,
@@ -89,6 +91,7 @@ export function renderRelease({
 
   const assets = new Map();
   for (const article of articles) {
+    if (isWeeklyDigest(article)) assertWeeklyPublicArticle(article);
     const actualHash = hashFile(article.private_path);
     if (actualHash !== article.asset_sha256) throw new Error(`Private asset hash mismatch for article ${article.slug}`);
     const extension = mediaExtension(article.media_type);
@@ -286,7 +289,19 @@ function hydratePublicRows(db, rows) {
 }
 
 function isWeeklyDigest(article) {
-  return Boolean(article.weekly_issue_id) || !article.legacy_eyebrow;
+  return article.content_kind === 'weekly_digest';
+}
+
+function assertWeeklyPublicArticle(article) {
+  validateWeeklyArticleInput({
+    title: article.title,
+    publicationDate: article.publication_at,
+    lead: article.lead,
+    bodyMarkdown: article.body_markdown,
+    coverAssetId: Number(article.asset_id),
+    coverAlt: article.cover_alt,
+    sourceUrls: article.source_urls,
+  });
 }
 
 function renderLegacySource(sourceUrl) {

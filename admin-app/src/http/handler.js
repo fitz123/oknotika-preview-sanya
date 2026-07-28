@@ -90,7 +90,12 @@ export function createAdminHandler({
       }
       if (request.method === 'POST' && url.pathname === '/api/social-links') {
         const body = await readJson(request);
-        return json(actions.configureSocialLinks(body, Number(session.editor_id)));
+        const { confirmation, ...links } = body;
+        return json(await actions.configureSocialLinks(
+          links,
+          Number(session.editor_id),
+          confirmation,
+        ));
       }
       const reviseMatch = /^\/api\/articles\/(\d+)\/revisions$/.exec(url.pathname);
       if (request.method === 'POST' && reviseMatch) {
@@ -118,11 +123,6 @@ export function createAdminHandler({
         const manifest = await actions.withdraw(
           withdrawMatch[1], body.expectedRevisionId, Number(session.editor_id), body.confirmation,
         );
-        return json({ releaseId: manifest.releaseId });
-      }
-      if (request.method === 'POST' && url.pathname === '/api/releases/rollback') {
-        const body = await readJson(request);
-        const manifest = await actions.rollbackRelease(body.releaseId, Number(session.editor_id), body.confirmation);
         return json({ releaseId: manifest.releaseId });
       }
       const restoreMatch = /^\/api\/articles\/(\d+)\/restore$/.exec(url.pathname);

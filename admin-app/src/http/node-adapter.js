@@ -9,7 +9,6 @@ const JSON_MUTATION_PATHS = [
   /^\/api\/social-links$/,
   /^\/api\/articles\/\d+\/revisions$/,
   /^\/api\/articles\/\d+\/(?:publish|withdraw|restore)$/,
-  /^\/api\/releases\/rollback$/,
 ];
 
 export async function createProxiedRequest(incoming, {
@@ -63,7 +62,10 @@ export function requestBodyMaximum(request) {
 export async function readRequestBody(request, maximum) {
   const declaredValue = request.headers['content-length'];
   const declared = declaredValue === undefined ? 0 : Number(declaredValue);
-  if (!Number.isSafeInteger(declared) || declared < 0 || declared > maximum) throw requestTooLarge();
+  if (!Number.isSafeInteger(declared) || declared < 0 || declared > maximum) {
+    discardBody(request);
+    throw requestTooLarge();
+  }
   const chunks = [];
   let length = 0;
   try {

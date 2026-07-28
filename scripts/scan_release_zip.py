@@ -44,6 +44,8 @@ REQUIRED_PATHS = {
     "RELEASE_MANIFEST.json",
     "index.html",
     "admin-app/package-lock.json",
+    "admin-app/scripts/register-weekly-cover.js",
+    "admin-app/scripts/rollback-release.js",
     "docs/WEEKLY_INGESTION.md",
     "deploy/README_ZHENYA.md",
     "deploy/scripts/smoke-weekly-ingestion.mjs",

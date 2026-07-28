@@ -49,6 +49,45 @@ test('weekly ingestion security authenticates before buffering and enforces its 
     (error) => error.code === 'REQUEST_TOO_LARGE',
   );
   assert.equal(oversized.iterated, false);
+  assert.equal(oversized.resumed, true);
+
+  const exactLimit = fakeIncoming({
+    body: [
+      Buffer.alloc(WEEKLY_INGESTION_BODY_MAXIMUM - 1),
+      Buffer.alloc(1),
+    ],
+    headers: {
+      authorization: `Bearer ${INGESTION_TOKEN}`,
+      'content-type': 'application/json',
+    },
+  });
+  const exactRequest = await createProxiedRequest(exactLimit, {
+    adminOrigin: ADMIN_ORIGIN,
+    sessionService,
+    ingestionAuthenticator,
+  });
+  assert.equal((await exactRequest.arrayBuffer()).byteLength, WEEKLY_INGESTION_BODY_MAXIMUM);
+
+  const chunkedOversized = fakeIncoming({
+    body: [
+      Buffer.alloc(WEEKLY_INGESTION_BODY_MAXIMUM),
+      Buffer.alloc(1),
+    ],
+    headers: {
+      authorization: `Bearer ${INGESTION_TOKEN}`,
+      'content-type': 'application/json',
+    },
+  });
+  await assert.rejects(
+    createProxiedRequest(chunkedOversized, {
+      adminOrigin: ADMIN_ORIGIN,
+      sessionService,
+      ingestionAuthenticator,
+    }),
+    (error) => error.code === 'REQUEST_TOO_LARGE',
+  );
+  assert.equal(chunkedOversized.iterated, true);
+  assert.equal(chunkedOversized.resumed, true);
 });
 
 test('weekly ingestion validates payload and cannot use its token for editorial capabilities', async (t) => {
@@ -172,7 +211,7 @@ function fakeIncoming({ body, headers }) {
     },
     async *[Symbol.asyncIterator]() {
       this.iterated = true;
-      yield body;
+      for (const chunk of Array.isArray(body) ? body : [body]) yield chunk;
     },
   };
 }

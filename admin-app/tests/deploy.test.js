@@ -18,6 +18,8 @@ import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { openDatabase } from '../src/content/database.js';
 import { createContentService } from '../src/content/service.js';
+import { registerWeeklyCover } from '../scripts/register-weekly-cover.js';
+import { rollbackRelease } from '../scripts/rollback-release.js';
 import {
   acquirePublisherLock,
   createPublisher,
@@ -143,6 +145,160 @@ test('weekly ingestion smoke retries idempotently and proves its credential has 
   assert.deepEqual(JSON.parse(requests[0].init.body), payload);
   assert.equal(requests[2].url, 'https://admin.oknotika.ru/api/articles');
   assert.equal(requests[3].url, 'https://admin.oknotika.ru/api/releases/rollback');
+});
+
+test('weekly ingestion smoke fails closed on malformed results and capability leakage', async (t) => {
+  const root = mkdtempSync(resolve(tmpdir(), 'oknotika-ingestion-smoke-negative-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const tokenFile = resolve(root, 'weekly-ingest-token');
+  const payloadFile = resolve(root, 'weekly.json');
+  writeFileSync(tokenFile, `${randomBytes(32).toString('base64url')}\n`, { mode: 0o600 });
+  writeFileSync(payloadFile, JSON.stringify({
+    issueId: '2026-W31',
+    contentVersion: 1,
+    article: { title: 'Дайджест недели' },
+  }), { mode: 0o600 });
+  const draft = {
+    articleId: 8,
+    revisionId: 13,
+    slug: 'daidzhest-nedeli-2026-w31',
+    issueId: '2026-W31',
+    contentVersion: 1,
+  };
+  const runWith = (...responses) => {
+    let index = 0;
+    return runWeeklyIngestionSmoke({
+      adminUrl: 'https://admin.oknotika.ru',
+      payloadFile,
+      tokenFile,
+      fetchImpl: async () => {
+        const response = responses[index++];
+        if (response instanceof Error) throw response;
+        return response;
+      },
+    });
+  };
+
+  await assert.rejects(
+    runWith(Response.json({
+      ...draft, created: true, idempotent: true,
+    }, { status: 200 })),
+    /not an identical retry/,
+  );
+  await assert.rejects(
+    runWith(
+      Response.json({ ...draft, created: true, idempotent: false }, { status: 201 }),
+      Response.json({
+        ...draft, revisionId: 14, created: false, idempotent: true,
+      }, { status: 200 }),
+    ),
+    /changed revisionId/,
+  );
+  await assert.rejects(
+    runWith(Response.json({
+      ...draft,
+      created: true,
+      idempotent: false,
+      releaseId: 'must-not-be-returned',
+    }, { status: 201 })),
+    /forbidden publication data/,
+  );
+  await assert.rejects(
+    runWith(new Response('not json', {
+      status: 201,
+      headers: { 'content-type': 'text/plain' },
+    })),
+    /non-JSON/,
+  );
+  await assert.rejects(
+    runWith(
+      Response.json({ ...draft, created: true, idempotent: false }, { status: 201 }),
+      Response.json({ ...draft, created: false, idempotent: true }, { status: 200 }),
+      Response.json({ articles: [] }, { status: 200 }),
+    ),
+    /reached an editorial capability/,
+  );
+  await assert.rejects(
+    runWith(new Error('timed out')),
+    /timed out/,
+  );
+});
+
+test('operator CLIs register a validated reusable cover and roll back outside the editor HTTP surface', async (t) => {
+  const root = mkdtempSync(resolve(tmpdir(), 'oknotika-operator-cli-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const databasePath = resolve(root, 'db/admin.sqlite');
+  const uploadsRoot = resolve(root, 'uploads');
+  const publicRoot = resolve(root, 'public');
+  const releasesRoot = resolve(root, 'article-releases');
+  mkdirSync(resolve(root, 'db'), { recursive: true });
+  mkdirSync(publicRoot);
+
+  let db = openDatabase(databasePath);
+  let service = createContentService(db);
+  const editorId = service.configureEditor({
+    issuer: 'https://oauth.telegram.org',
+    subject: 'operator-cli-editor',
+  });
+  db.close();
+
+  const cover = await registerWeeklyCover({
+    databasePath,
+    uploadsRoot,
+    publicRoot,
+    coverPath: resolve(REPO_ROOT, 'img/aluminum-world/facades.jpg'),
+  });
+  assert.ok(cover.assetId > 0);
+  assert.equal(cover.mediaType, 'image/webp');
+
+  let tick = 0;
+  db = openDatabase(databasePath);
+  service = createContentService(db);
+  const publisher = createPublisher(db, {
+    releasesRoot,
+    publicOrigin: 'https://oknotika.ru',
+    clock: () => new Date(Date.parse('2026-07-14T12:00:00.000Z') + tick++ * 1000),
+  });
+  const created = service.createArticle(articleInput(cover.assetId), editorId);
+  const first = await publisher.publish({
+    editorId,
+    transition: {
+      type: 'publish',
+      articleId: created.articleId,
+      expectedRevisionId: created.revisionId,
+    },
+  });
+  const revised = service.reviseArticle(
+    created.articleId,
+    articleInput(cover.assetId, { title: 'Operator rollback target' }),
+    editorId,
+    { expectedRevisionId: created.revisionId },
+  );
+  const second = await publisher.publish({
+    editorId,
+    transition: {
+      type: 'publish',
+      articleId: revised.articleId,
+      expectedRevisionId: revised.revisionId,
+    },
+  });
+  db.close();
+
+  const rolledBack = await rollbackRelease({
+    databasePath,
+    releasesRoot,
+    publicOrigin: 'https://oknotika.ru',
+    releaseId: first.releaseId,
+  });
+  assert.equal(rolledBack.releaseId, first.releaseId);
+  assert.notEqual(second.releaseId, first.releaseId);
+  const checked = openDatabase(databasePath);
+  assert.equal(
+    checked.prepare('SELECT active_release_id FROM site_state WHERE singleton = 1')
+      .get().active_release_id,
+    first.releaseId,
+  );
+  checked.close();
 });
 
 test('admin ingress isolates large uploads and caps their global concurrency', () => {

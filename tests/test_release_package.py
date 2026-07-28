@@ -44,6 +44,8 @@ def archive_with(extra: dict[str, bytes] | None = None) -> Path:
         "RELEASE_NOTES.md": b"notes",
         "index.html": b"<title>OKNOTIKA</title>",
         "admin-app/package-lock.json": b"{}",
+        "admin-app/scripts/register-weekly-cover.js": b"operator cover registration",
+        "admin-app/scripts/rollback-release.js": b"operator rollback",
         "docs/WEEKLY_INGESTION.md": b"weekly ingestion",
         "deploy/README_ZHENYA.md": b"deploy",
         "deploy/scripts/smoke-weekly-ingestion.mjs": b"#!/usr/bin/env node\n",

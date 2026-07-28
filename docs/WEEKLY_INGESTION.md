@@ -35,10 +35,11 @@ revision restore, release rollback and editor-management paths.
 ```
 
 Unknown fields are rejected. Text has bounded lengths, raw HTML is forbidden,
-the cover must already be a registered private asset, and every source must be
-a unique HTTPS URL without embedded credentials. `sourceUrls` supports 1–20
-entries. The ingestion caller receives only identifiers for the draft it
-created or updated; it cannot list assets or other private content.
+`bodyMarkdown` must be exactly one ordered list with 3–5 top-level editorial
+items, the cover must already be a registered private asset, and every source
+must be a unique HTTPS URL without embedded credentials. `sourceUrls` supports
+1–20 entries. The ingestion caller receives only identifiers for the draft it
+created or updated; it cannot upload or list assets or other private content.
 
 `contentVersion` is the explicit overwrite rule:
 
@@ -49,10 +50,62 @@ created or updated; it cannot list assets or other private content.
 - a greater version creates a new immutable revision only while the current
   revision is still the last machine-created revision;
 - any manual edit, publication or withdrawal makes later machine updates
-  return HTTP 409. The editor's work is never silently replaced.
+  return HTTP 409. Publication/withdrawal history remains a permanent lock even
+  if an operator later rolls back to a release from before the issue existed.
+  The editor's work is never silently replaced.
 
 All accepted machine changes remain drafts. Publication is always a separate
 Telegram-authenticated editor action.
+
+## Response contract
+
+A new issue returns HTTP 201:
+
+```json
+{
+  "articleId": 8,
+  "revisionId": 13,
+  "slug": "daidzhest-nedeli-2026-w31",
+  "issueId": "2026-W31",
+  "contentVersion": 1,
+  "created": true,
+  "idempotent": false
+}
+```
+
+An accepted higher version returns HTTP 200 with `created: false` and
+`idempotent: false`. An identical retry returns HTTP 200 with `created: false`,
+`idempotent: true` and the same article, revision, slug, issue and version
+identifiers as the first accepted call.
+
+| Status | Meaning |
+| --- | --- |
+| 200 | Existing draft updated, or an identical retry returned unchanged identifiers. |
+| 201 | New private weekly draft created. |
+| 400 | JSON or content fields are invalid. |
+| 401 | Bearer token is absent or invalid. |
+| 409 | Version reuse/ordering conflict, manual edit, or permanent publish/withdraw lock. |
+| 413 | Request exceeds 128 KiB. |
+| 415 | `Content-Type` is not `application/json`. |
+
+No success response contains preview, public or release data.
+
+## Reusable cover provisioning
+
+The supported production workflow uses one approved reusable branded weekly
+cover. Before enabling the Tuesday unit, Zhenya runs the root-controlled
+`npm run register-weekly-cover` procedure in `deploy/README_ZHENYA.md`. The
+command passes the image through the same MIME/signature, pixel-limit,
+re-encoding and metadata-stripping path as an editor upload, stores it outside
+the public root and prints its numeric `assetId`.
+
+Zhenya hands that non-secret ID to the Tuesday payload generator through its
+root-owned private configuration. The generator places it in `coverAssetId`;
+the bearer token never receives upload or asset-list authority. Reuse the ID
+until Sanya approves a replacement cover. Register a replacement through the
+same command, update the private caller configuration atomically, perform an
+identical-retry smoke, and only then retire the old caller-side ID. Never invent
+an ID or derive it by scanning another private article.
 
 ## Encrypted credential path
 
@@ -84,7 +137,8 @@ reenabling the Tuesday job. Retire the old token only after the smoke test.
 
 ## Production smoke
 
-After Sanya is enrolled and the weekly package has a registered private cover,
+After Sanya is enrolled and the reusable weekly cover has been registered and
+its exact `assetId` placed in the private Tuesday payload configuration,
 run `deploy/scripts/smoke-weekly-ingestion.mjs` inside the credential-scoped
 Tuesday unit as documented in `deploy/README_ZHENYA.md`. The helper reads the
 token only from a credential file, submits the real private payload twice,

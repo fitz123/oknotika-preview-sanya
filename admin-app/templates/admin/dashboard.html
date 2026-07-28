@@ -89,7 +89,7 @@
       <aside class="panel panel--social">
         <p class="eyebrow">Призыв в конце материала</p>
         <h2>Социальные сети</h2>
-        <p>Эти ссылки общие для всех дайджестов. Ненастроенная площадка не должна появляться на сайте.</p>
+        <p>Эти ссылки общие для всех дайджестов. Сохранение с подтверждением создаёт новый публичный release; ненастроенная площадка на сайте не появляется.</p>
         <div class="social-summary" aria-label="Статус социальных ссылок">
           {{telegramStatus}}
           {{youtubeStatus}}
@@ -97,8 +97,8 @@
         </div>
         <form id="social-form">
           <label class="field">
-            <span>Telegram *</span>
-            <input name="telegramUrl" type="url" value="{{telegramUrl}}" required>
+            <span>Telegram · фиксирован</span>
+            <input name="telegramUrl" type="url" value="{{telegramUrl}}" readonly required>
           </label>
           <label class="field">
             <span>YouTube</span>
@@ -108,7 +108,7 @@
             <span>VK</span>
             <input name="vkUrl" type="url" value="{{vkUrl}}" placeholder="Пока не настроен">
           </label>
-          <button type="submit" class="button button--secondary">Сохранить ссылки</button>
+          <button type="submit" class="button button--secondary">Обновить ссылки на сайте</button>
         </form>
       </aside>
     </div>

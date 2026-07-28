@@ -39,7 +39,8 @@ export async function runWeeklyIngestionSmoke({
   if (first.status === 201 && (first.body.created !== true || first.body.idempotent !== false)) {
     throw new Error('new weekly ingestion did not report a newly created draft');
   }
-  if (first.status === 200 && first.body.idempotent !== true) {
+  if (first.status === 200
+      && (first.body.created !== false || first.body.idempotent !== true)) {
     throw new Error('existing weekly ingestion smoke payload is not an identical retry');
   }
 

@@ -182,6 +182,24 @@ test('weekly social CTA omits missing YouTube and VK destinations without invent
   assert.doesNotMatch(detail, /youtube\.com|youtu\.be|vk\.com|YouTube|>VK</);
 });
 
+test('public release rejects a weekly snapshot that violates the digest contract', (t) => {
+  const harness = createHarness(t);
+  const created = harness.service.ingestWeeklyDraft(weeklyIngestionInput(harness.coverAssetId));
+  const article = loadRevisionSnapshot(
+    harness.db,
+    created.articleId,
+    created.revisionId,
+    'published',
+  );
+  assert.throws(
+    () => render(harness, 'invalid-weekly-contract', [{
+      ...article,
+      body_markdown: '1. Недостаточно пунктов.',
+    }]),
+    /ordered list with 3–5/,
+  );
+});
+
 test('HTML/JSON revalidate while only content-hashed assets are immutable', (t) => {
   const harness = createHarness(t);
   const created = harness.service.createArticle(articleInput(harness.coverAssetId), harness.editorId);

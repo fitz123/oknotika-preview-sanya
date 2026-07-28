@@ -66,6 +66,9 @@ def main() -> None:
     package = json.loads((root / "admin-app/package.json").read_text(encoding="utf-8"))
     if package.get("engines", {}).get("node") != ">=24 <25":
         fail("package engine must stay on Node 24")
+    for command in ("register-weekly-cover", "rollback-release"):
+        if command not in package.get("scripts", {}):
+            fail(f"operator command is missing: {command}")
     for group in ("dependencies", "devDependencies"):
         for name, version in package.get(group, {}).items():
             if not re.fullmatch(r"\d+\.\d+\.\d+", version):
@@ -137,6 +140,27 @@ def main() -> None:
         root / "admin-app/src/http/start.js",
         "chmodSync(config.listenSocket, 0o660)",
         "assertTrustedProxyHeaders",
+    )
+    editor_handler = (root / "admin-app/src/http/handler.js").read_text(encoding="utf-8")
+    if "/api/releases/rollback" in editor_handler:
+        fail("operational rollback must not be exposed by the editor HTTP handler")
+    require_text(
+        root / "admin-app/scripts/register-weekly-cover.js",
+        "createUploadStore",
+        "Exactly one enabled editor",
+        "assetId",
+    )
+    require_text(
+        root / "admin-app/scripts/rollback-release.js",
+        "publisher.reconcile()",
+        "publisher.rollback",
+        "releaseId is invalid",
+    )
+    require_text(
+        root / "admin-app/migrations/005_article_content_kind.sql",
+        "content_kind",
+        "'weekly_digest'",
+        "weekly_ingestion_issues",
     )
     require_text(
         deploy / "systemd/oknotika-admin-backup.timer",
@@ -229,6 +253,9 @@ def main() -> None:
         "Pinned runtime",
         "Enrollment Сани",
         "Weekly ingestion",
+        "run register-weekly-cover",
+        "run rollback-release",
+        "отсутствует в editor HTTP API",
     )
     print(f"deploy package check passed: {len(scripts)} shell scripts, Node {runtime['nodeVersion']}")
 

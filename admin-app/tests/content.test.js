@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
 import test from 'node:test';
+import { openDatabase } from '../src/content/database.js';
 import { renderMarkdown } from '../src/content/markdown.js';
 import { formatMoscowDate, normalizePublicationDate } from '../src/content/validation.js';
 import { articleInput, createHarness, weeklyIngestionInput } from './helpers.js';
@@ -70,6 +74,142 @@ test('global social links validate platform hosts and retain nullable destinatio
     youtubeUrl: null,
     vkUrl: null,
   }, editorId), /approved telegram host/);
+  for (const telegramUrl of [
+    'https://t.me/not-oknotika',
+    'https://t.me/oknotika/',
+    'https://t.me/oknotika?start=redirect',
+  ]) {
+    assert.throws(() => service.configureSocialLinks({
+      telegramUrl,
+      youtubeUrl: null,
+      vkUrl: null,
+    }, editorId), /must be exactly/);
+  }
+});
+
+test('weekly editor and ingestion require one ordered list of 3–5 items and verified sources', (t) => {
+  const { service, editorId, coverAssetId } = createHarness(t);
+  const valid = weeklyIngestionInput(coverAssetId).article;
+  const created = service.createArticle(valid, editorId, { contentKind: 'weekly_digest' });
+  assert.ok(created.revisionId);
+
+  for (const bodyMarkdown of [
+    'Обычный абзац без списка.',
+    '1. Первая новость.\n2. Вторая новость.',
+    '1. Первая.\n2. Вторая.\n3. Третья.\n4. Четвёртая.\n5. Пятая.\n6. Шестая.',
+    'Вступление.\n\n1. Первая.\n2. Вторая.\n3. Третья.',
+  ]) {
+    assert.throws(
+      () => service.createArticle(
+        { ...valid, bodyMarkdown },
+        editorId,
+        { contentKind: 'weekly_digest' },
+      ),
+      /ordered list with 3–5/,
+    );
+  }
+  assert.throws(
+    () => service.reviseArticle(
+      created.articleId,
+      { ...valid, sourceUrls: [] },
+      editorId,
+      { expectedRevisionId: created.revisionId },
+    ),
+    /at least one verified source/,
+  );
+  assert.throws(
+    () => service.ingestWeeklyDraft(weeklyIngestionInput(coverAssetId, {
+      issueId: '2026-W32',
+      article: { bodyMarkdown: '1. Только одна новость.' },
+    })),
+    /ordered list with 3–5/,
+  );
+});
+
+test('weekly migration backfills legacy source rows and marks pre-existing articles as legacy', (t) => {
+  const root = mkdtempSync(resolve(tmpdir(), 'oknotika-migration-'));
+  const migrations = resolve(root, 'migrations');
+  const databasePath = resolve(root, 'admin.sqlite');
+  mkdirSync(migrations);
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  for (const name of [
+    '001_content.sql',
+    '002_admin_security.sql',
+    '003_public_revision_state.sql',
+  ]) {
+    copyFileSync(resolve(import.meta.dirname, '../migrations', name), resolve(migrations, name));
+  }
+
+  const old = openDatabase(databasePath, migrations);
+  old.prepare(`
+    INSERT INTO configured_editors (issuer, subject, enabled, created_at)
+    VALUES ('https://oauth.telegram.org', 'legacy-editor', 1, '2026-07-01T00:00:00.000Z')
+  `).run();
+  old.prepare(`
+    INSERT INTO assets
+      (storage_key, private_path, sha256, media_type, width, height, created_at)
+    VALUES ('legacy-cover', '/private/legacy.png', ?, 'image/png', 1, 1, '2026-07-01T00:00:00.000Z')
+  `).run('a'.repeat(64));
+  const articleId = Number(old.prepare(`
+    INSERT INTO articles (slug, state, created_at, updated_at)
+    VALUES ('legacy-article', 'draft', '2026-07-01T00:00:00.000Z', '2026-07-01T00:00:00.000Z')
+  `).run().lastInsertRowid);
+  const revisionId = Number(old.prepare(`
+    INSERT INTO article_revisions
+      (article_id, revision_number, title, publication_at, lead, body_markdown,
+       legacy_eyebrow, cover_asset_id, cover_alt, source_url, created_by, created_at)
+    VALUES (?, 1, 'Legacy', '2026-07-01T00:00:00.000Z', 'Lead', 'Body',
+            'Факт недели · legacy', 1, 'Cover', 'https://example.com/legacy', 1,
+            '2026-07-01T00:00:00.000Z')
+  `).run(articleId).lastInsertRowid);
+  old.prepare('UPDATE articles SET current_revision_id = ? WHERE id = ?').run(revisionId, articleId);
+  old.close();
+
+  copyFileSync(
+    resolve(import.meta.dirname, '../migrations/004_weekly_news.sql'),
+    resolve(migrations, '004_weekly_news.sql'),
+  );
+  const versionFour = openDatabase(databasePath, migrations);
+  const weeklyArticleId = Number(versionFour.prepare(`
+    INSERT INTO articles (slug, state, created_at, updated_at)
+    VALUES ('existing-weekly', 'draft', '2026-07-02T00:00:00.000Z', '2026-07-02T00:00:00.000Z')
+  `).run().lastInsertRowid);
+  const weeklyRevisionId = Number(versionFour.prepare(`
+    INSERT INTO article_revisions
+      (article_id, revision_number, title, publication_at, lead, body_markdown,
+       cover_asset_id, cover_alt, source_url, created_by, created_at)
+    VALUES (?, 1, 'Weekly', '2026-07-02T00:00:00.000Z', 'Lead',
+            '1. One\n2. Two\n3. Three', 1, 'Cover', 'https://example.com/weekly', 1,
+            '2026-07-02T00:00:00.000Z')
+  `).run(weeklyArticleId).lastInsertRowid);
+  versionFour.prepare('UPDATE articles SET current_revision_id = ? WHERE id = ?')
+    .run(weeklyRevisionId, weeklyArticleId);
+  versionFour.prepare(`
+    INSERT INTO weekly_ingestion_issues
+      (issue_id, article_id, content_version, last_ingestion_revision_id,
+       payload_sha256, created_at, updated_at)
+    VALUES ('2026-W27', ?, 1, ?, ?, '2026-07-02T00:00:00.000Z', '2026-07-02T00:00:00.000Z')
+  `).run(weeklyArticleId, weeklyRevisionId, 'b'.repeat(64));
+  versionFour.close();
+
+  const upgraded = openDatabase(databasePath);
+  t.after(() => upgraded.close());
+  assert.deepEqual(
+    upgraded.prepare(`
+      SELECT position, url FROM article_revision_sources
+      WHERE revision_id = ? ORDER BY position
+    `).all(revisionId).map((row) => ({ ...row })),
+    [{ position: 0, url: 'https://example.com/legacy' }],
+  );
+  assert.equal(
+    upgraded.prepare('SELECT content_kind FROM articles WHERE id = ?').get(articleId).content_kind,
+    'legacy',
+  );
+  assert.equal(
+    upgraded.prepare('SELECT content_kind FROM articles WHERE id = ?')
+      .get(weeklyArticleId).content_kind,
+    'weekly_digest',
+  );
 });
 
 test('weekly ingestion is versioned, idempotent and refuses silent manual overwrite', (t) => {

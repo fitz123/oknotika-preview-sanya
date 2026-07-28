@@ -1,3 +1,5 @@
+import { assertWeeklyDigestMarkdown } from './markdown.js';
+
 const REQUIRED_TEXT = ['title', 'lead', 'bodyMarkdown', 'coverAlt'];
 const RAW_HTML = /<\/?[a-z][^>]*>/i;
 const WEEKLY_ARTICLE_FIELDS = new Set([
@@ -10,6 +12,7 @@ const WEEKLY_ARTICLE_FIELDS = new Set([
   'sourceUrls',
 ]);
 const SOCIAL_FIELDS = new Set(['telegramUrl', 'youtubeUrl', 'vkUrl']);
+export const FIXED_TELEGRAM_URL = 'https://t.me/oknotika';
 const SOCIAL_HOSTS = Object.freeze({
   telegramUrl: new Set(['t.me']),
   youtubeUrl: new Set(['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be']),
@@ -130,6 +133,20 @@ export function validateArticleInput(input) {
   };
 }
 
+export function validateWeeklyArticleInput(input) {
+  const article = validateArticleInput(input);
+  for (const [field, maximum] of Object.entries(WEEKLY_TEXT_LIMITS)) {
+    if (article[field].length > maximum) {
+      throw new TypeError(`${field} must not exceed ${maximum} characters`);
+    }
+  }
+  if (article.sourceUrls.length === 0) {
+    throw new TypeError('sourceUrls must contain at least one verified source URL');
+  }
+  assertWeeklyDigestMarkdown(article.bodyMarkdown);
+  return article;
+}
+
 export function validateWeeklyIngestionInput(input) {
   assertObject(input, 'weekly ingestion payload');
   assertKnownFields(input, new Set(['issueId', 'contentVersion', 'article']), 'weekly ingestion payload');
@@ -142,15 +159,7 @@ export function validateWeeklyIngestionInput(input) {
   }
   assertObject(input.article, 'article');
   assertKnownFields(input.article, WEEKLY_ARTICLE_FIELDS, 'article');
-  const article = validateArticleInput(input.article);
-  for (const [field, maximum] of Object.entries(WEEKLY_TEXT_LIMITS)) {
-    if (article[field].length > maximum) {
-      throw new TypeError(`${field} must not exceed ${maximum} characters`);
-    }
-  }
-  if (article.sourceUrls.length === 0) {
-    throw new TypeError('sourceUrls must contain at least one verified source URL');
-  }
+  const article = validateWeeklyArticleInput(input.article);
   return {
     issueId: input.issueId,
     contentVersion: input.contentVersion,
@@ -176,6 +185,9 @@ function validatePlatformUrl(value, field, { required = false } = {}) {
   }
   if (!SOCIAL_HOSTS[field].has(parsed.hostname.toLowerCase())) {
     throw new TypeError(`${field} must use an approved ${field.replace('Url', '')} host`);
+  }
+  if (field === 'telegramUrl' && parsed.href !== FIXED_TELEGRAM_URL) {
+    throw new TypeError(`telegramUrl must be exactly ${FIXED_TELEGRAM_URL}`);
   }
   return parsed.href;
 }

@@ -6,6 +6,7 @@ import { transaction } from './database.js';
 import {
   validateArticleInput,
   validateSocialLinks,
+  validateWeeklyArticleInput,
   validateWeeklyIngestionInput,
 } from './validation.js';
 
@@ -73,17 +74,26 @@ export function createContentService(db, { clock = () => new Date() } = {}) {
       return Number(result.lastInsertRowid);
     },
 
-    createArticle(input, editorId, { initialSlug, importedMetadata = null } = {}) {
+    createArticle(input, editorId, {
+      initialSlug,
+      importedMetadata = null,
+      contentKind = 'legacy',
+    } = {}) {
       assertEditor(db, editorId);
-      const data = validateArticleInput(input);
+      const data = contentKind === 'weekly_digest'
+        ? validateWeeklyArticleInput(input)
+        : validateArticleInput(input);
+      if (!['legacy', 'weekly_digest'].includes(contentKind)) {
+        throw new TypeError('contentKind is invalid');
+      }
       const timestamp = now(clock);
       return transaction(db, () => {
         const slug = initialSlug ?? allocateSlug(db, data.title);
         if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw new TypeError('initialSlug must be lowercase ASCII');
         const articleResult = db.prepare(`
-          INSERT INTO articles (slug, state, created_at, updated_at)
-          VALUES (?, 'draft', ?, ?)
-        `).run(slug, timestamp, timestamp);
+          INSERT INTO articles (slug, state, content_kind, created_at, updated_at)
+          VALUES (?, 'draft', ?, ?, ?)
+        `).run(slug, contentKind, timestamp, timestamp);
         const articleId = Number(articleResult.lastInsertRowid);
         const revisionId = insertRevision(db, articleId, data, editorId, timestamp, { importedMetadata });
         db.prepare('UPDATE articles SET current_revision_id = ? WHERE id = ?').run(revisionId, articleId);
@@ -94,13 +104,20 @@ export function createContentService(db, { clock = () => new Date() } = {}) {
 
     reviseArticle(articleId, input, editorId, { expectedRevisionId = null } = {}) {
       assertEditor(db, editorId);
-      const data = validateArticleInput(input);
       const timestamp = now(clock);
       return transaction(db, () => {
         const article = db.prepare('SELECT * FROM articles WHERE id = ?').get(articleId);
         if (!article) throw new Error('Article not found');
         assertExpectedRevision(article, expectedRevisionId);
-        const revisionId = insertRevision(db, articleId, data, editorId, timestamp);
+        const data = article.content_kind === 'weekly_digest'
+          ? validateWeeklyArticleInput(input)
+          : validateArticleInput(input);
+        const current = article.content_kind === 'legacy'
+          ? db.prepare('SELECT * FROM article_revisions WHERE id = ?').get(article.current_revision_id)
+          : null;
+        const revisionId = insertRevision(db, articleId, data, editorId, timestamp, {
+          importedMetadata: current ? importedMetadataFromRevision(current) : null,
+        });
         db.prepare(`UPDATE articles SET current_revision_id = ?, state = 'draft', updated_at = ? WHERE id = ?`)
           .run(revisionId, timestamp, articleId);
         insertAudit(db, { type: 'article.revised', editorId, articleId, revisionId }, clock);
@@ -119,21 +136,24 @@ export function createContentService(db, { clock = () => new Date() } = {}) {
           .get(sourceRevisionId, articleId);
         if (!source) throw new Error('Revision not found for article');
         const sourceUrls = readRevisionSourceUrls(db, sourceRevisionId, source.source_url);
-        const revisionId = insertRevision(db, articleId, {
+        const restoredInput = {
           title: source.title,
-          publicationAt: source.publication_at,
+          publicationDate: source.publication_at,
           lead: source.lead,
           bodyMarkdown: source.body_markdown,
           coverAssetId: Number(source.cover_asset_id),
           coverAlt: source.cover_alt,
           sourceUrl: sourceUrls[0] ?? null,
           sourceUrls,
-        }, editorId, timestamp, {
-          importedMetadata: {
-            eyebrow: source.legacy_eyebrow,
-            description: source.legacy_meta_description,
-            listingExcerpt: source.legacy_listing_excerpt,
-          },
+        };
+        const restoredData = article.content_kind === 'weekly_digest'
+          ? validateWeeklyArticleInput(restoredInput)
+          : {
+            ...restoredInput,
+            publicationAt: source.publication_at,
+          };
+        const revisionId = insertRevision(db, articleId, restoredData, editorId, timestamp, {
+          importedMetadata: importedMetadataFromRevision(source),
           restoredFromId: sourceRevisionId,
         });
         db.prepare(`UPDATE articles SET current_revision_id = ?, state = 'draft', updated_at = ? WHERE id = ?`)
@@ -169,8 +189,8 @@ export function createContentService(db, { clock = () => new Date() } = {}) {
           }
           const slug = allocateSlug(db, `${data.article.title} ${data.issueId}`);
           const articleResult = db.prepare(`
-            INSERT INTO articles (slug, state, created_at, updated_at)
-            VALUES (?, 'draft', ?, ?)
+            INSERT INTO articles (slug, state, content_kind, created_at, updated_at)
+            VALUES (?, 'draft', 'weekly_digest', ?, ?)
           `).run(slug, timestamp, timestamp);
           const articleId = Number(articleResult.lastInsertRowid);
           const revisionId = insertRevision(
@@ -212,7 +232,13 @@ export function createContentService(db, { clock = () => new Date() } = {}) {
             idempotent: false,
           };
         }
-        if (existing.state !== 'draft') {
+        const editoriallyLocked = db.prepare(`
+          SELECT 1 FROM audit_events
+          WHERE article_id = ?
+            AND event_type IN ('article.published', 'article.withdrawn')
+          LIMIT 1
+        `).get(existing.article_id);
+        if (editoriallyLocked || existing.state !== 'draft') {
           throw conflictError('Weekly ingestion cannot change an article that is no longer a private draft');
         }
         if (Number(existing.current_revision_id) !== Number(existing.last_ingestion_revision_id)) {
@@ -368,6 +394,14 @@ function readSocialLinks(db) {
     youtubeUrl: links.youtube_url,
     vkUrl: links.vk_url,
     updatedAt: links.updated_at,
+  };
+}
+
+function importedMetadataFromRevision(revision) {
+  return {
+    eyebrow: revision.legacy_eyebrow,
+    description: revision.legacy_meta_description,
+    listingExcerpt: revision.legacy_listing_excerpt,
   };
 }
 

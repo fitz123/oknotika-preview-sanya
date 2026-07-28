@@ -81,7 +81,25 @@ header только в памяти. Контракт, version/conflict rule, ro
 
 Tuesday research unit запускается в 12:00 MSK после генерации presenter PDF. Он передаёт тот же проверенный пакет в `POST /api/ingestion/weekly-drafts`, но не получает Telegram-сессию и не может публиковать. В пятницу к 18:00 MSK Саня входит через Telegram, проверяет источники и preview, при необходимости редактирует черновик и сам нажимает publish.
 
-До первого live smoke должны существовать: enrolled editor Сани, зарегистрированный private cover asset из weekly package, encrypted `weekly-ingest-token` одновременно у admin service и Tuesday caller, а также закрытый JSON payload по контракту `docs/WEEKLY_INGESTION.md`. Payload, cover и response body не сохранять в release evidence или journal.
+До первого live smoke должны существовать: enrolled editor Сани, зарегистрированный reusable private cover asset, encrypted `weekly-ingest-token` одновременно у admin service и Tuesday caller, а также закрытый JSON payload по контракту `docs/WEEKLY_INGESTION.md`. Payload, cover и response body не сохранять в release evidence или journal.
+
+После enrollment Саня утверждает одну reusable branded cover. Женя помещает исходник в закрытый путь вне public root, доступный `oknotika-admin` только на время команды, и регистрирует его через тот же validated image pipeline, что использует редактор:
+
+```bash
+sudo systemd-run --pty --wait --collect --unit=oknotika-register-weekly-cover \
+  --property=User=oknotika-admin --property=Group=www-data --property=UMask=0027 \
+  --property=WorkingDirectory=/opt/oknotika-admin/current/admin-app \
+  --property=Environment=PATH=/opt/node-v24.18.0/bin:/usr/bin:/bin \
+  --property=ReadWritePaths=/var/lib/oknotika-admin \
+  /opt/node-v24.18.0/bin/npm \
+  run register-weekly-cover -- \
+  --database /var/lib/oknotika-admin/db/admin.sqlite \
+  --uploads-root /var/lib/oknotika-admin/uploads \
+  --public-root /srv/oknotika/current \
+  --cover /private/path/to/approved-weekly-cover.png
+```
+
+Команда требует ровно одного enabled editor, проверяет JPEG/PNG/WebP, decoder/pixel limits, перекодирует в WebP без EXIF и выводит только `assetId`, media type и размеры. Женя переносит numeric `assetId` в root-owned private configuration Tuesday payload generator; это не credential, но его не публикуют в release evidence. Caller вставляет его как `coverAssetId` и не получает upload/list authority. Исходник из временного закрытого пути удаляется оператором после сверки зарегистрированного результата. При смене обложки повторить процедуру, атомарно заменить ID в private caller configuration и выполнить smoke до отказа от старого ID.
 
 Из Tuesday research unit, где `LoadCredentialEncrypted=weekly-ingest-token` уже задаёт `CREDENTIALS_DIRECTORY`, выполнить:
 
@@ -225,7 +243,25 @@ sudo systemd-run --pty --wait --collect --unit=oknotika-bootstrap-content \
 
 ## Раздельные rollback procedures
 
-Content rollback: в закрытом редакторе выбрать старую immutable редакцию и вернуть её как новый draft, проверить preview и опубликовать. Operational rollback всей рубрики доступен только через защищённую operator capability и намеренно убран из ежедневного экрана Сани: оператор выбирает предыдущий completed article release, после чего publisher атомарно переключает `article-releases/active` и пишет audit event. Это не меняет application или marketing release.
+Content rollback: в закрытом редакторе выбрать старую immutable редакцию и вернуть её как новый draft, проверить preview и опубликовать. Operational rollback всей рубрики отсутствует в editor HTTP API и доступен только из root-controlled operator shell. Женя выбирает exact previous completed article release, останавливает admin write surface, запускает CLI от service user и возвращает сервис:
+
+```bash
+sudo systemctl stop oknotika-admin.service
+sudo systemd-run --pty --wait --collect --unit=oknotika-rollback-release \
+  --property=User=oknotika-admin --property=Group=www-data --property=UMask=0027 \
+  --property=WorkingDirectory=/opt/oknotika-admin/current/admin-app \
+  --property=Environment=PATH=/opt/node-v24.18.0/bin:/usr/bin:/bin \
+  --property=ReadWritePaths=/var/lib/oknotika-admin \
+  /opt/node-v24.18.0/bin/npm \
+  run rollback-release -- \
+  --database /var/lib/oknotika-admin/db/admin.sqlite \
+  --releases-root /var/lib/oknotika-admin/article-releases \
+  --public-origin https://oknotika.ru \
+  --release-id EXACT_COMPLETED_RELEASE_ID
+sudo systemctl start oknotika-admin.service
+```
+
+CLI принимает только safe release ID, требует completed DB record, валидирует immutable target, атомарно переключает `article-releases/active`, синхронизирует DB и пишет `release.rolled_back` без editor identity. После команды проверить active symlink, manifest, `/articles/`, `latest.json` и journal. Rollback не снимает durable publish/withdraw lock weekly issue: Tuesday credential не может перезаписать исторически опубликованный материал. Это не меняет application или marketing release.
 
 Marketing rollback: выбрать предыдущий `/srv/oknotika/releases/<sha>`, проверить его checksum, создать рядом новый относительный symlink и атомарно выполнить `mv -T` в `/srv/oknotika/current`. Не трогать `/articles/`, DB или admin service; затем проверить главную и продуктовые страницы.
 

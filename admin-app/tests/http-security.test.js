@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync, readlinkSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 import { createSessionService, sessionCookie } from '../src/auth/sessions.js';
@@ -294,6 +295,7 @@ test('weekly draft can be edited after Tuesday ingestion and manually published 
     telegramUrl: 'https://t.me/oknotika',
     youtubeUrl: 'https://youtube.com/@oknotika',
     vkUrl: 'https://vk.com/oknotika',
+    confirmation: 'SOCIAL_LINKS',
   });
   assert.equal(socialResponse.status, 200);
   assert.equal((await socialResponse.json()).vkUrl, 'https://vk.com/oknotika');
@@ -311,9 +313,28 @@ test('weekly draft can be edited after Tuesday ingestion and manually published 
   assert.match(publishedHtml, /https:\/\/oknotika\.ru\/articles\/[^/]+\/</);
   assert.match(publishedHtml, /YouTube: настроен/);
   assert.equal(harness.service.getArticle(ingested.articleId).state, 'published');
+
+  const updatedSocial = await mutate('/api/social-links', {
+    telegramUrl: 'https://t.me/oknotika',
+    youtubeUrl: 'https://youtube.com/@oknotika-updated',
+    vkUrl: '',
+    confirmation: 'SOCIAL_LINKS',
+  });
+  assert.equal(updatedSocial.status, 200);
+  const activeDirectory = resolve(
+    harness.root,
+    'friday-releases',
+    readlinkSync(publisher.activePath),
+  );
+  const publicHtml = readFileSync(
+    resolve(activeDirectory, `articles/${ingested.slug}/index.html`),
+    'utf8',
+  );
+  assert.match(publicHtml, /https:\/\/youtube\.com\/@oknotika-updated/);
+  assert.doesNotMatch(publicHtml, /https:\/\/vk\.com\/oknotika/);
 });
 
-test('admin handler wires login, editor lifecycle, preview assets, upload, rollback and logout routes', async (t) => {
+test('admin handler wires login, editor lifecycle, preview assets, upload and logout routes', async (t) => {
   let tick = 0;
   const harness = createHarness(t, {
     clock: () => new Date(Date.parse('2026-07-14T00:00:00.000Z') + tick++ * 1000),
@@ -427,8 +448,7 @@ test('admin handler wires login, editor lifecycle, preview assets, upload, rollb
   const rollbackResponse = await mutate('/api/releases/rollback', JSON.stringify({
     releaseId: published.releaseId, confirmation: 'ROLLBACK',
   }));
-  assert.equal(rollbackResponse.status, 200);
-  assert.equal((await rollbackResponse.json()).releaseId, published.releaseId);
+  assert.equal(rollbackResponse.status, 404);
 
   const uploadResponse = await mutate('/api/uploads', Buffer.from([0x89, 0x50]), { contentType: 'image/png' });
   assert.equal(uploadResponse.status, 201);
