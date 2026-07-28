@@ -32,8 +32,7 @@ export function normalizePublicationDate(value) {
     const year = Number(dateOnly[1]);
     const month = Number(dateOnly[2]);
     const day = Number(dateOnly[3]);
-    const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
-    const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    const days = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
     if (month < 1 || month > 12 || day < 1 || day > days[month - 1]) {
       throw new TypeError('publicationDate must be a valid calendar date');
     }
@@ -150,12 +149,14 @@ export function validateWeeklyArticleInput(input) {
 export function validateWeeklyIngestionInput(input) {
   assertObject(input, 'weekly ingestion payload');
   assertKnownFields(input, new Set(['issueId', 'contentVersion', 'article']), 'weekly ingestion payload');
-  if (typeof input.issueId !== 'string'
-      || !/^\d{4}-W(?:0[1-9]|[1-4]\d|5[0-3])$/.test(input.issueId)) {
-    throw new TypeError('issueId must use the ISO week format YYYY-Www');
+  const issue = typeof input.issueId === 'string'
+    ? /^(\d{4})-W(0[1-9]|[1-4]\d|5[0-3])$/.exec(input.issueId)
+    : null;
+  if (!issue || Number(issue[2]) > isoWeeksInYear(Number(issue[1]))) {
+    throw new TypeError('issueId must identify a valid ISO week using YYYY-Www');
   }
-  if (!Number.isInteger(input.contentVersion) || input.contentVersion < 1) {
-    throw new TypeError('contentVersion must be a positive integer');
+  if (!Number.isSafeInteger(input.contentVersion) || input.contentVersion < 1) {
+    throw new TypeError('contentVersion must be a positive safe integer');
   }
   assertObject(input.article, 'article');
   assertKnownFields(input.article, WEEKLY_ARTICLE_FIELDS, 'article');
@@ -165,6 +166,18 @@ export function validateWeeklyIngestionInput(input) {
     contentVersion: input.contentVersion,
     article,
   };
+}
+
+function isoWeeksInYear(year) {
+  const januaryFirst = new Date(0);
+  januaryFirst.setUTCHours(0, 0, 0, 0);
+  januaryFirst.setUTCFullYear(year, 0, 1);
+  const weekday = januaryFirst.getUTCDay();
+  return weekday === 4 || (weekday === 3 && isLeapYear(year)) ? 53 : 52;
+}
+
+function isLeapYear(year) {
+  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
 }
 
 function validatePlatformUrl(value, field, { required = false } = {}) {

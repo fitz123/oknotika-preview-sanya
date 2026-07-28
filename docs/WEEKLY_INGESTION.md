@@ -43,6 +43,8 @@ created or updated; it cannot upload or list assets or other private content.
 
 `contentVersion` is the explicit overwrite rule:
 
+- `issueId` must identify a real ISO calendar week, and `contentVersion` must
+  be a positive JavaScript-safe integer;
 - a new `issueId` must start at version 1;
 - an identical retry of the same version returns the existing revision and
   creates no content or audit row;

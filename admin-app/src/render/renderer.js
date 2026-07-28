@@ -221,7 +221,7 @@ export function validateRelease(outputDirectory) {
     if (metadata.cacheControl !== expectedCache) throw new Error(`Invalid cache policy: ${path}`);
   }
   const latest = JSON.parse(readFileSync(resolve(outputDirectory, 'articles/latest.json'), 'utf8'));
-  if (latest !== null && !isValidLatestPayload(latest)) {
+  if (latest !== null && !isValidLatestPayload(latest, manifest.schemaVersion)) {
     throw new Error('latest.json contract is invalid');
   }
   for (const article of manifest.articles) {
@@ -235,8 +235,9 @@ export function validateRelease(outputDirectory) {
   return manifest;
 }
 
-function isValidLatestPayload(latest) {
-  return latest.category === 'Новости'
+function isValidLatestPayload(latest, schemaVersion) {
+  const expectedCategory = schemaVersion >= 3 ? 'Новости' : 'Факт недели';
+  return latest.category === expectedCategory
     && typeof latest.title === 'string'
     && latest.title.length > 0
     && latest.title.length <= ARTICLE_TEXT_LIMITS.title

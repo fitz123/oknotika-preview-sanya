@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   existsSync,
   readFileSync,
@@ -192,11 +193,7 @@ test('rollback to a legacy manifest clears optional social links', async (t) => 
     editorId: harness.editorId,
     transition: publication(article),
   });
-  const manifestPath = resolve(releasesRoot, 'releases', first.releaseId, 'manifest.json');
-  const legacyManifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-  legacyManifest.schemaVersion = 2;
-  delete legacyManifest.socialLinks;
-  writeFileSync(manifestPath, `${JSON.stringify(legacyManifest, null, 2)}\n`);
+  rewriteAsLegacyRelease(harness.db, releasesRoot, first.releaseId);
 
   await publisher.publish({
     editorId: harness.editorId,
@@ -215,6 +212,87 @@ test('rollback to a legacy manifest clears optional social links', async (t) => 
   assert.equal(restored.telegramUrl, 'https://t.me/oknotika');
   assert.equal(restored.youtubeUrl, null);
   assert.equal(restored.vkUrl, null);
+});
+
+test('rollback rejects on-disk manifest divergence before switching the active release', async (t) => {
+  let tick = 0;
+  const harness = createHarness(t, {
+    clock: () => new Date(Date.parse('2026-07-13T12:00:00.000Z') + tick++ * 1000),
+  });
+  const releasesRoot = resolve(harness.root, 'rollback-manifest-integrity');
+  const publisher = createPublisher(harness.db, {
+    releasesRoot,
+    publicOrigin: 'https://oknotika.ru',
+    clock: () => new Date(Date.parse('2026-07-14T12:00:00.000Z') + tick++ * 1000),
+  });
+  const article = harness.service.createArticle(articleInput(harness.coverAssetId), harness.editorId);
+  const first = await publisher.publish({
+    editorId: harness.editorId,
+    transition: publication(article),
+  });
+  const revision = harness.service.reviseArticle(article.articleId, articleInput(harness.coverAssetId, {
+    title: 'Второй release для проверки manifest',
+  }), harness.editorId, { expectedRevisionId: article.revisionId });
+  const second = await publisher.publish({
+    editorId: harness.editorId,
+    transition: publication(revision),
+  });
+  const manifestPath = resolve(releasesRoot, 'releases', first.releaseId, 'manifest.json');
+  const originalManifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+
+  writeJson(manifestPath, { ...originalManifest, releaseId: second.releaseId });
+  await assert.rejects(
+    publisher.rollback(first.releaseId),
+    /manifest release ID does not match/,
+  );
+
+  const tamperedManifest = JSON.parse(JSON.stringify(originalManifest));
+  tamperedManifest.articles[0].revisionId = revision.revisionId;
+  writeJson(manifestPath, tamperedManifest);
+  await assert.rejects(
+    publisher.rollback(first.releaseId),
+    /does not match its stored manifest/,
+  );
+  assert.equal(readlinkSync(publisher.activePath), `releases/${second.releaseId}`);
+  assert.equal(
+    harness.db.prepare('SELECT active_release_id FROM site_state WHERE singleton = 1').get().active_release_id,
+    second.releaseId,
+  );
+});
+
+test('rollback rejects release article ledger divergence before switching active', async (t) => {
+  let tick = 0;
+  const harness = createHarness(t, {
+    clock: () => new Date(Date.parse('2026-07-13T12:00:00.000Z') + tick++ * 1000),
+  });
+  const releasesRoot = resolve(harness.root, 'rollback-ledger-integrity');
+  const publisher = createPublisher(harness.db, {
+    releasesRoot,
+    publicOrigin: 'https://oknotika.ru',
+    clock: () => new Date(Date.parse('2026-07-14T12:00:00.000Z') + tick++ * 1000),
+  });
+  const article = harness.service.createArticle(articleInput(harness.coverAssetId), harness.editorId);
+  const first = await publisher.publish({
+    editorId: harness.editorId,
+    transition: publication(article),
+  });
+  const revision = harness.service.reviseArticle(article.articleId, articleInput(harness.coverAssetId, {
+    title: 'Второй release для проверки ledger',
+  }), harness.editorId, { expectedRevisionId: article.revisionId });
+  const second = await publisher.publish({
+    editorId: harness.editorId,
+    transition: publication(revision),
+  });
+  harness.db.prepare(`
+    UPDATE release_articles SET revision_id = ?
+    WHERE release_id = ? AND article_id = ?
+  `).run(revision.revisionId, first.releaseId, article.articleId);
+
+  await assert.rejects(
+    publisher.rollback(first.releaseId),
+    /release article ledger/,
+  );
+  assert.equal(readlinkSync(publisher.activePath), `releases/${second.releaseId}`);
 });
 
 test('publication and withdrawal permanently block weekly machine overwrite across rollback', async (t) => {
@@ -464,4 +542,29 @@ function publication(article) {
     articleId: article.articleId,
     expectedRevisionId: article.revisionId,
   };
+}
+
+function rewriteAsLegacyRelease(db, releasesRoot, releaseId) {
+  const releaseDirectory = resolve(releasesRoot, 'releases', releaseId);
+  const latestPath = resolve(releaseDirectory, 'articles', 'latest.json');
+  const latest = JSON.parse(readFileSync(latestPath, 'utf8'));
+  const latestText = `${JSON.stringify({ ...latest, category: 'Факт недели' }, null, 2)}\n`;
+  writeFileSync(latestPath, latestText);
+
+  const manifestPath = resolve(releaseDirectory, 'manifest.json');
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  manifest.schemaVersion = 2;
+  delete manifest.socialLinks;
+  manifest.files['articles/latest.json'] = {
+    ...manifest.files['articles/latest.json'],
+    sha256: createHash('sha256').update(latestText).digest('hex'),
+    bytes: Buffer.byteLength(latestText),
+  };
+  writeJson(manifestPath, manifest);
+  db.prepare('UPDATE releases SET manifest_json = ? WHERE id = ?')
+    .run(JSON.stringify(manifest), releaseId);
+}
+
+function writeJson(path, value) {
+  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
 }

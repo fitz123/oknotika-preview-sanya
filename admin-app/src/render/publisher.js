@@ -13,6 +13,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { basename, resolve } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { transaction } from '../content/database.js';
 import {
   loadPublicSnapshot,
@@ -191,6 +192,7 @@ export function createPublisher(db, {
       if (!release) throw new Error('Completed release not found');
       const target = resolve(immutableRoot, targetReleaseId);
       const manifest = validateRelease(target);
+      assertRollbackTargetIntegrity(db, release, manifest, targetReleaseId);
       const previous = db.prepare('SELECT active_release_id FROM site_state WHERE singleton = 1').get().active_release_id;
       const operationId = randomUUID();
       const startedAt = clock().toISOString();
@@ -246,6 +248,37 @@ function assertPublisherIsWritable(quarantineError) {
     throw new Error('Publisher is quarantined until active-release reconciliation succeeds', {
       cause: quarantineError,
     });
+  }
+}
+
+function assertRollbackTargetIntegrity(db, release, manifest, targetReleaseId) {
+  if (manifest.releaseId !== targetReleaseId) {
+    throw new Error('Rollback manifest release ID does not match its target');
+  }
+  let storedManifest;
+  try {
+    storedManifest = JSON.parse(release.manifest_json);
+  } catch {
+    throw new Error('Completed release has no valid stored manifest');
+  }
+  if (!isDeepStrictEqual(manifest, storedManifest)) {
+    throw new Error('Rollback release does not match its stored manifest');
+  }
+  const storedArticles = db.prepare(`
+    SELECT article_id AS articleId, revision_id AS revisionId, public_state AS state
+    FROM release_articles
+    WHERE release_id = ?
+    ORDER BY article_id
+  `).all(targetReleaseId).map(({ articleId, revisionId, state }) => ({
+    articleId,
+    revisionId,
+    state,
+  }));
+  const manifestArticles = manifest.articles
+    .map(({ articleId, revisionId, state }) => ({ articleId, revisionId, state }))
+    .sort((left, right) => left.articleId - right.articleId);
+  if (!isDeepStrictEqual(manifestArticles, storedArticles)) {
+    throw new Error('Rollback manifest does not match the stored release article ledger');
   }
 }
 

@@ -138,6 +138,28 @@ test('weekly editor and ingestion require one ordered list of 3–5 items and ve
   );
 });
 
+test('weekly ingestion rejects nonexistent ISO weeks and unsafe content versions', (t) => {
+  const { db, service, coverAssetId } = createHarness(t);
+  assert.throws(
+    () => service.ingestWeeklyDraft(weeklyIngestionInput(coverAssetId, {
+      issueId: '2025-W53',
+    })),
+    /valid ISO week/,
+  );
+  for (const contentVersion of [Number.MAX_SAFE_INTEGER + 1, 1e100]) {
+    assert.throws(
+      () => service.ingestWeeklyDraft(weeklyIngestionInput(coverAssetId, {
+        contentVersion,
+      })),
+      /safe integer/,
+    );
+  }
+  assert.equal(
+    db.prepare('SELECT COUNT(*) AS count FROM weekly_ingestion_issues').get().count,
+    0,
+  );
+});
+
 test('weekly migration backfills legacy source rows and marks pre-existing articles as legacy', (t) => {
   const root = mkdtempSync(resolve(tmpdir(), 'oknotika-migration-'));
   const migrations = resolve(root, 'migrations');
