@@ -4,7 +4,7 @@ Beta-пакет сохраняет утверждённую композицию
 
 ## Идентификация релиза
 
-- Verified implementation SHA: `857a925392c9d1d1c56df85977d0429886621d98` (weekly-news ingestion, exact four-destination social contract, mobile editor, public rendering, rollback compatibility, startup crash recovery and publication/ingestion serialization complete before regeneration).
+- Verified implementation SHA: `9c3ecfa05a93c8339e6d3e5c80a366ea2b3c69d4` (weekly-news ingestion, exact four-destination social contract, mobile editor, public rendering, bounded sources, rollback compatibility, startup crash recovery and advisory publication/ingestion serialization complete before regeneration).
 - V2.27 baseline SHA: `5364ff160ffa9b8e9f2d0998a5eef1cf6cd3f5ed`.
 - Archive SHA-256 and byte/file counts: `release/release-manifest-v2.28.0-beta.1.json`.
 - Проверяемые checksums двух имён одного архива: `release/SHA256SUMS`.
