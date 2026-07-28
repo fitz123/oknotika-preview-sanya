@@ -1,15 +1,15 @@
+import { spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   closeSync,
+  ftruncateSync,
   mkdirSync,
   openSync,
-  readFileSync,
   readlinkSync,
   renameSync,
   rmSync,
   statSync,
   symlinkSync,
-  unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { basename, resolve } from 'node:path';
@@ -637,81 +637,57 @@ function createReleaseId(generatedAt, snapshot, socialLinks) {
 export function acquirePublisherLock(releasesRoot) {
   const path = resolve(releasesRoot, '.publisher.lock');
   mkdirSync(releasesRoot, { recursive: true });
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const owner = randomUUID();
-    let descriptor;
-    try {
-      descriptor = openSync(path, 'wx', 0o600);
-      try {
-        writeFileSync(descriptor, `${JSON.stringify({
-          pid: process.pid,
-          processIdentity: processIdentity(process.pid),
-          owner,
-          acquiredAt: new Date().toISOString(),
-        })}\n`);
-      } catch (error) {
-        closeSync(descriptor);
-        unlinkSync(path);
-        throw error;
-      }
-      return { descriptor, owner, path };
-    } catch (error) {
-      if (error.code !== 'EEXIST') throw error;
-      if (lockOwnerIsLive(path)) throw new Error('Another publisher holds the release lock');
-      const stale = `${path}.stale-${randomUUID()}`;
-      try {
-        renameSync(path, stale);
-        unlinkSync(stale);
-      } catch (takeoverError) {
-        if (!['ENOENT', 'EEXIST'].includes(takeoverError.code)) throw takeoverError;
-      }
+  const descriptor = openSync(path, 'a+', 0o600);
+  try {
+    if (!tryAcquireAdvisoryLock(descriptor)) {
+      throw new Error('Another publisher holds the release lock');
     }
+    ftruncateSync(descriptor, 0);
+    writeFileSync(descriptor, `${JSON.stringify({
+      lockVersion: 2,
+      pid: process.pid,
+      acquiredAt: new Date().toISOString(),
+    })}\n`);
+    return { descriptor, path };
+  } catch (error) {
+    closeSync(descriptor);
+    throw error;
   }
-  throw new Error('Unable to recover the stale publisher lock');
 }
 
 export function releasePublisherLock(lock) {
   closeSync(lock.descriptor);
-  try {
-    const current = JSON.parse(readFileSync(lock.path, 'utf8'));
-    if (current.owner !== lock.owner) return;
-    unlinkSync(lock.path);
-  } catch (error) {
-    if (!['ENOENT', 'EISDIR'].includes(error.code)) throw error;
-  }
 }
 
-function lockOwnerIsLive(path) {
-  let metadata;
-  try {
-    metadata = JSON.parse(readFileSync(path, 'utf8'));
-  } catch {
-    try {
-      return Date.now() - statSync(path).mtimeMs < 30_000;
-    } catch (error) {
-      if (error.code === 'ENOENT') return false;
-      throw error;
-    }
+function tryAcquireAdvisoryLock(descriptor) {
+  const flock = spawnSync(
+    'flock',
+    ['--exclusive', '--nonblock', '--conflict-exit-code', '73', '3'],
+    {
+      encoding: 'utf8',
+      stdio: ['ignore', 'ignore', 'pipe', descriptor],
+    },
+  );
+  if (flock.error?.code !== 'ENOENT') {
+    return parseLockHelperResult(flock, 'flock');
   }
-  if (!Number.isInteger(metadata.pid) || metadata.pid < 1) return false;
-  try {
-    process.kill(metadata.pid, 0);
-  } catch (error) {
-    if (error.code === 'ESRCH') return false;
-    if (error.code === 'EPERM') return true;
-    throw error;
-  }
-  const identity = processIdentity(metadata.pid);
-  return !identity || !metadata.processIdentity || identity === metadata.processIdentity;
+  const python = spawnSync('python3', ['-c', [
+    'import fcntl, sys',
+    'try:',
+    '    fcntl.flock(3, fcntl.LOCK_EX | fcntl.LOCK_NB)',
+    'except BlockingIOError:',
+    '    sys.exit(73)',
+  ].join('\n')], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'ignore', 'pipe', descriptor],
+  });
+  return parseLockHelperResult(python, 'python3 fcntl.flock');
 }
 
-function processIdentity(pid) {
-  try {
-    const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
-    const fields = stat.slice(stat.lastIndexOf(')') + 2).trim().split(/\s+/);
-    return fields[19] ?? null;
-  } catch (error) {
-    if (['ENOENT', 'ENOTDIR'].includes(error.code)) return null;
-    throw error;
-  }
+function parseLockHelperResult(result, helper) {
+  if (result.error) throw result.error;
+  if (result.status === 0) return true;
+  if (result.status === 73) return false;
+  const detail = result.stderr?.trim();
+  throw new Error(`${helper} could not acquire the publisher lock${detail ? `: ${detail}` : ''}`);
 }

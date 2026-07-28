@@ -271,6 +271,21 @@ test('weekly text and source boundaries apply to create, revise and ingestion pa
     'SELECT COUNT(*) AS count FROM article_revisions',
   ).get().count;
   const before = revisionCount();
+  const oversizedLegacySource = {
+    ...base,
+    sourceUrls: undefined,
+    sourceUrl: `https://example.com/${'a'.repeat(2049 - 'https://example.com/'.length)}`,
+  };
+  assert.throws(
+    () => service.createArticle(oversizedLegacySource, editorId, { contentKind: 'weekly_digest' }),
+    /2048 characters/,
+  );
+  assert.throws(
+    () => service.reviseArticle(created.articleId, oversizedLegacySource, editorId, {
+      expectedRevisionId: revised.revisionId,
+    }),
+    /2048 characters/,
+  );
   for (const [override, expectedError] of invalidArticles) {
     const invalid = { ...base, ...override };
     assert.throws(

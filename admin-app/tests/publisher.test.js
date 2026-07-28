@@ -3,8 +3,10 @@ import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   existsSync,
+  mkdirSync,
   readFileSync,
   readlinkSync,
+  statSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -47,7 +49,7 @@ for (const boundary of BOUNDARIES) {
         if (current === boundary) throw new Error(`injected ${boundary}`);
       },
     }), new RegExp(`injected ${boundary}`));
-    assert.equal(existsSync(resolve(releasesRoot, '.publisher.lock')), false);
+    assertPublisherLockAvailable(releasesRoot);
 
     const switched = ['after-active-switch', 'before-db-finalize', 'after-db-finalize'].includes(boundary);
     assert.equal(existsSync(publisher.activePath), switched);
@@ -563,7 +565,7 @@ test('application rollback preparation rejects unreadable schema-four and vk.ru 
     /requires a legacy vk\.com destination/,
   );
   assert.equal(readlinkSync(publisher.activePath), `releases/${current.releaseId}`);
-  assert.equal(existsSync(resolve(releasesRoot, '.publisher.lock')), false);
+  assertPublisherLockAvailable(releasesRoot);
 });
 
 test('rollback rejects on-disk manifest divergence before switching the active release', async (t) => {
@@ -849,6 +851,40 @@ test('startup reconciliation participates in the shared publisher lock', (t) => 
   }
 });
 
+test('synchronized processes cannot overlap while recovering stale publisher metadata', async (t) => {
+  const harness = createHarness(t);
+  const releasesRoot = resolve(harness.root, 'publisher-lock-contention');
+  const lockPath = resolve(releasesRoot, '.publisher.lock');
+  const fixture = resolve(import.meta.dirname, 'fixtures/publisher-lock-contender.mjs');
+  mkdirSync(releasesRoot, { recursive: true });
+  writeFileSync(lockPath, `${JSON.stringify({
+    pid: 999_999_999,
+    processIdentity: 'stale',
+    owner: 'stale',
+    acquiredAt: '2026-07-13T12:00:00.000Z',
+  })}\n`);
+  const staleInode = statSync(lockPath).ino;
+  const workers = Array.from({ length: 32 }, () => spawn(process.execPath, [fixture, releasesRoot], {
+    stdio: ['ignore', 'ignore', 'inherit', 'ipc'],
+  }));
+  t.after(() => workers.forEach((worker) => {
+    if (worker.exitCode === null && worker.signalCode === null) worker.kill('SIGKILL');
+  }));
+  await Promise.all(workers.map((worker) => waitForMessage(worker, 'ready')));
+  const outcomes = workers.map((worker) => waitForMessage(worker, ['acquired', 'busy']));
+  workers.forEach((worker) => worker.send({ type: 'acquire' }));
+  const results = await Promise.all(outcomes);
+  const winners = results
+    .map((result, index) => ({ result, worker: workers[index] }))
+    .filter(({ result }) => result.type === 'acquired');
+  const released = winners.map(({ worker }) => waitForMessage(worker, 'released'));
+  winners.forEach(({ worker }) => worker.send({ type: 'release' }));
+  await Promise.all(released);
+  await Promise.all(workers.map(waitForExit));
+  assert.equal(winners.length, 1);
+  assert.equal(statSync(lockPath).ino, staleInode);
+});
+
 test('reconciliation fails closed when an active public release loses its symlink', async (t) => {
   const harness = createHarness(t);
   const article = harness.service.createArticle(articleInput(harness.coverAssetId), harness.editorId);
@@ -892,7 +928,7 @@ for (const boundary of ['before-active-switch', 'after-active-switch', 'before-d
         if (current === boundary) throw new Error(`injected ${boundary}`);
       },
     }), new RegExp(`injected ${boundary}`));
-    assert.equal(existsSync(resolve(releasesRoot, '.publisher.lock')), false);
+    assertPublisherLockAvailable(releasesRoot);
 
     const switched = ['after-active-switch', 'before-db-finalize', 'after-db-finalize'].includes(boundary);
     assert.equal(readlinkSync(publisher.activePath), `releases/${switched ? first.releaseId : second.releaseId}`);
@@ -961,7 +997,7 @@ test('publisher recovers a lock left by a killed process and publishes after res
     },
   });
   assert.ok(manifest.releaseId);
-  assert.equal(existsSync(resolve(crashRoot, 'article-releases/.publisher.lock')), false);
+  assertPublisherLockAvailable(resolve(crashRoot, 'article-releases'));
 });
 
 function publication(article) {
@@ -970,6 +1006,46 @@ function publication(article) {
     articleId: article.articleId,
     expectedRevisionId: article.revisionId,
   };
+}
+
+function assertPublisherLockAvailable(releasesRoot) {
+  const lock = acquirePublisherLock(releasesRoot);
+  releasePublisherLock(lock);
+}
+
+function waitForMessage(child, expectedTypes) {
+  const allowed = new Set(Array.isArray(expectedTypes) ? expectedTypes : [expectedTypes]);
+  return new Promise((resolvePromise, rejectPromise) => {
+    const onMessage = (message) => {
+      if (!allowed.has(message?.type)) return;
+      cleanup();
+      resolvePromise(message);
+    };
+    const onError = (error) => {
+      cleanup();
+      rejectPromise(error);
+    };
+    const onExit = (code, signal) => {
+      cleanup();
+      rejectPromise(new Error(`Publisher lock contender exited before ${[...allowed].join('/')} (${signal ?? code})`));
+    };
+    const cleanup = () => {
+      child.off('message', onMessage);
+      child.off('error', onError);
+      child.off('exit', onExit);
+    };
+    child.on('message', onMessage);
+    child.once('error', onError);
+    child.once('exit', onExit);
+  });
+}
+
+function waitForExit(child) {
+  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
+  return new Promise((resolvePromise, rejectPromise) => {
+    child.once('error', rejectPromise);
+    child.once('exit', () => resolvePromise());
+  });
 }
 
 function rewriteAsLegacyRelease(db, releasesRoot, releaseId) {

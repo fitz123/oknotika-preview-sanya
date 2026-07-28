@@ -64,6 +64,7 @@ export function formatMoscowDate(value) {
 export function validateSourceUrl(value) {
   if (value === undefined || value === null || value === '') return null;
   if (typeof value !== 'string') throw new TypeError('sourceUrl must be a string');
+  if (value.length > 2048) throw new TypeError('sourceUrl must not exceed 2048 characters');
   let parsed;
   try {
     parsed = new URL(value);
@@ -72,6 +73,7 @@ export function validateSourceUrl(value) {
   }
   if (parsed.protocol !== 'https:') throw new TypeError('sourceUrl must use https:');
   if (parsed.username || parsed.password) throw new TypeError('sourceUrl must not contain credentials');
+  if (parsed.href.length > 2048) throw new TypeError('sourceUrl must not exceed 2048 characters');
   return parsed.href;
 }
 
@@ -83,9 +85,6 @@ export function validateSourceUrls(value, fallbackSourceUrl = undefined) {
   if (!Array.isArray(value)) throw new TypeError('sourceUrls must be an array');
   if (value.length > 20) throw new TypeError('sourceUrls must not contain more than 20 URLs');
   const normalized = value.map((url, index) => {
-    if (typeof url === 'string' && url.length > 2048) {
-      throw new TypeError(`sourceUrls[${index}]: sourceUrl must not exceed 2048 characters`);
-    }
     try {
       return validateSourceUrl(url);
     } catch (error) {
