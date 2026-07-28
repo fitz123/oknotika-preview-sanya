@@ -1,6 +1,6 @@
 # OKNOTIKA v2.28.0-beta.1 release payload changes
 # Baseline: 5364ff160ffa9b8e9f2d0998a5eef1cf6cd3f5ed
-# Verified implementation: 69b4555792673a4cffb497f682be183df97ad371
+# Verified implementation: e30d8bf6de5ee08423903b11c8d010db8686bf67
 # Status: A = added to payload, M = modified from baseline
 A	CHANGED_FILES.txt
 A	RELEASE_NOTES.md
@@ -18,6 +18,7 @@ A	admin-app/migrations/003_public_revision_state.sql
 A	admin-app/migrations/004_weekly_news.sql
 A	admin-app/migrations/005_article_content_kind.sql
 A	admin-app/migrations/006_futuchat_social_destination.sql
+A	admin-app/migrations/007_pending_social_defaults.sql
 A	admin-app/package-lock.json
 A	admin-app/package.json
 A	admin-app/scripts/bootstrap-content.js
