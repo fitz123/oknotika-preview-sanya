@@ -1,10 +1,10 @@
 # ОКНОТИКИ v2.28.0-beta.1
 
-Beta-пакет сохраняет утверждённую композицию V2.27 и добавляет только согласованные контуры: шесть новых командных портретов при восьми карточках, роль Евгения Жалнина «Операционный директор», самостоятельный фасадный блок Schüco и закрытый Telegram OIDC редактор «Факта недели» со статической атомарной публикацией.
+Beta-пакет сохраняет утверждённую композицию V2.27 и добавляет только согласованные контуры: шесть новых командных портретов при восьми карточках, роль Евгения Жалнина «Операционный директор», самостоятельный фасадный блок Schüco и закрытый Telegram OIDC редактор «Новости» / «Дайджеста недели» со статической атомарной публикацией.
 
 ## Идентификация релиза
 
-- Verified implementation SHA: `66c9d4e0fc27362d9bdaa038d54fd03775ed44cc` (code-review fixes, acceptance criteria and final documentation complete before package regeneration).
+- Verified implementation SHA: `021b30b64f4a92b398f1d1d9a270d03a4aeed34c` (weekly-news ingestion, mobile editor, public rendering, operator gates and package guardrails complete before regeneration).
 - V2.27 baseline SHA: `5364ff160ffa9b8e9f2d0998a5eef1cf6cd3f5ed`.
 - Archive SHA-256 and byte/file counts: `release/release-manifest-v2.28.0-beta.1.json`.
 - Проверяемые checksums двух имён одного архива: `release/SHA256SUMS`.
@@ -21,11 +21,14 @@ Beta-пакет сохраняет утверждённую композицию
 - Crash injection at every staging/render/rename/symlink/database boundary and startup reconciliation.
 - Encrypted local restic repository backup, integrity check and isolated restore; restored pre-migration database downgrade rehearsal.
 - Static public articles remain available with the admin HTTP service absent.
+- Tuesday weekly ingestion authentication, 128 KiB contract, idempotent retry, manual-edit conflict and proof that the machine credential cannot publish.
+- Mobile «Новости» editor flow, multiple verified source links, configured-only Telegram/YouTube/VK CTA and manual Friday publication.
+- Public weekly rendering with 3–5 digest items while preserving the imported Al Bahr URL, canonical metadata, latest fallback and withdrawn HTTP 410 behavior.
 - Secret-free ZIP scanner rejects credentials, SQLite/WAL/SHM, uploads, private previews, raw shoot inputs, logs, runtime releases, unsafe paths, symlinks and manifest tampering.
 
 ## Production gates
 
-Real Telegram login/logout/revocation and live Telegram link preview require the dedicated production application and credentials. Linux `nginx -t`, systemd verification, live HTTPS smoke tests and the encrypted off-host restic restore remain mandatory before activation. Follow `release-evidence/qa/PRODUCTION_OIDC_REHEARSAL.md` and `deploy/README_ZHENYA.md`; do not place secrets or identifiers in evidence.
+DNS/TLS, pinned Node/SQLite runtime, encrypted OIDC/weekly-ingestion/restic credentials, verified Sanya enrollment, real Telegram login/logout/revocation, Linux `nginx -t` and systemd verification, public/auth/weekly-ingestion HTTPS smoke tests and encrypted off-host restic restore remain mandatory before activation. Follow `release-evidence/qa/PRODUCTION_OIDC_REHEARSAL.md`, `docs/WEEKLY_INGESTION.md` and `deploy/README_ZHENYA.md`; do not place secrets, Tuesday payloads or identifiers in evidence.
 
 ## Install and rollback
 

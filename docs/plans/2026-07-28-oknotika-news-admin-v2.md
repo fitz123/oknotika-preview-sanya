@@ -102,8 +102,8 @@ python3 -m unittest tests/test_release_guardrails.py tests/test_release_package.
 
 **Serves:** Sanya's request to get Telegram-login self-publishing live with Zhenya handling server and DNS.
 
-- [ ] Update the deploy manifest, environment/credential examples, Zhenya runbook, enrollment steps and smoke tests for the weekly-draft ingestion and renamed public section.
-- [ ] Document the exact production gates still requiring Zhenya: DNS/TLS, pinned runtime, encrypted OIDC/ingestion/backup credentials, Sanya enrollment, nginx/systemd validation, live auth smoke, ingestion smoke and restore drill.
-- [ ] Run the full validation command set, rebuild the release, scan it for secrets/private runtime data and verify public-only versus technical-package boundaries.
-- [ ] Review the final diff for scope, secret leakage, backwards compatibility and accidental changes to the approved V2.28 public composition.
-- [ ] Commit task-owned files and leave release/deploy/PR lifecycle to the parent supervisor.
+- [x] Update the deploy manifest, environment/credential examples, Zhenya runbook, enrollment steps and smoke tests for the weekly-draft ingestion and renamed public section.
+- [x] Document the exact production gates still requiring Zhenya: DNS/TLS, pinned runtime, encrypted OIDC/ingestion/backup credentials, Sanya enrollment, nginx/systemd validation, live auth smoke, ingestion smoke and restore drill.
+- [x] Run the full validation command set, rebuild the release, scan it for secrets/private runtime data and verify public-only versus technical-package boundaries.
+- [x] Review the final diff for scope, secret leakage, backwards compatibility and accidental changes to the approved V2.28 public composition.
+- [x] Commit task-owned files and leave release/deploy/PR lifecycle to the parent supervisor.

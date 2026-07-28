@@ -1,6 +1,6 @@
 # OKNOTIKA v2.28.0-beta.1 release payload changes
 # Baseline: 5364ff160ffa9b8e9f2d0998a5eef1cf6cd3f5ed
-# Verified implementation: 66c9d4e0fc27362d9bdaa038d54fd03775ed44cc
+# Verified implementation: 021b30b64f4a92b398f1d1d9a270d03a4aeed34c
 # Status: A = added to payload, M = modified from baseline
 A	CHANGED_FILES.txt
 A	RELEASE_NOTES.md
@@ -15,6 +15,7 @@ A	admin-app/eslint.config.js
 A	admin-app/migrations/001_content.sql
 A	admin-app/migrations/002_admin_security.sql
 A	admin-app/migrations/003_public_revision_state.sql
+A	admin-app/migrations/004_weekly_news.sql
 A	admin-app/package-lock.json
 A	admin-app/package.json
 A	admin-app/scripts/bootstrap-content.js
@@ -37,6 +38,7 @@ A	admin-app/src/content/validation.js
 A	admin-app/src/http/admin-actions.js
 A	admin-app/src/http/handler.js
 A	admin-app/src/http/image-worker.js
+A	admin-app/src/http/ingestion-auth.js
 A	admin-app/src/http/node-adapter.js
 A	admin-app/src/http/security.js
 A	admin-app/src/http/start.js
@@ -45,6 +47,7 @@ A	admin-app/src/render/fixture.js
 A	admin-app/src/render/preview.js
 A	admin-app/src/render/publisher.js
 A	admin-app/src/render/renderer.js
+A	admin-app/templates/admin/admin.css
 A	admin-app/templates/admin/admin.js
 A	admin-app/templates/admin/dashboard.html
 A	admin-app/templates/admin/login.html
@@ -65,11 +68,13 @@ A	admin-app/tests/http-security.test.js
 A	admin-app/tests/publisher.test.js
 A	admin-app/tests/render.test.js
 A	admin-app/tests/upload-security.test.js
+A	admin-app/tests/weekly-ingestion-security.test.js
 M	aluminum/index.html
 M	articles/al-bahr-towers-dynamic-facade/index.html
 A	articles/assets/e794ac9b2fc096b47e5a406d.jpg
 M	articles/index.html
 A	articles/latest.json
+M	carbon-glass/index.html
 A	deploy/README_ZHENYA.md
 A	deploy/config/oknotika-admin.env.example
 A	deploy/nginx/00-oknotika-zones.conf
@@ -89,12 +94,15 @@ A	deploy/scripts/reconcile-public-state.mjs
 A	deploy/scripts/restore-drill.sh
 A	deploy/scripts/run-with-publisher-lock.mjs
 A	deploy/scripts/smoke-test.sh
+A	deploy/scripts/smoke-weekly-ingestion.mjs
 A	deploy/scripts/sqlite-online-backup.mjs
 A	deploy/scripts/verify-restored-state.mjs
 A	deploy/systemd/oknotika-admin-backup.path
 A	deploy/systemd/oknotika-admin-backup.service
 A	deploy/systemd/oknotika-admin-backup.timer
 A	deploy/systemd/oknotika-admin.service
+A	docs/WEEKLY_INGESTION.md
+M	glass/index.html
 A	img/aluminum/schueco-design-path.webp
 A	img/aluminum/schueco-facade-grid.webp
 A	img/team/alexander-zolotukhin-2026-07.jpg
@@ -111,6 +119,9 @@ A	img/team/roman-vodyanov-2026-07.jpg
 A	img/team/roman-vodyanov-2026-07.webp
 M	index.html
 A	js/latest-fact.js
+M	oknotika-smart-window/index.html
+M	protectapeel/index.html
+M	pvc/index.html
 A	release-evidence/baseline/README.md
 A	release-evidence/baseline/baseline-check-results.json
 A	release-evidence/baseline/index-1180.jpg
@@ -157,3 +168,4 @@ M	style.css
 A	tests/test_release_guardrails.py
 A	tests/test_release_package.py
 A	tools/team-portraits/create_final_portraits.py
+M	wood-stoller/index.html
