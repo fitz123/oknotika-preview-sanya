@@ -39,7 +39,9 @@ Unknown fields are rejected. Text has bounded lengths, raw HTML is forbidden,
 `bodyMarkdown` must be exactly one ordered list with 3–5 top-level editorial
 items, the cover must already be a registered private asset, and every source
 must be a unique HTTPS URL without embedded credentials. `sourceUrls` supports
-1–20 entries. The ingestion caller receives only identifiers for the draft it
+1–20 entries. `publicationDate` must be a real calendar date in exact
+`YYYY-MM-DD` form; permissive JavaScript date strings and timestamps are
+rejected. The ingestion caller receives only identifiers for the draft it
 created or updated; it cannot upload or list assets or other private content.
 
 `contentVersion` is the explicit overwrite rule:

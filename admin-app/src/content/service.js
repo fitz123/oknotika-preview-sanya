@@ -147,7 +147,7 @@ export function createContentService(db, { clock = () => new Date() } = {}) {
           sourceUrls,
         };
         const restoredData = article.content_kind === 'weekly_digest'
-          ? validateWeeklyArticleInput(restoredInput)
+          ? validateWeeklyArticleInput(restoredInput, { allowCanonicalPublicationDate: true })
           : {
             ...restoredInput,
             publicationAt: source.publication_at,

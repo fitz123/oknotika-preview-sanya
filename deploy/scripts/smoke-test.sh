@@ -5,13 +5,15 @@ base_url=""
 admin_url=""
 withdrawn_path=""
 weekly_path=""
+social_manifest=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --base-url) base_url="${2%/}"; shift 2 ;;
     --admin-url) admin_url="${2%/}"; shift 2 ;;
     --withdrawn-path) withdrawn_path="${2:-}"; shift 2 ;;
     --weekly-path) weekly_path="${2:-}"; shift 2 ;;
-    *) echo "usage: smoke-test.sh --base-url HTTPS_ORIGIN --admin-url HTTPS_ORIGIN [--weekly-path /articles/slug/] [--withdrawn-path /articles/slug/]" >&2; exit 2 ;;
+    --social-manifest) social_manifest="${2:-}"; shift 2 ;;
+    *) echo "usage: smoke-test.sh --base-url HTTPS_ORIGIN --admin-url HTTPS_ORIGIN [--weekly-path /articles/slug/ --social-manifest ACTIVE_MANIFEST] [--withdrawn-path /articles/slug/]" >&2; exit 2 ;;
   esac
 done
 
@@ -23,6 +25,10 @@ done
 }
 [[ -z "$weekly_path" || "$weekly_path" =~ ^/articles/[a-z0-9]+(-[a-z0-9]+)*/$ ]] || {
   echo "--weekly-path must be an article detail path" >&2
+  exit 2
+}
+[[ -z "$weekly_path" || -f "$social_manifest" ]] || {
+  echo "--social-manifest must identify the active manifest when --weekly-path is used" >&2
   exit 2
 }
 
@@ -63,21 +69,55 @@ node -e 'const fs=require("node:fs"); JSON.parse(fs.readFileSync(process.argv[1]
 
 if [[ -n "$weekly_path" ]]; then
   fetch weekly "$base_url$weekly_path"
-  while IFS='|' read -r destination label; do
-    rg --fixed-strings --quiet "href=\"$destination\"" "$work/weekly.body" || {
-      echo "$label destination is missing from the weekly digest" >&2
-      exit 1
+  node - "$social_manifest" "$work/weekly.body" <<'NODE'
+const fs = require('node:fs');
+const [manifestPath, bodyPath] = process.argv.slice(2);
+const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+const html = fs.readFileSync(bodyPath, 'utf8');
+if (!Number.isInteger(manifest.schemaVersion) || manifest.schemaVersion < 3
+    || !manifest.socialLinks || typeof manifest.socialLinks !== 'object') {
+  throw new Error('active manifest has no readable social-link contract');
+}
+const links = manifest.socialLinks;
+const requiredFields = manifest.schemaVersion >= 4
+  ? ['telegramUrl', 'youtubeUrl', 'vkUrl', 'futuchatUrl']
+  : ['telegramUrl', 'youtubeUrl', 'vkUrl'];
+if (requiredFields.some(field => !Object.hasOwn(links, field))) {
+  throw new Error('active manifest has an incomplete social-link contract');
+}
+if (links.telegramUrl !== 'https://t.me/oknotika') {
+  throw new Error('active manifest violates the fixed Telegram destination');
+}
+const destinations = [
+  ['telegramUrl', 'Telegram'],
+  ['youtubeUrl', 'YouTube'],
+  ['vkUrl', 'VK'],
+  ['futuchatUrl', 'FUTUCHAT'],
+];
+const escapeAttribute = value => value
+  .replaceAll('&', '&amp;')
+  .replaceAll('"', '&quot;')
+  .replaceAll('<', '&lt;')
+  .replaceAll('>', '&gt;');
+for (const [field, label] of destinations) {
+  const destination = links[field] ?? null;
+  if (destination !== null && typeof destination !== 'string') {
+    throw new Error(`active manifest has an invalid ${field}`);
+  }
+  if (destination === null) {
+    if (html.includes(`>${label}</a>`)) {
+      throw new Error(`${label} destination must be absent from the weekly digest`);
     }
-    rg --fixed-strings --quiet ">$label</a>" "$work/weekly.body" || {
-      echo "$label CTA label is missing from the weekly digest" >&2
-      exit 1
-    }
-  done <<'DESTINATIONS'
-https://t.me/oknotika|Telegram
-https://youtube.com/@oknotika|YouTube
-https://vk.ru/oknotika|VK
-https://t.me/FUTU_CHAT|FUTUCHAT
-DESTINATIONS
+    continue;
+  }
+  if (!html.includes(`href="${escapeAttribute(destination)}"`)) {
+    throw new Error(`${label} destination is missing from the weekly digest`);
+  }
+  if (!html.includes(`>${label}</a>`)) {
+    throw new Error(`${label} CTA label is missing from the weekly digest`);
+  }
+}
+NODE
 fi
 
 if [[ -n "$withdrawn_path" ]]; then

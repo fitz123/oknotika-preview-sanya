@@ -77,12 +77,14 @@ class ReleaseZipTests(unittest.TestCase):
             "uploads/raw/source.jpg": b"private",
             "admin-app/.env": b"TELEGRAM_OIDC_CLIENT_" + b"SECRET=" + b"credential-value-for-test",
             "admin-app/runtime.conf": b"OKNOTIKA_WEEKLY_INGEST_" + b"TOKEN=credential-value-for-test",
+            "admin-app/weekly-ingest-token": b"raw-bearer-credential-value-for-test",
             "server.key": b"-----BEGIN PRIVATE " + b"KEY-----\nprivate\n",
         })))
         self.assertEqual(result["status"], "fail")
         joined = "\n".join(result["errors"])
         self.assertIn("private/runtime path", joined)
         self.assertIn("environment file", joined)
+        self.assertIn("credential file", joined)
         self.assertIn("private key", joined)
         self.assertIn("assigned weekly ingestion token", joined)
 

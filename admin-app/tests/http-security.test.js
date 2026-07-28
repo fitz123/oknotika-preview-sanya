@@ -512,6 +512,13 @@ test('admin handler wires login, editor lifecycle, preview assets, upload and lo
     assert.equal(asset.status, 200, filename || 'preview HTML');
     assert.equal(asset.headers.get('cache-control'), 'no-store');
     assert.match(asset.headers.get('x-robots-tag'), /noindex/);
+    if (filename === '') {
+      const previewHtml = await asset.text();
+      assert.match(previewHtml, /class="article-digest"/);
+      assert.match(previewHtml, /https:\/\/example\.com\/source/);
+      assert.match(previewHtml, /https:\/\/t\.me\/oknotika/);
+      assert.match(previewHtml, /https:\/\/t\.me\/FUTU_CHAT/);
+    }
   }
 
   const publishedResponse = await mutate(`/api/articles/${created.articleId}/publish`, JSON.stringify({
@@ -532,7 +539,41 @@ test('admin handler wires login, editor lifecycle, preview assets, upload and lo
     confirmation: 'RESTORE',
   }));
   assert.equal(restoreResponse.status, 201);
-  assert.ok((await restoreResponse.json()).revisionId);
+  const restoredId = (await restoreResponse.json()).revisionId;
+  assert.ok(restoredId);
+  const restored = harness.db.prepare(`
+    SELECT title, publication_at, body_markdown, cover_alt, restored_from_id
+    FROM article_revisions WHERE id = ?
+  `).get(restoredId);
+  assert.deepEqual({ ...restored }, {
+    title: 'Светопрозрачный фасад',
+    publication_at: '2026-07-09T21:00:00.000Z',
+    body_markdown: '1. Первая новость.\n\n2. Вторая новость.\n\n3. Третья новость.',
+    cover_alt: 'Фасад здания',
+    restored_from_id: created.revisionId,
+  });
+  assert.deepEqual(
+    harness.db.prepare(`
+      SELECT url FROM article_revision_sources
+      WHERE revision_id = ? ORDER BY position
+    `).all(restoredId).map(source => source.url),
+    ['https://example.com/source'],
+  );
+  const restoredPreviewResponse = await mutate(
+    `/api/revisions/${restoredId}/preview`,
+    undefined,
+    { contentType: 'text/plain' },
+  );
+  assert.equal(restoredPreviewResponse.status, 201);
+  const restoredPreviewUrl = (await restoredPreviewResponse.json()).previewUrl;
+  const restoredPreview = await handler(new Request(
+    `${ADMIN_ORIGIN}${restoredPreviewUrl}`,
+    { headers: { cookie } },
+  ));
+  assert.equal(restoredPreview.status, 200);
+  const restoredPreviewHtml = await restoredPreview.text();
+  assert.match(restoredPreviewHtml, /class="article-digest"/);
+  assert.match(restoredPreviewHtml, /https:\/\/example\.com\/source/);
   const rollbackResponse = await mutate('/api/releases/rollback', JSON.stringify({
     releaseId: published.releaseId, confirmation: 'ROLLBACK',
   }));

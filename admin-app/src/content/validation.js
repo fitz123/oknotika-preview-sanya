@@ -23,25 +23,32 @@ const WEEKLY_TEXT_LIMITS = Object.freeze({ bodyMarkdown: 100_000, coverAlt: 500 
 export const ARTICLE_TEXT_LIMITS = Object.freeze({ title: 240, lead: 1200 });
 export const WEEKLY_INGESTION_BODY_MAXIMUM = 128 * 1024;
 
-export function normalizePublicationDate(value) {
+export function normalizePublicationDate(value, { allowCanonicalTimestamp = false } = {}) {
   if (typeof value !== 'string' || value.trim() === '') {
     throw new TypeError('publicationDate is required');
   }
   const trimmed = value.trim();
   const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
-  if (dateOnly) {
-    const year = Number(dateOnly[1]);
-    const month = Number(dateOnly[2]);
-    const day = Number(dateOnly[3]);
-    const days = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    if (month < 1 || month > 12 || day < 1 || day > days[month - 1]) {
-      throw new TypeError('publicationDate must be a valid calendar date');
+  if (!dateOnly) {
+    const canonical = allowCanonicalTimestamp
+      && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(trimmed)
+      ? new Date(trimmed)
+      : null;
+    if (!canonical
+        || Number.isNaN(canonical.valueOf())
+        || canonical.toISOString() !== trimmed) {
+      throw new TypeError('publicationDate must use YYYY-MM-DD');
     }
+    return trimmed;
   }
-  const date = dateOnly
-    ? new Date(`${dateOnly[1]}-${dateOnly[2]}-${dateOnly[3]}T00:00:00+03:00`)
-    : new Date(trimmed);
-  if (Number.isNaN(date.valueOf())) throw new TypeError('publicationDate must be a valid date');
+  const year = Number(dateOnly[1]);
+  const month = Number(dateOnly[2]);
+  const day = Number(dateOnly[3]);
+  const days = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (month < 1 || month > 12 || day < 1 || day > days[month - 1]) {
+    throw new TypeError('publicationDate must be a valid calendar date');
+  }
+  const date = new Date(`${dateOnly[1]}-${dateOnly[2]}-${dateOnly[3]}T00:00:00+03:00`);
   return date.toISOString();
 }
 
@@ -105,7 +112,7 @@ export function validateSocialLinks(input) {
   };
 }
 
-export function validateArticleInput(input) {
+export function validateArticleInput(input, { allowCanonicalPublicationDate = false } = {}) {
   assertObject(input, 'article input');
   const normalized = {};
   for (const field of REQUIRED_TEXT) {
@@ -128,14 +135,16 @@ export function validateArticleInput(input) {
   return {
     ...normalized,
     coverAssetId: input.coverAssetId,
-    publicationAt: normalizePublicationDate(input.publicationDate),
+    publicationAt: normalizePublicationDate(input.publicationDate, {
+      allowCanonicalTimestamp: allowCanonicalPublicationDate,
+    }),
     sourceUrl: sourceUrls[0] ?? null,
     sourceUrls,
   };
 }
 
-export function validateWeeklyArticleInput(input) {
-  const article = validateArticleInput(input);
+export function validateWeeklyArticleInput(input, options = {}) {
+  const article = validateArticleInput(input, options);
   for (const [field, maximum] of Object.entries(WEEKLY_TEXT_LIMITS)) {
     if (article[field].length > maximum) {
       throw new TypeError(`${field} must not exceed ${maximum} characters`);

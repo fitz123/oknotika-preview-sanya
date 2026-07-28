@@ -25,7 +25,16 @@ FORBIDDEN_COMPONENTS = {
     "article-releases",
     "var",
 }
-FORBIDDEN_SUFFIXES = (".sqlite", ".sqlite-wal", ".sqlite-shm", ".log", ".pem", ".key")
+FORBIDDEN_CREDENTIAL_FILENAMES = {
+    "telegram-oidc-client-id",
+    "telegram-oidc-client-secret",
+    "weekly-ingest-token",
+    "restic-repository",
+    "restic-password",
+}
+FORBIDDEN_SUFFIXES = (
+    ".sqlite", ".sqlite-wal", ".sqlite-shm", ".log", ".pem", ".key", ".cred", ".credential",
+)
 SECRET_PATTERNS = {
     "private key": re.compile(rb"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
     "Telegram bot token": re.compile(rb"(?<![A-Za-z0-9])\d{8,12}:[A-Za-z0-9_-]{30,}(?![A-Za-z0-9])"),
@@ -112,6 +121,8 @@ def scan_archive(filename: str) -> dict[str, Any]:
             ) and not lower_name.endswith(".env.example")
             if environment_file:
                 errors.append(f"environment file is forbidden: {relative}")
+            if lower_name in FORBIDDEN_CREDENTIAL_FILENAMES:
+                errors.append(f"credential file is forbidden: {relative}")
             if lower_name.endswith(FORBIDDEN_SUFFIXES):
                 errors.append(f"secret/runtime file suffix is forbidden: {relative}")
             if "team-shoot" in str(relative).lower() or "/raw/" in f"/{str(relative).lower()}/":

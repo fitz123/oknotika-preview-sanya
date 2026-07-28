@@ -6,7 +6,7 @@ import {
   createIngestionAuthenticator,
   WEEKLY_INGESTION_PATH,
 } from '../src/http/ingestion-auth.js';
-import { createProxiedRequest } from '../src/http/node-adapter.js';
+import { createProxiedRequest, requestBodyMaximum } from '../src/http/node-adapter.js';
 import { createWeeklyIngestion } from '../src/http/weekly-ingestion.js';
 import { createHarness, weeklyIngestionInput } from './helpers.js';
 
@@ -14,6 +14,12 @@ const ADMIN_ORIGIN = 'https://admin.oknotika.ru';
 const INGESTION_TOKEN = 'weekly-ingestion-test-token-12345678901234567890';
 
 test('weekly ingestion rejects configured credentials that cannot be sent as bearer tokens', () => {
+  assert.throws(() => createIngestionAuthenticator('a'.repeat(31)), /at least 32 bytes/);
+  const exactMinimum = 'a'.repeat(32);
+  assert.equal(
+    createIngestionAuthenticator(exactMinimum).authenticate(`Bearer ${exactMinimum}`),
+    true,
+  );
   for (const secret of [
     'weekly ingestion token with forbidden whitespace',
     'weekly,ingestion,token,with,forbidden,commas',
@@ -99,6 +105,15 @@ test('weekly ingestion security authenticates before buffering and enforces its 
   );
   assert.equal(chunkedOversized.iterated, true);
   assert.equal(chunkedOversized.resumed, true);
+
+  assert.equal(requestBodyMaximum(new Request(
+    `${ADMIN_ORIGIN}${WEEKLY_INGESTION_PATH}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/jsonp' },
+      body: '{}',
+    },
+  )), 0);
 });
 
 test('weekly ingestion validates payload and cannot use its token for editorial capabilities', async (t) => {
@@ -186,6 +201,18 @@ test('weekly ingestion handler rejects oversized and malformed JSON without a wr
     body: '{"issueId":',
   }));
   assert.equal(malformed.status, 400);
+  const unsupportedMediaType = await handler(new Request(
+    `${ADMIN_ORIGIN}${WEEKLY_INGESTION_PATH}`,
+    {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${INGESTION_TOKEN}`,
+        'content-type': 'application/jsonp',
+      },
+      body: JSON.stringify(weeklyIngestionInput(harness.coverAssetId)),
+    },
+  ));
+  assert.equal(unsupportedMediaType.status, 415);
   assert.equal(
     harness.db.prepare('SELECT COUNT(*) AS count FROM weekly_ingestion_issues').get().count,
     0,

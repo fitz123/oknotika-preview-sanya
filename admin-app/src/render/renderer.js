@@ -321,7 +321,7 @@ function assertWeeklyPublicArticle(article) {
     coverAssetId: Number(article.asset_id),
     coverAlt: article.cover_alt,
     sourceUrls: article.source_urls,
-  });
+  }, { allowCanonicalPublicationDate: true });
 }
 
 function renderLegacySource(sourceUrl) {

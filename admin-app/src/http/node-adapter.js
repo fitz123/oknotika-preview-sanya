@@ -46,13 +46,14 @@ export async function createProxiedRequest(incoming, {
 
 export function requestBodyMaximum(request) {
   const url = new URL(request.url);
+  const mediaType = request.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase();
   if (request.method === 'POST' && url.pathname === WEEKLY_INGESTION_PATH
-      && request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) {
+      && mediaType === 'application/json') {
     return WEEKLY_INGESTION_BODY_MAXIMUM;
   }
   if (request.method === 'POST' && url.pathname === '/api/uploads') return UPLOAD_BODY_MAXIMUM;
   if (request.method === 'POST'
-      && request.headers.get('content-type')?.toLowerCase().startsWith('application/json')
+      && mediaType === 'application/json'
       && JSON_MUTATION_PATHS.some((pattern) => pattern.test(url.pathname))) {
     return JSON_BODY_MAXIMUM;
   }

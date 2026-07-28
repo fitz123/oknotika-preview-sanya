@@ -247,10 +247,9 @@ def main() -> None:
     require_text(
         deploy / "scripts/smoke-test.sh",
         "--weekly-path",
-        "https://t.me/oknotika|Telegram",
-        "https://youtube.com/@oknotika|YouTube",
-        "https://vk.ru/oknotika|VK",
-        "https://t.me/FUTU_CHAT|FUTUCHAT",
+        "--social-manifest",
+        "manifest.socialLinks",
+        "destination must be absent",
     )
 
     scripts = sorted((deploy / "scripts").glob("*.sh"))

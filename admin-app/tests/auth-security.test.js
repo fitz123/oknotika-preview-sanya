@@ -61,6 +61,15 @@ test('production configuration pins canonical origins, exact callback and privat
   assert.throws(() => loadConfiguration({
     ...env, OKNOTIKA_ARTICLE_RELEASES_ROOT: '/srv/oknotika/current/article-releases',
   }), /outside the public/);
+  assert.throws(() => loadConfiguration({
+    ...env, OKNOTIKA_WEEKLY_INGEST_TOKEN: 'a'.repeat(31),
+  }), /at least 32 bytes/);
+  assert.equal(
+    loadConfiguration({
+      ...env, OKNOTIKA_WEEKLY_INGEST_TOKEN: 'a'.repeat(32),
+    }).weeklyIngestionToken,
+    'a'.repeat(32),
+  );
   for (const weeklyIngestionToken of [
     'weekly ingestion token with forbidden whitespace',
     'weekly,ingestion,token,with,forbidden,commas',

@@ -901,11 +901,28 @@ for (const boundary of ['before-active-switch', 'after-active-switch', 'before-d
       switched ? first.releaseId : second.releaseId,
     );
     if (switched) {
-      const event = harness.db.prepare(`
+      const starts = harness.db.prepare(`
+        SELECT details_json FROM audit_events
+        WHERE event_type = 'release.rollback_started' AND release_id = ?
+      `).all(first.releaseId);
+      const completions = harness.db.prepare(`
         SELECT details_json FROM audit_events
         WHERE event_type = 'release.rolled_back' AND release_id = ?
-      `).get(first.releaseId);
-      assert.equal(JSON.parse(event.details_json).previous, second.releaseId);
+      `).all(first.releaseId);
+      assert.equal(starts.length, 1);
+      assert.equal(completions.length, 1);
+      const started = JSON.parse(starts[0].details_json);
+      const completed = JSON.parse(completions[0].details_json);
+      assert.equal(completed.previous, second.releaseId);
+      assert.equal(completed.operationId, started.operationId);
+      publisher.reconcile();
+      assert.equal(
+        harness.db.prepare(`
+          SELECT COUNT(*) AS count FROM audit_events
+          WHERE event_type = 'release.rolled_back' AND release_id = ?
+        `).get(first.releaseId).count,
+        1,
+      );
     }
   });
 }

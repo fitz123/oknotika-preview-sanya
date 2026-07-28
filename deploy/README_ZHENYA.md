@@ -185,7 +185,7 @@ Restore drill выполнять минимум после первоначал�
   --target /var/tmp/oknotika-restore-drill-YYYYMMDD
 ```
 
-Target обязан быть пустым и изолированным. Скрипт проверяет SQLite integrity, чтение audit state, hashes release manifests, exact active symlink target, `site_state`, completed release и все referenced article/revision rows. Затем отдельно запустить downgrade rehearsal на копии pre-migration DB. Результат, snapshot ID, длительность и удаление временных данных записать в release evidence. Production restore разрешён только в согласованное окно: остановить admin, сохранить повреждённое состояние отдельно, восстановить DB/uploads/article releases, проверить владельцев и hashes, затем запустить reconciliation и smoke tests.
+Target обязан быть пустым и изолированным. Скрипт проверяет SQLite integrity, чтение audit state, hashes release manifests, exact active symlink target, `site_state`, соответствие `site_social_links` active manifest, completed release и все referenced article/revision rows. Затем отдельно запустить downgrade rehearsal на копии pre-migration DB. Результат, snapshot ID, длительность и удаление временных данных записать в release evidence. Production restore разрешён только в согласованное окно: остановить admin, сохранить повреждённое состояние отдельно, восстановить DB/uploads/article releases, проверить владельцев и hashes, затем запустить reconciliation и smoke tests.
 
 ## Первичное подключение редактора
 
@@ -310,7 +310,7 @@ npm run render:fixture
 - [ ] Linux config: выполнить `nginx -t` и все четыре `systemd-analyze verify`, затем проверить enabled/active units, file ownership/modes и journal без credentials.
 - [ ] Live auth: пройти реальный Telegram login, logout, replay rejection, non-allowlisted rejection, session revocation и credential rotation по `release-evidence/qa/PRODUCTION_OIDC_REHEARSAL.md`.
 - [ ] Weekly ingestion: из credential-scoped Tuesday unit выполнить `smoke-weekly-ingestion.mjs` с реальным private payload, подтвердить identical retry, draft-only статус в «Новости» и отсутствие публичного изменения.
-- [ ] Public smoke: выполнить `smoke-test.sh` на двух canonical HTTPS origins; для опубликованного weekly digest передать `--weekly-path` и проверить четыре точных CTA, после первого withdrawal повторить его с HTTP 410 path.
+- [ ] Public smoke: выполнить `smoke-test.sh` на двух canonical HTTPS origins; для опубликованного weekly digest передать `--weekly-path` вместе с exact active `manifest.json`, проверить configured CTA и отсутствие очищенных optional CTA, после первого withdrawal повторить его с HTTP 410 path.
 - [ ] Restore: настроить реальный encrypted off-host restic repository, сделать backup и isolated restore drill, проверить SQLite/releases/active symlink и уложиться в RPO 24 часа / RTO 2 часа.
 - [ ] Activation: переключать production symlinks и включать vhosts только после явного разрешения на deployment; записать pass/fail gates и rollback decision вне ZIP без private identifiers.
 
@@ -320,9 +320,10 @@ Live gate после включения TLS/vhosts:
 ./deploy/scripts/smoke-test.sh \
   --base-url "$OKNOTIKA_PUBLIC_ORIGIN" \
   --admin-url "$OKNOTIKA_ADMIN_ORIGIN" \
-  --weekly-path /articles/<published-weekly-slug>/
+  --weekly-path /articles/<published-weekly-slug>/ \
+  --social-manifest /var/lib/oknotika-admin/article-releases/active/manifest.json
 ```
 
-До первой weekly publication параметр `--weekly-path` опустить. После неё он обязателен и проверяет exact href/labels Telegram, YouTube, VK и FUTUCHAT. После первого реального withdrawal повторить smoke с `--withdrawn-path /articles/<slug>/`: gate требует HTTP 410 и generated gone body, а не только текст «410» при HTTP 200.
+До первой weekly publication параметры `--weekly-path` и `--social-manifest` опустить. После неё оба обязательны: gate сверяет exact href/labels с active manifest и требует, чтобы очищенные YouTube, VK или FUTUCHAT отсутствовали. Первые shipped defaults отдельно сверяются на шаге enrollment; последующие подтверждённые изменения не должны ломать steady-state smoke. После первого реального withdrawal повторить smoke с `--withdrawn-path /articles/<slug>/`: gate требует HTTP 410 и generated gone body, а не только текст «410» при HTTP 200.
 
 Если gate не проходит, не продолжать активацию: application symlink вернуть по Application rollback, marketing — только по Marketing rollback, а active article release менять только через Content/operational rollback.

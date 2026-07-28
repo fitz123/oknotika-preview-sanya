@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 const INGESTION_PATH = '/api/ingestion/weekly-drafts';
 const MAXIMUM_PAYLOAD_BYTES = 128 * 1024;
 const SAFE_RESULT_FIELDS = ['articleId', 'revisionId', 'slug', 'issueId', 'contentVersion'];
+const RESULT_FIELDS = new Set([...SAFE_RESULT_FIELDS, 'created', 'idempotent']);
 
 export async function runWeeklyIngestionSmoke({
   adminUrl,
@@ -36,6 +37,10 @@ export async function runWeeklyIngestionSmoke({
     throw new Error(`initial weekly ingestion returned HTTP ${first.status}`);
   }
   assertSafeDraftResult(first.body, 'initial weekly ingestion');
+  if (first.body.issueId !== payload.issueId
+      || first.body.contentVersion !== payload.contentVersion) {
+    throw new Error('initial weekly ingestion identifiers differ from the submitted payload');
+  }
   if (first.status === 201 && (first.body.created !== true || first.body.idempotent !== false)) {
     throw new Error('new weekly ingestion did not report a newly created draft');
   }
@@ -45,6 +50,7 @@ export async function runWeeklyIngestionSmoke({
   }
 
   const retry = await ingest(fetchImpl, origin, token, payload);
+  assertSafeDraftResult(retry.body, 'weekly ingestion retry');
   if (retry.status !== 200 || retry.body.idempotent !== true || retry.body.created !== false) {
     throw new Error('weekly ingestion retry is not idempotent');
   }
@@ -106,16 +112,48 @@ function assertSafeDraftResult(body, label) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     throw new Error(`${label} returned an invalid result`);
   }
-  for (const field of SAFE_RESULT_FIELDS) {
-    if (body[field] === undefined || body[field] === null || body[field] === '') {
-      throw new Error(`${label} omitted ${field}`);
-    }
+  if (!Number.isSafeInteger(body.articleId) || body.articleId < 1) {
+    throw new Error(`${label} returned an invalid articleId`);
+  }
+  if (!Number.isSafeInteger(body.revisionId) || body.revisionId < 1) {
+    throw new Error(`${label} returned an invalid revisionId`);
+  }
+  if (typeof body.slug !== 'string'
+      || body.slug.length > 200
+      || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(body.slug)) {
+    throw new Error(`${label} returned an invalid slug`);
+  }
+  if (!validIsoWeek(body.issueId)) {
+    throw new Error(`${label} returned an invalid issueId`);
+  }
+  if (!Number.isSafeInteger(body.contentVersion) || body.contentVersion < 1) {
+    throw new Error(`${label} returned an invalid contentVersion`);
+  }
+  if (typeof body.created !== 'boolean' || typeof body.idempotent !== 'boolean') {
+    throw new Error(`${label} returned invalid draft status flags`);
   }
   for (const forbidden of ['releaseId', 'previewUrl', 'publicUrl', 'published']) {
     if (Object.hasOwn(body, forbidden)) {
       throw new Error(`${label} returned forbidden publication data`);
     }
   }
+  const unexpected = Object.keys(body).find(field => !RESULT_FIELDS.has(field));
+  if (unexpected) throw new Error(`${label} returned unexpected field ${unexpected}`);
+}
+
+function validIsoWeek(value) {
+  const match = typeof value === 'string'
+    ? /^(\d{4})-W(0[1-9]|[1-4]\d|5[0-3])$/.exec(value)
+    : null;
+  if (!match) return false;
+  const year = Number(match[1]);
+  const januaryFirst = new Date(0);
+  januaryFirst.setUTCHours(0, 0, 0, 0);
+  januaryFirst.setUTCFullYear(year, 0, 1);
+  const weekday = januaryFirst.getUTCDay();
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const weeks = weekday === 4 || (weekday === 3 && leapYear) ? 53 : 52;
+  return Number(match[2]) <= weeks;
 }
 
 function exactHttpsOrigin(value) {

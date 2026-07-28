@@ -264,7 +264,8 @@ function pluralSources(count) {
 }
 
 async function readJson(request, maximum = 1024 * 1024) {
-  if (!request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) {
+  const mediaType = request.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase();
+  if (mediaType !== 'application/json') {
     throw httpError(415, 'Content-Type must be application/json');
   }
   const text = await request.text();

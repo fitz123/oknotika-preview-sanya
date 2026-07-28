@@ -209,6 +209,32 @@ test('weekly ingestion smoke fails closed on malformed results and capability le
     }, { status: 201 })),
     /forbidden publication data/,
   );
+  for (const [field, value] of [
+    ['articleId', '8'],
+    ['revisionId', 0],
+    ['slug', '../private'],
+    ['issueId', '2025-W53'],
+    ['contentVersion', 1.5],
+  ]) {
+    await assert.rejects(
+      runWith(Response.json({
+        ...draft,
+        [field]: value,
+        created: true,
+        idempotent: false,
+      }, { status: 201 })),
+      new RegExp(`invalid ${field}`),
+    );
+  }
+  await assert.rejects(
+    runWith(Response.json({
+      ...draft,
+      created: true,
+      idempotent: false,
+      debug: 'must-not-be-returned',
+    }, { status: 201 })),
+    /unexpected field debug/,
+  );
   await assert.rejects(
     runWith(new Response('not json', {
       status: 201,
@@ -365,11 +391,12 @@ test('operator CLIs register a validated reusable cover and roll back outside th
   checked.close();
 });
 
-test('public smoke executes weekly-path validation and all four CTA checks', (t) => {
+test('public smoke compares weekly CTAs with the active manifest', (t) => {
   const root = mkdtempSync(resolve(tmpdir(), 'oknotika-public-smoke-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const shimRoot = resolve(root, 'bin');
   const weeklyBodyPath = resolve(root, 'weekly.html');
+  const socialManifestPath = resolve(root, 'manifest.json');
   mkdirSync(shimRoot);
   const curlShim = resolve(shimRoot, 'curl');
   writeFileSync(curlShim, `#!/usr/bin/env bash
@@ -421,21 +448,30 @@ if [[ -n "$write_out" ]]; then printf '200'; fi
 `);
   chmodSync(curlShim, 0o755);
   const destinations = [
-    ['https://t.me/oknotika', 'Telegram'],
-    ['https://youtube.com/@oknotika', 'YouTube'],
-    ['https://vk.ru/oknotika', 'VK'],
-    ['https://t.me/FUTU_CHAT', 'FUTUCHAT'],
+    ['telegramUrl', 'https://t.me/oknotika', 'Telegram'],
+    ['youtubeUrl', 'https://youtube.com/@oknotika', 'YouTube'],
+    ['vkUrl', 'https://vk.ru/oknotika', 'VK'],
+    ['futuchatUrl', 'https://t.me/FUTU_CHAT', 'FUTUCHAT'],
   ];
   const completeBody = destinations
-    .map(([url, label]) => `<a href="${url}">${label}</a>`)
+    .map(([, url, label]) => `<a href="${url}">${label}</a>`)
     .join('\n');
-  const runSmoke = (body, weeklyPath = '/articles/digest/') => {
+  const configuredSocial = Object.fromEntries(
+    destinations.map(([field, url]) => [field, url]),
+  );
+  const runSmoke = (
+    body,
+    weeklyPath = '/articles/digest/',
+    socialLinks = configuredSocial,
+  ) => {
     writeFileSync(weeklyBodyPath, body);
+    writeFileSync(socialManifestPath, JSON.stringify({ schemaVersion: 4, socialLinks }));
     return spawnSync('bash', [
       resolve(REPO_ROOT, 'deploy/scripts/smoke-test.sh'),
       '--base-url', 'https://public.test',
       '--admin-url', 'https://admin.test',
       '--weekly-path', weeklyPath,
+      '--social-manifest', socialManifestPath,
     ], {
       encoding: 'utf8',
       env: {
@@ -451,7 +487,7 @@ if [[ -n "$write_out" ]]; then printf '200'; fi
   const invalidPath = runSmoke(completeBody, '/../invalid/');
   assert.equal(invalidPath.status, 2);
   assert.match(invalidPath.stderr, /--weekly-path must be an article detail path/);
-  for (const [url, label] of destinations) {
+  for (const [, url, label] of destinations) {
     const missingDestination = runSmoke(
       completeBody.replace(`href="${url}"`, 'href="https://missing.example/"'),
     );
@@ -463,6 +499,23 @@ if [[ -n "$write_out" ]]; then printf '200'; fi
     assert.equal(missingLabel.status, 1);
     assert.match(missingLabel.stderr, new RegExp(`${label} CTA label is missing`));
   }
+  const partialSocial = {
+    ...configuredSocial,
+    vkUrl: null,
+    futuchatUrl: null,
+  };
+  const partialBody = destinations.slice(0, 2)
+    .map(([, url, label]) => `<a href="${url}">${label}</a>`)
+    .join('\n');
+  const partial = runSmoke(partialBody, '/articles/digest/', partialSocial);
+  assert.equal(partial.status, 0, partial.stderr);
+  const unexpectedOptional = runSmoke(
+    `${partialBody}\n<a href="https://vk.ru/oknotika">VK</a>`,
+    '/articles/digest/',
+    partialSocial,
+  );
+  assert.equal(unexpectedOptional.status, 1);
+  assert.match(unexpectedOptional.stderr, /VK destination must be absent/);
 });
 
 test('admin ingress isolates large uploads and caps their global concurrency', () => {
@@ -568,6 +621,20 @@ test('restore verification rejects stale public article pointers', async (t) => 
   const result = verifyRestoredState(fixture.root);
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /release article state differs/);
+});
+
+test('restore verification rejects social links that differ from the active release', async (t) => {
+  const fixture = await createRestoreFixture(t);
+  const restored = new DatabaseSync(fixture.snapshotPath);
+  restored.prepare(`
+    UPDATE site_social_links
+    SET youtube_url = 'https://youtube.com/@stale-restored-value'
+    WHERE singleton = 1
+  `).run();
+  restored.close();
+  const result = verifyRestoredState(fixture.root);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /social-link state differs/);
 });
 
 test('restore verification accepts a generation-consistent snapshot', async (t) => {
