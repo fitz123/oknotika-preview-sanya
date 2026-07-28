@@ -90,11 +90,11 @@ python3 -m unittest tests/test_release_guardrails.py tests/test_release_package.
 
 **Serves:** Sanya's request for a short site version that points readers to the full voiced news in Telegram, YouTube and VK.
 
-- [ ] Rename public navigation/headings from `Факт недели` to `Новости`; label weekly cards/articles `Дайджест недели`.
-- [ ] Render 3–5-item editorial digest content, a clean multiple-source list and a final social CTA using configured exact URLs only.
-- [ ] Handle not-yet-configured YouTube/VK destinations without broken or invented public links.
-- [ ] Keep canonical/OG metadata, `latest.json`, homepage latest-news block, withdrawn behavior and existing imported article compatibility valid.
-- [ ] Add rendering/contract/link tests for desktop and mobile output and for missing/partial social configuration.
+- [x] Rename public navigation/headings from `Факт недели` to `Новости`; label weekly cards/articles `Дайджест недели`.
+- [x] Render 3–5-item editorial digest content, a clean multiple-source list and a final social CTA using configured exact URLs only.
+- [x] Handle not-yet-configured YouTube/VK destinations without broken or invented public links.
+- [x] Keep canonical/OG metadata, `latest.json`, homepage latest-news block, withdrawn behavior and existing imported article compatibility valid.
+- [x] Add rendering/contract/link tests for desktop and mobile output and for missing/partial social configuration.
 
 ### Task 4: Package a deployable reviewed increment for Zhenya
 

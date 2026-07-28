@@ -18,9 +18,13 @@ def fail(message: str) -> None:
 
 
 def main() -> None:
-    if len(sys.argv) != 2:
-        fail("usage: check_generated_articles.py RELEASE_DIRECTORY")
-    root = Path(sys.argv[1]).resolve()
+    if len(sys.argv) > 2:
+        fail("usage: check_generated_articles.py [RELEASE_DIRECTORY]")
+    root = (
+        Path(sys.argv[1])
+        if len(sys.argv) == 2
+        else Path(__file__).resolve().parents[1] / "var/test-release"
+    ).resolve()
     manifest_path = root / "manifest.json"
     if not manifest_path.is_file():
         fail("manifest.json is missing")
@@ -43,7 +47,7 @@ def main() -> None:
             fail(f"wrong cache contract for {relative}")
     latest = json.loads((root / "articles/latest.json").read_text(encoding="utf-8"))
     if latest is not None:
-        if latest.get("category") != "Факт недели":
+        if latest.get("category") != "Новости":
             fail("latest category is not fixed")
         if not latest.get("url", "").startswith("https://oknotika.ru/articles/"):
             fail("latest URL is not canonical")

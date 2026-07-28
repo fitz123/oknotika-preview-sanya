@@ -330,6 +330,17 @@ dd { margin: 0; font-weight: 850; }
 .article-card p { color: var(--paper-2); max-width: 900px; }
 .article-body { max-width: 860px; font-size: 20px; color: var(--paper-2); }
 .article-body p { margin-bottom: 22px; }
+.article-digest > ol { display: grid; gap: 18px; padding: 0; list-style: none; counter-reset: digest-item; }
+.article-digest > ol > li { position: relative; padding: 24px 24px 24px 76px; border: 1px solid var(--line); border-radius: 22px; background: rgba(255,255,255,.045); counter-increment: digest-item; }
+.article-digest > ol > li::before { content: counter(digest-item, decimal-leading-zero); position: absolute; top: 24px; left: 24px; color: var(--cyan); font-size: 14px; font-weight: 950; letter-spacing: .08em; }
+.article-sources, .article-social { margin-top: 48px; padding-top: 36px; border-top: 1px solid var(--line); }
+.article-sources h2, .article-social h2 { font-size: clamp(28px, 4vw, 42px); }
+.article-sources ol { display: grid; gap: 10px; padding-left: 24px; }
+.article-sources a { overflow-wrap: anywhere; color: var(--cyan); font-weight: 850; }
+.article-social { padding: 36px; border: 1px solid rgba(116,215,223,.26); border-radius: var(--radius); background: linear-gradient(135deg, rgba(116,215,223,.10), rgba(197,161,95,.08)); }
+.article-social__links { display: flex; flex-wrap: wrap; gap: 12px; margin: 24px 0 0; padding: 0; list-style: none; }
+.article-social__links a { display: inline-flex; min-height: 48px; align-items: center; padding: 12px 18px; border: 1px solid rgba(244,239,230,.26); border-radius: 999px; color: var(--paper); font-weight: 900; }
+.article-social__links a:hover { border-color: var(--cyan); color: var(--cyan); }
 @media (max-width: 1180px) {
   .product-link-grid, .page-card-grid { grid-template-columns: repeat(2, 1fr); }
   .product-link-card--accent { grid-column: auto; }
@@ -343,6 +354,11 @@ dd { margin: 0; font-weight: 850; }
   .product-link-card img { height: 210px; }
   .page-hero { min-height: auto; padding-top: 126px; }
   .weekly-fact, .article-card { padding: 24px; }
+  .article-digest > ol > li { padding: 22px 20px 22px 64px; }
+  .article-digest > ol > li::before { top: 22px; left: 20px; }
+  .article-social { padding: 24px; }
+  .article-social__links { display: grid; }
+  .article-social__links a { justify-content: center; }
   .facade-scenario-grid, .integration-shell__list, .design-path__steps { grid-template-columns: 1fr; }
   .facade-scenario-card, .design-path__steps li { min-height: 0; padding: 24px; }
   .schueco-hero__grid, .integration-shell__layout, .design-path__intro { gap: 32px; }

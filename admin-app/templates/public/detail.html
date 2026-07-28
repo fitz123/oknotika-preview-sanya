@@ -19,14 +19,14 @@
 <body>
   <header class="site-header" data-header>
     <a class="brand" href="{{homePath}}" aria-label="ОКНОТИКА"><img class="brand__logo" src="{{logoPath}}" alt="Логотип ОКНОТИКА" /><span class="brand__text">ОКНОТИКА</span></a>
-    <nav class="nav"><a href="{{sitePath}}">Главная</a><a href="{{aluminumPath}}">Алюминий</a><a href="{{articleIndexPath}}">Факт недели</a><a href="{{contactsPath}}">Контакты</a></nav>
+    <nav class="nav"><a href="{{sitePath}}">Главная</a><a href="{{aluminumPath}}">Алюминий</a><a href="{{articleIndexPath}}">Новости</a><a href="{{contactsPath}}">Контакты</a></nav>
     <a class="header-cta" href="https://t.me/ambassadorokon" target="_blank" rel="noreferrer">Обсудить проект</a>
   </header>
   <main id="top">
     <section class="section page-hero">
       <div class="page-hero__bg" aria-hidden="true"><img src="{{coverPath}}" alt="" /></div>
       <div class="container page-hero__inner reveal">
-        <p class="eyebrow">Факт недели · {{displayDate}}</p>
+        <p class="eyebrow">{{materialEyebrow}}</p>
         <h1>{{title}}</h1>
         <p class="hero__lead">{{lead}}</p>
       </div>
@@ -34,11 +34,11 @@
     <section class="section">
       <article class="container article-body reveal">
 {{body}}
-{{source}}
+{{afterBody}}
       </article>
     </section>
   </main>
-  <footer class="footer"><div class="container footer__inner"><p>© 2026 ООО «ОКНОТИКА» · факт недели</p><p><a href="{{articleIndexPath}}">К списку статей</a> · <a href="#top">Наверх</a></p></div></footer>
+  <footer class="footer"><div class="container footer__inner"><p>© 2026 ООО «ОКНОТИКА» · новости</p><p><a href="{{articleIndexPath}}">К списку новостей</a> · <a href="#top">Наверх</a></p></div></footer>
   {{scriptTag}}
 </body>
 </html>

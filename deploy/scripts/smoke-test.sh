@@ -50,14 +50,14 @@ assert_header "$work/articles.headers" '^cache-control: public, max-age=0, must-
 assert_header "$work/admin.headers" '^cache-control: no-store$' 'admin no-store header is missing'
 assert_header "$work/admin.headers" '^content-security-policy:.*frame-ancestors .none.' 'admin CSP is missing frame-ancestors none'
 assert_header "$work/admin.headers" '^x-content-type-options: nosniff$' 'admin nosniff header is missing'
-rg --quiet 'Факт недели' "$work/articles.body" || { echo "article listing content is missing" >&2; exit 1; }
+rg --quiet 'Новости' "$work/articles.body" || { echo "article listing content is missing" >&2; exit 1; }
 node -e 'const fs=require("node:fs"); JSON.parse(fs.readFileSync(process.argv[1], "utf8"))' "$work/latest.body"
 
 if [[ -n "$withdrawn_path" ]]; then
   withdrawn_status="$(curl --silent --show-error --output "$work/withdrawn.body" --write-out '%{http_code}' \
     --proto '=https' --tlsv1.2 "$base_url$withdrawn_path")"
   [[ "$withdrawn_status" == 410 ]] || { echo "withdrawn article returned HTTP $withdrawn_status instead of 410" >&2; exit 1; }
-  rg --quiet '410 · Факт недели' "$work/withdrawn.body" || { echo "withdrawn article body is missing" >&2; exit 1; }
+  rg --quiet '410 · Новости' "$work/withdrawn.body" || { echo "withdrawn article body is missing" >&2; exit 1; }
 fi
 
 echo "Public and admin smoke tests passed."

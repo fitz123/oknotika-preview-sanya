@@ -110,7 +110,7 @@ export async function runBetaRehearsal() {
     const withdrawnLatest = JSON.parse(readFileSync(resolve(releasesRoot, 'active/articles/latest.json'), 'utf8'));
     assert.equal(withdrawnLatest.url, `https://oknotika.ru/articles/${imported.slug}/`);
     const gone = readFileSync(resolve(releasesRoot, `active/articles/${draft.slug}/index.html`), 'utf8');
-    assert.match(gone, /410 · Факт недели/);
+    assert.match(gone, /410 · Новости/);
 
     const restoredRevisionId = service.restoreRevision(
       draft.articleId,

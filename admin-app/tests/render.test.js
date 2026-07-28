@@ -6,7 +6,11 @@ import { setImmediate } from 'node:timers';
 import { runInNewContext } from 'node:vm';
 import { AL_BAHR_FIXTURE, importAlBahr } from '../src/content/al-bahr.js';
 import { loadRevisionSnapshot, renderRelease, validateRelease } from '../src/render/renderer.js';
-import { articleInput, createHarness } from './helpers.js';
+import {
+  articleInput,
+  createHarness,
+  weeklyIngestionInput,
+} from './helpers.js';
 
 function render(harness, name, snapshot) {
   const outputDirectory = resolve(harness.root, name);
@@ -87,8 +91,95 @@ test('withdrawal generates a 410 page and latest falls back to the previous publ
   assert.equal(latest.title, 'Первый факт');
   assert.doesNotMatch(listing, /Второй факт/);
   assert.equal(readFileSync(resolve(outputDirectory, 'withdrawn', second.slug), 'utf8').trim(), '410');
-  assert.match(goneHtml, /410 · Факт недели/);
+  assert.match(goneHtml, /410 · Новости/);
   assert.match(goneHtml, /noindex,nofollow/);
+});
+
+test('weekly digests render three-to-five items, verified sources and only configured social links', (t) => {
+  const harness = createHarness(t);
+  const threeItems = harness.service.ingestWeeklyDraft(weeklyIngestionInput(harness.coverAssetId, {
+    article: {
+      sourceUrls: [
+        'https://example.com/news/one',
+        'https://example.org/news/two',
+        'https://example.net/news/three',
+      ],
+    },
+  }));
+  const fiveItems = harness.service.ingestWeeklyDraft(weeklyIngestionInput(harness.coverAssetId, {
+    issueId: '2026-W32',
+    article: {
+      publicationDate: '2026-08-07',
+      bodyMarkdown: [
+        '1. Первая новость.',
+        '2. Вторая новость.',
+        '3. Третья новость.',
+        '4. Четвёртая новость.',
+        '5. Пятая новость.',
+      ].join('\n'),
+    },
+  }));
+  harness.service.configureSocialLinks({
+    telegramUrl: 'https://t.me/oknotika',
+    youtubeUrl: 'https://youtube.com/@oknotika',
+    vkUrl: null,
+  }, harness.editorId);
+
+  const snapshot = [
+    loadRevisionSnapshot(harness.db, threeItems.articleId, threeItems.revisionId, 'published'),
+    loadRevisionSnapshot(harness.db, fiveItems.articleId, fiveItems.revisionId, 'published'),
+  ];
+  const { outputDirectory } = render(harness, 'weekly-digests', snapshot);
+  const threeItemDetail = readFileSync(
+    resolve(outputDirectory, `articles/${threeItems.slug}/index.html`),
+    'utf8',
+  );
+  const fiveItemDetail = readFileSync(
+    resolve(outputDirectory, `articles/${fiveItems.slug}/index.html`),
+    'utf8',
+  );
+  const listing = readFileSync(resolve(outputDirectory, 'articles/index.html'), 'utf8');
+  const latest = JSON.parse(readFileSync(resolve(outputDirectory, 'articles/latest.json'), 'utf8'));
+  const publicStyles = readFileSync(resolve(import.meta.dirname, '../../style.css'), 'utf8');
+
+  assert.match(listing, /<h1>Новости<\/h1>/);
+  assert.match(listing, /Дайджест недели/);
+  assert.match(threeItemDetail, /name="viewport"/);
+  assert.match(publicStyles, /\.article-social__links \{ display: flex/);
+  assert.match(
+    publicStyles,
+    /@media \(max-width: 760px\) \{[\s\S]*\.article-social__links \{ display: grid; \}/,
+  );
+  assert.match(threeItemDetail, /Дайджест недели · 31 июля 2026 г\./);
+  assert.equal(digestItemCount(threeItemDetail), 3);
+  assert.equal(digestItemCount(fiveItemDetail), 5);
+  for (const sourceUrl of [
+    'https://example.com/news/one',
+    'https://example.org/news/two',
+    'https://example.net/news/three',
+  ]) {
+    assert.match(threeItemDetail, new RegExp(`href="${sourceUrl}"`));
+  }
+  assert.match(threeItemDetail, /class="article-sources"/);
+  assert.match(threeItemDetail, /href="https:\/\/t\.me\/oknotika"/);
+  assert.match(threeItemDetail, /href="https:\/\/youtube\.com\/@oknotika"/);
+  assert.doesNotMatch(threeItemDetail, /vk\.com|VK:|не настроен/);
+  assert.equal(latest.category, 'Новости');
+});
+
+test('weekly social CTA omits missing YouTube and VK destinations without inventing links', (t) => {
+  const harness = createHarness(t);
+  const created = harness.service.ingestWeeklyDraft(weeklyIngestionInput(harness.coverAssetId));
+  const article = loadRevisionSnapshot(
+    harness.db, created.articleId, created.revisionId, 'published',
+  );
+  const { outputDirectory } = render(harness, 'telegram-only-digest', [article]);
+  const detail = readFileSync(
+    resolve(outputDirectory, `articles/${created.slug}/index.html`),
+    'utf8',
+  );
+  assert.match(detail, /href="https:\/\/t\.me\/oknotika"/);
+  assert.doesNotMatch(detail, /youtube\.com|youtu\.be|vk\.com|YouTube|>VK</);
 });
 
 test('HTML/JSON revalidate while only content-hashed assets are immutable', (t) => {
@@ -121,12 +212,13 @@ test('release validation enforces the homepage latest-card text contract', (t) =
 test('homepage loader mutates only bounded same-origin payloads and otherwise retains fallback', async () => {
   const homepage = readFileSync(resolve(import.meta.dirname, '../../index.html'), 'utf8');
   assert.match(homepage, /data-latest-fact-state="fallback"/);
+  assert.match(homepage, /aria-label="Новости"/);
   assert.match(homepage, /data-latest-title/);
   assert.match(homepage, /data-latest-lead/);
   assert.match(homepage, /src="js\/latest-fact\.js"/);
 
   const valid = {
-    category: 'Факт недели',
+    category: 'Новости',
     title: 'Проверенный факт',
     lead: 'Короткое описание',
     url: 'https://oknotika.ru/articles/proverennyi-fakt/',
@@ -136,6 +228,7 @@ test('homepage loader mutates only bounded same-origin payloads and otherwise re
   assert.equal(loaded.title, valid.title);
   assert.equal(loaded.lead, valid.lead);
   assert.equal(loaded.href, valid.url);
+  assert.equal((await runLatestLoader({ ...valid, category: 'Факт недели' })).state, 'loaded');
 
   for (const payload of [
     null,
@@ -151,6 +244,23 @@ test('homepage loader mutates only bounded same-origin payloads and otherwise re
     });
   }
   assert.equal((await runLatestLoader(valid, { ok: false })).state, 'fallback');
+});
+
+test('public navigation consistently names the article section Новости', () => {
+  for (const relativePath of [
+    'index.html',
+    'aluminum/index.html',
+    'carbon-glass/index.html',
+    'glass/index.html',
+    'oknotika-smart-window/index.html',
+    'protectapeel/index.html',
+    'pvc/index.html',
+    'wood-stoller/index.html',
+  ]) {
+    const html = readFileSync(resolve(import.meta.dirname, '../..', relativePath), 'utf8');
+    assert.match(html, /href="(?:\.\.\/)?articles\/">Новости<\/a>/, relativePath);
+    assert.doesNotMatch(html, />Факт недели<\/a>/, relativePath);
+  }
 });
 
 async function runLatestLoader(payload, { ok = true } = {}) {
@@ -182,4 +292,10 @@ async function runLatestLoader(payload, { ok = true } = {}) {
     lead: lead.textContent,
     href: link.href,
   };
+}
+
+function digestItemCount(html) {
+  const digest = html.match(/<div class="article-digest">([\s\S]*?)<\/div>/);
+  assert.ok(digest);
+  return digest[1].match(/<li>/g)?.length ?? 0;
 }

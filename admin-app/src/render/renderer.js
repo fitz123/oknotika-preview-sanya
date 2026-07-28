@@ -12,25 +12,32 @@ import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderMarkdown } from '../content/markdown.js';
 import { MAX_SLUG_LENGTH } from '../content/slug.js';
-import { ARTICLE_TEXT_LIMITS, formatMoscowDate } from '../content/validation.js';
+import {
+  ARTICLE_TEXT_LIMITS,
+  formatMoscowDate,
+  validateSocialLinks,
+} from '../content/validation.js';
 
 const TEMPLATE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../templates/public');
 const CACHE_REVALIDATE = 'public, max-age=0, must-revalidate';
 const CACHE_IMMUTABLE = 'public, max-age=31536000, immutable';
 
 export function loadPublicSnapshot(db) {
-  return db.prepare(`
+  const rows = db.prepare(`
     SELECT
       a.id AS article_id, a.slug, a.public_state AS state, r.id AS revision_id, r.title,
       r.publication_at, r.lead, r.body_markdown, r.legacy_eyebrow,
       r.legacy_meta_description, r.legacy_listing_excerpt, r.cover_alt, r.source_url,
-      s.id AS asset_id, s.private_path, s.sha256 AS asset_sha256, s.media_type
+      s.id AS asset_id, s.private_path, s.sha256 AS asset_sha256, s.media_type,
+      w.issue_id AS weekly_issue_id
     FROM articles a
     JOIN article_revisions r ON r.id = a.published_revision_id
     JOIN assets s ON s.id = r.cover_asset_id
+    LEFT JOIN weekly_ingestion_issues w ON w.article_id = a.id
     WHERE a.public_state IN ('published', 'withdrawn')
     ORDER BY r.publication_at DESC, a.id DESC
   `).all();
+  return hydratePublicRows(db, rows);
 }
 
 export function loadRevisionSnapshot(db, articleId, revisionId, state) {
@@ -40,14 +47,24 @@ export function loadRevisionSnapshot(db, articleId, revisionId, state) {
       a.id AS article_id, a.slug, ? AS state, r.id AS revision_id, r.title,
       r.publication_at, r.lead, r.body_markdown, r.legacy_eyebrow,
       r.legacy_meta_description, r.legacy_listing_excerpt, r.cover_alt, r.source_url,
-      s.id AS asset_id, s.private_path, s.sha256 AS asset_sha256, s.media_type
+      s.id AS asset_id, s.private_path, s.sha256 AS asset_sha256, s.media_type,
+      w.issue_id AS weekly_issue_id
     FROM articles a
     JOIN article_revisions r ON r.article_id = a.id AND r.id = ?
     JOIN assets s ON s.id = r.cover_asset_id
+    LEFT JOIN weekly_ingestion_issues w ON w.article_id = a.id
     WHERE a.id = ?
   `).get(state, revisionId, articleId);
   if (!row) throw new Error('Revision not found for article');
-  return row;
+  return hydratePublicRows(db, [row])[0];
+}
+
+export function loadPreviewSnapshot(db, revisionId) {
+  const revision = db.prepare(
+    'SELECT article_id FROM article_revisions WHERE id = ?',
+  ).get(revisionId);
+  if (!revision) throw new Error('Revision not found');
+  return loadRevisionSnapshot(db, Number(revision.article_id), revisionId, 'published');
 }
 
 export function renderRelease({
@@ -90,7 +107,7 @@ export function renderRelease({
     canonical: escapeHtml(`${origin}/articles/`),
     cards: publicArticles.length > 0
       ? publicArticles.map(renderCard).join('\n')
-      : '        <p>Новые факты недели готовятся к публикации.</p>',
+      : '        <p>Новые материалы готовятся к публикации.</p>',
   });
   writeText(resolve(articleRoot, 'index.html'), listing);
 
@@ -138,10 +155,19 @@ export function renderDetailDocument(article, origin, {
   const canonical = `${origin}/articles/${article.slug}/`;
   const publicCoverPath = coverPath ?? `../assets/${article.cover_filename}`;
   const absoluteCover = new URL(publicCoverPath, canonical).href;
-  const source = article.source_url
-    ? `        <p><a class="text-link" href="${escapeAttribute(article.source_url)}" target="_blank" rel="noreferrer noopener">Источник: ${escapeHtml(sourceLabel(article.source_url))} →</a></p>`
-    : '';
-  const body = indent(renderMarkdown(article.body_markdown).trim(), 8);
+  const weekly = isWeeklyDigest(article);
+  const sourceUrls = article.source_urls
+    ?? (article.source_url ? [article.source_url] : []);
+  const sources = weekly
+    ? renderSourceList(sourceUrls)
+    : renderLegacySource(article.source_url);
+  const socialCta = weekly ? renderSocialCta(article.social_links) : '';
+  const renderedBody = renderMarkdown(article.body_markdown).trim();
+  const body = weekly
+    ? `        <div class="article-digest">
+${indent(renderedBody, 10)}
+        </div>`
+    : indent(renderedBody, 8);
   return interpolate(readTemplate('detail.html'), {
     title: escapeHtml(article.title),
     description: escapeAttribute(article.legacy_meta_description ?? article.lead),
@@ -158,10 +184,13 @@ export function renderDetailDocument(article, origin, {
     articleIndexPath: escapeAttribute(articleIndexPath),
     contactsPath: escapeAttribute(contactsPath),
     scriptTag,
-    displayDate: escapeHtml(article.legacy_eyebrow?.replace(/^Факт недели · /, '') ?? formatMoscowDate(article.publication_at)),
+    materialEyebrow: escapeHtml(
+      article.legacy_eyebrow
+        ?? `Дайджест недели · ${formatMoscowDate(article.publication_at)}`,
+    ),
     lead: escapeHtml(article.lead),
     body,
-    source,
+    afterBody: [sources, socialCta].filter(Boolean).join('\n'),
   });
 }
 
@@ -197,7 +226,7 @@ export function validateRelease(outputDirectory) {
 }
 
 function isValidLatestPayload(latest) {
-  return latest.category === 'Факт недели'
+  return latest.category === 'Новости'
     && typeof latest.title === 'string'
     && latest.title.length > 0
     && latest.title.length <= ARTICLE_TEXT_LIMITS.title
@@ -210,7 +239,7 @@ function isValidLatestPayload(latest) {
 
 function renderCard(article) {
   return `        <article class="article-card reveal" data-article-slug="${escapeAttribute(article.slug)}">
-          <p class="eyebrow">${escapeHtml(article.legacy_eyebrow ?? `Факт недели · ${formatMoscowDate(article.publication_at)}`)}</p>
+          <p class="eyebrow">${escapeHtml(article.legacy_eyebrow ?? `Дайджест недели · ${formatMoscowDate(article.publication_at)}`)}</p>
           <h2>${escapeHtml(article.title)}</h2>
           <p>${escapeHtml(article.legacy_listing_excerpt ?? article.lead)}</p>
           <a class="text-link" href="${escapeAttribute(article.slug)}/">Читать →</a>
@@ -219,7 +248,7 @@ function renderCard(article) {
 
 function latestPayload(article, origin) {
   return {
-    category: 'Факт недели',
+    category: 'Новости',
     title: article.title,
     lead: article.lead,
     url: `${origin}/articles/${article.slug}/`,
@@ -228,6 +257,73 @@ function latestPayload(article, origin) {
     cover: `${origin}/articles/assets/${article.cover_filename}`,
     coverAlt: article.cover_alt,
   };
+}
+
+function hydratePublicRows(db, rows) {
+  const sourceQuery = db.prepare(`
+    SELECT url FROM article_revision_sources
+    WHERE revision_id = ? ORDER BY position
+  `);
+  const social = db.prepare(`
+    SELECT telegram_url, youtube_url, vk_url
+    FROM site_social_links WHERE singleton = 1
+  `).get();
+  const socialLinks = validateSocialLinks({
+    telegramUrl: social.telegram_url,
+    youtubeUrl: social.youtube_url,
+    vkUrl: social.vk_url,
+  });
+  return rows.map((row) => {
+    const sourceUrls = sourceQuery.all(row.revision_id).map((source) => source.url);
+    return {
+      ...row,
+      source_urls: sourceUrls.length > 0
+        ? sourceUrls
+        : (row.source_url ? [row.source_url] : []),
+      social_links: socialLinks,
+    };
+  });
+}
+
+function isWeeklyDigest(article) {
+  return Boolean(article.weekly_issue_id) || !article.legacy_eyebrow;
+}
+
+function renderLegacySource(sourceUrl) {
+  return sourceUrl
+    ? `        <p><a class="text-link" href="${escapeAttribute(sourceUrl)}" target="_blank" rel="noreferrer noopener">Источник: ${escapeHtml(sourceLabel(sourceUrl))} →</a></p>`
+    : '';
+}
+
+function renderSourceList(sourceUrls) {
+  if (sourceUrls.length === 0) return '';
+  const items = sourceUrls.map((url) => `            <li><a href="${escapeAttribute(url)}" target="_blank" rel="noreferrer noopener">${escapeHtml(sourceLabel(url))} →</a></li>`).join('\n');
+  return `        <section class="article-sources" aria-labelledby="article-sources-title">
+          <p class="eyebrow">Проверено редакцией</p>
+          <h2 id="article-sources-title">Источники</h2>
+          <ol>
+${items}
+          </ol>
+        </section>`;
+}
+
+function renderSocialCta(value) {
+  if (!value) return '';
+  const links = validateSocialLinks(value);
+  const destinations = [
+    ['Telegram', links.telegramUrl],
+    ['YouTube', links.youtubeUrl],
+    ['VK', links.vkUrl],
+  ].filter((destination) => destination[1] !== null);
+  const items = destinations.map(([name, url]) => `            <li><a href="${escapeAttribute(url)}" target="_blank" rel="noreferrer noopener">${name}</a></li>`).join('\n');
+  return `        <section class="article-social" aria-labelledby="article-social-title">
+          <p class="eyebrow">Полная версия</p>
+          <h2 id="article-social-title">Слушайте и смотрите выпуск</h2>
+          <p>Полный озвученный дайджест доступен на площадках ОКНОТИКИ.</p>
+          <ul class="article-social__links">
+${items}
+          </ul>
+        </section>`;
 }
 
 function buildManifest(outputDirectory, base) {
