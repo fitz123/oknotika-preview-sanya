@@ -33,13 +33,15 @@ def validate_readme_text(text: str) -> list[str]:
     errors = [f"README.md retains stale marker {marker}" for marker in STALE_MARKERS if marker in text]
     require(text, "README.md", (
         "# ОКНОТИКА — финальный beta-релиз сайта",
-        "## Content model «Факта недели»",
+        "## Content model «Новости» / «Дайджест недели»",
         "## Telegram enrollment и доступ",
         "## Editor flow",
         "## Полная локальная валидация",
         "## Release и эксплуатация",
         "admin-app/ENROLLMENT.md",
         "deploy/README_ZHENYA.md",
+        "docs/WEEKLY_INGESTION.md",
+        "Tuesday ingestion smoke",
         "release/CHANGED_FILES-v2.28.0-beta.1.txt",
         "Архитектурный ADR намеренно не создан",
     ), errors)
@@ -68,7 +70,9 @@ def non_release_changes_since(root: Path, implementation: str) -> list[str]:
     )
     return sorted(
         path.decode() for path in result.stdout.split(b"\0")
-        if path and not path.decode().startswith("release/")
+        if path
+        and not path.decode().startswith("release/")
+        and not path.decode().startswith("docs/plans/")
     )
 
 
@@ -105,6 +109,8 @@ def validate(root: Path) -> list[str]:
         "issuer` + `sub",
         "npm run enroll",
         "не используются как идентификатор доступа",
+        "редактор «Новости»",
+        "draft-only smoke",
     ), errors)
 
     deploy = (root / "deploy/README_ZHENYA.md").read_text(encoding="utf-8")
@@ -115,6 +121,21 @@ def validate(root: Path) -> list[str]:
         "Marketing rollback",
         "Application rollback",
         "## Первичное подключение редактора",
+        "## Tuesday ingestion и draft-only smoke",
+        "smoke-weekly-ingestion.mjs",
+        "Pinned runtime",
+        "Enrollment Сани",
+        "Restore:",
+    ), errors)
+
+    ingestion = (root / "docs/WEEKLY_INGESTION.md").read_text(encoding="utf-8")
+    require(ingestion, "docs/WEEKLY_INGESTION.md", (
+        "POST https://admin.oknotika.ru/api/ingestion/weekly-drafts",
+        "contentVersion",
+        "LoadCredentialEncrypted",
+        "## Production smoke",
+        "smoke-weekly-ingestion.mjs",
+        "Черновик",
     ), errors)
 
     release = root / "release"
@@ -148,6 +169,8 @@ def validate(root: Path) -> list[str]:
         BASELINE,
         "SHA256SUMS",
         f"CHANGED_FILES-{VERSION}.txt",
+        "Tuesday weekly ingestion",
+        "weekly-ingestion HTTPS smoke",
     ), errors)
 
     versioned_name = f"oknotika-final-{VERSION}.zip"

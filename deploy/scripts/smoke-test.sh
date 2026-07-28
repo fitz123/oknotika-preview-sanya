@@ -51,6 +51,8 @@ assert_header "$work/admin.headers" '^cache-control: no-store$' 'admin no-store 
 assert_header "$work/admin.headers" '^content-security-policy:.*frame-ancestors .none.' 'admin CSP is missing frame-ancestors none'
 assert_header "$work/admin.headers" '^x-content-type-options: nosniff$' 'admin nosniff header is missing'
 rg --quiet 'Новости' "$work/articles.body" || { echo "article listing content is missing" >&2; exit 1; }
+rg --quiet 'Новости' "$work/admin.body" || { echo "admin login is missing the news section label" >&2; exit 1; }
+rg --quiet 'Дайджеста недели' "$work/admin.body" || { echo "admin login is missing the weekly digest label" >&2; exit 1; }
 node -e 'const fs=require("node:fs"); JSON.parse(fs.readFileSync(process.argv[1], "utf8"))' "$work/latest.body"
 
 if [[ -n "$withdrawn_path" ]]; then

@@ -81,3 +81,18 @@ Rotate by encrypting a new token under temporary server and caller credential
 names, stopping both units, atomically replacing both `.cred` files, starting
 the admin first, performing one draft-only ingestion smoke test, and then
 reenabling the Tuesday job. Retire the old token only after the smoke test.
+
+## Production smoke
+
+After Sanya is enrolled and the weekly package has a registered private cover,
+run `deploy/scripts/smoke-weekly-ingestion.mjs` inside the credential-scoped
+Tuesday unit as documented in `deploy/README_ZHENYA.md`. The helper reads the
+token only from a credential file, submits the real private payload twice,
+requires an idempotent retry and verifies that the same bearer receives HTTP
+401 from editorial listing and rollback capabilities. It prints no response
+body or draft identifiers.
+
+Sanya must then confirm that the result is a `Черновик` in `Новости`. The
+public listing and `latest.json` must remain unchanged until his explicit
+Friday publish. Never use a fabricated cover ID or an invented YouTube/VK URL
+to make the smoke test pass.

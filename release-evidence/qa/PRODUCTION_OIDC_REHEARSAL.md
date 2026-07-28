@@ -23,9 +23,10 @@ This gate is intentionally executed only on Zhenya's Linux host after the dedica
 8. Re-enable only through the reviewed enrollment procedure, log in once, then rotate the client secret using encrypted credentials. Confirm the old credential is revoked only after the new login/logout cycle passes.
 9. Stop the admin service and disable its vhost. Confirm the public homepage, `/articles/`, the current detail page and `/articles/latest.json` remain available.
 10. Re-enable the service only after all checks pass. Run `deploy/scripts/smoke-test.sh` against both canonical HTTPS origins.
+11. From the separate credential-scoped Tuesday unit, run `deploy/scripts/smoke-weekly-ingestion.mjs` with the real private weekly payload. Confirm identical retry, bearer denial on editorial capabilities, `Черновик` in «Новости» and no public change before Sanya publishes.
 
 ## Required evidence record
 
-Create an operator-owned record outside the ZIP containing: release SHA and ZIP checksum; start/end UTC timestamps; operator and reviewer names; browser, nginx, systemd, Node and SQLite versions; pass/fail for login, logout, replay rejection, non-allowlist rejection, revocation, rotation, admin outage and live smoke tests; rollback decision; and references to protected server logs. Redact all identifiers and authentication material.
+Create an operator-owned record outside the ZIP containing: release SHA and ZIP checksum; start/end UTC timestamps; operator and reviewer names; browser, nginx, systemd, Node and SQLite versions; pass/fail for login, logout, replay rejection, non-allowlist rejection, revocation, rotation, admin outage, weekly draft-only ingestion and live public smoke tests; rollback decision; and references to protected server logs. Redact all identifiers, payload content and authentication material.
 
 If any step fails, keep the admin vhost disabled, preserve protected logs/audit state, follow Emergency disable and Application rollback in `deploy/README_ZHENYA.md`, and leave the static public site untouched.

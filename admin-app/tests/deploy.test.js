@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import {
   copyFileSync,
   mkdirSync,
@@ -23,6 +24,7 @@ import {
   releasePublisherLock,
 } from '../src/render/publisher.js';
 import { articleInput } from './helpers.js';
+import { runWeeklyIngestionSmoke } from '../../deploy/scripts/smoke-weekly-ingestion.mjs';
 
 const REPO_ROOT = resolve(import.meta.dirname, '../..');
 
@@ -87,6 +89,60 @@ test('deployment manifest pins Node 24, bundled SQLite and the exact npm lockfil
   assert.match(manifest.runtime.sqliteVersion, /^3\.\d+\.\d+$/);
   assert.equal(manifest.runtime.packageLockVersion, 3);
   assert.match(manifest.runtime.packageLockSha256, /^[a-f0-9]{64}$/);
+});
+
+test('weekly ingestion smoke retries idempotently and proves its credential has no editorial authority', async (t) => {
+  const root = mkdtempSync(resolve(tmpdir(), 'oknotika-ingestion-smoke-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const tokenFile = resolve(root, 'weekly-ingest-token');
+  const payloadFile = resolve(root, 'weekly.json');
+  const token = randomBytes(32).toString('base64url');
+  const payload = {
+    issueId: '2026-W31',
+    contentVersion: 1,
+    article: { title: 'Дайджест недели' },
+  };
+  writeFileSync(tokenFile, `${token}\n`, { mode: 0o600 });
+  writeFileSync(payloadFile, JSON.stringify(payload), { mode: 0o600 });
+  const requests = [];
+  const draftResult = {
+    articleId: 8,
+    revisionId: 13,
+    slug: 'daidzhest-nedeli-2026-w31',
+    issueId: payload.issueId,
+    contentVersion: payload.contentVersion,
+  };
+  const fetchImpl = async (url, init) => {
+    requests.push({ url, init });
+    assert.equal(init.headers.authorization, `Bearer ${token}`);
+    if (url.endsWith('/api/ingestion/weekly-drafts')) {
+      const ingestionCalls = requests
+        .filter(request => request.url.endsWith('/api/ingestion/weekly-drafts')).length;
+      return Response.json({
+        ...draftResult,
+        created: ingestionCalls === 1,
+        idempotent: ingestionCalls !== 1,
+      }, { status: ingestionCalls === 1 ? 201 : 200 });
+    }
+    return Response.json({ error: 'Authentication required' }, { status: 401 });
+  };
+
+  assert.deepEqual(await runWeeklyIngestionSmoke({
+    adminUrl: 'https://admin.oknotika.ru',
+    payloadFile,
+    tokenFile,
+    fetchImpl,
+  }), {
+    status: 'pass',
+    initial: 'draft-created',
+    retry: 'idempotent',
+    editorialCapabilities: 'denied',
+  });
+  assert.equal(requests.length, 4);
+  assert.equal(requests[0].init.body, requests[1].init.body);
+  assert.deepEqual(JSON.parse(requests[0].init.body), payload);
+  assert.equal(requests[2].url, 'https://admin.oknotika.ru/api/articles');
+  assert.equal(requests[3].url, 'https://admin.oknotika.ru/api/releases/rollback');
 });
 
 test('admin ingress isolates large uploads and caps their global concurrency', () => {

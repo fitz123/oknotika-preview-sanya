@@ -9,6 +9,8 @@
 3. Запустить `npm run bootstrap-editor` через transient systemd unit с теми же environment и encrypted credentials, как показано в `deploy/README_ZHENYA.md`. Команда создаёт server-side `state`, `nonce`, browser binding и PKCE S256 verifier, выдаёт одноразовый authorization URL, принимает полный callback URL через интерактивный prompt, обменивает code и проверяет discovery, подпись, `iss`, `aud`, `exp`, `iat`, `nonce`, exact redirect и signing algorithm.
 4. После успешной проверки команда показывает `sub` и SHA-256 fingerprint только в локальном root terminal. Женя сверяет identity с Саней по отдельному согласованному каналу и вводит требуемую строку `ENROLL-<fingerprint>`. Скрипт сам записывает проверенную пару в SQLite; subject не попадает в shell history.
 5. В release evidence сохраняют только timestamp, approvers и fingerprint. Callback URL, authorization code, ID token, client secret и subject не сохраняют и не пересылают.
+6. После включения admin vhost Саня входит в редактор «Новости» и проверяет состояние `Черновик`, preview и ручной publish без публикации тестового материала. Telegram URL должен быть ровно `https://t.me/oknotika`; YouTube/VK остаются пустыми до получения точных адресов и не должны создавать пустые публичные ссылки.
+7. Только после verified enrollment Женя запускает draft-only smoke из `deploy/README_ZHENYA.md`: weekly ingestion требует enabled editor-владельца, но его bearer token не является editor session и не получает preview/publish/withdraw/restore/rollback authority.
 
 Bootstrap откажется работать, если configured editor уже существует. Обычный `/auth/callback` также не может обойти allowlist: он создаёт сессию только для заранее enrolled пары.
 

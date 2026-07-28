@@ -32,6 +32,9 @@ SECRET_PATTERNS = {
     "GitHub token": re.compile(rb"\bgh[ps]_[A-Za-z0-9]{30,}\b"),
     "AWS access key": re.compile(rb"\bAKIA[0-9A-Z]{16}\b"),
     "assigned OIDC secret": re.compile(rb"TELEGRAM_OIDC_CLIENT_SECRET\s*=\s*[^\s<#${][^\r\n]*"),
+    "assigned weekly ingestion token": re.compile(
+        rb"OKNOTIKA_WEEKLY_INGEST_TOKEN\s*=\s*[^\s<#${][^\r\n]*"
+    ),
     "assigned restic password": re.compile(rb"RESTIC_PASSWORD\s*=\s*[^\s<#${][^\r\n]*"),
 }
 REQUIRED_PATHS = {
@@ -41,7 +44,9 @@ REQUIRED_PATHS = {
     "RELEASE_MANIFEST.json",
     "index.html",
     "admin-app/package-lock.json",
+    "docs/WEEKLY_INGESTION.md",
     "deploy/README_ZHENYA.md",
+    "deploy/scripts/smoke-weekly-ingestion.mjs",
     "deploy/systemd/oknotika-admin.service",
 }
 

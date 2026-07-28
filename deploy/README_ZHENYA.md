@@ -1,6 +1,6 @@
 # Развёртывание ОКНОТИКИ для Жени
 
-Этот пакет разворачивает статический публичный сайт и отдельный закрытый редактор. Публичный nginx не зависит от доступности Node.js: `/articles/` читается из одного immutable release через symlink `active`. В репозитории и release ZIP нет production credentials, Telegram subject, SQLite, uploads, previews или restic password.
+Этот пакет разворачивает статический публичный сайт с разделом «Новости» и отдельный закрытый редактор «Дайджеста недели». Публичный nginx не зависит от доступности Node.js: `/articles/` читается из одного immutable release через symlink `active`. В репозитории и release ZIP нет production credentials, Telegram subject, SQLite, uploads, previews, Tuesday payloads или restic password.
 
 ## Зафиксированный runtime
 
@@ -76,6 +76,23 @@ Telegram-сессию и принимается только на draft-only end
 значение как собственный encrypted systemd credential и собрать Authorization
 header только в памяти. Контракт, version/conflict rule, rotation и запрет
 секрета в argv/env/log описаны в `docs/WEEKLY_INGESTION.md`.
+
+## Tuesday ingestion и draft-only smoke
+
+Tuesday research unit запускается в 12:00 MSK после генерации presenter PDF. Он передаёт тот же проверенный пакет в `POST /api/ingestion/weekly-drafts`, но не получает Telegram-сессию и не может публиковать. В пятницу к 18:00 MSK Саня входит через Telegram, проверяет источники и preview, при необходимости редактирует черновик и сам нажимает publish.
+
+До первого live smoke должны существовать: enrolled editor Сани, зарегистрированный private cover asset из weekly package, encrypted `weekly-ingest-token` одновременно у admin service и Tuesday caller, а также закрытый JSON payload по контракту `docs/WEEKLY_INGESTION.md`. Payload, cover и response body не сохранять в release evidence или journal.
+
+Из Tuesday research unit, где `LoadCredentialEncrypted=weekly-ingest-token` уже задаёт `CREDENTIALS_DIRECTORY`, выполнить:
+
+```bash
+/opt/node-v24.18.0/bin/node \
+  /opt/oknotika-admin/current/deploy/scripts/smoke-weekly-ingestion.mjs \
+  --admin-url https://admin.oknotika.ru \
+  --payload-file /private/path/to/generated-weekly-payload.json
+```
+
+Скрипт читает token только из credential file, отправляет payload и его identical retry, требует idempotent результат и проверяет, что bearer credential получает HTTP 401 на listing и operational rollback. В stdout попадает только безопасный pass summary без token, payload, article/revision identifiers или response body. После pass Саня должен увидеть материал как `Черновик` в «Новости», а публичные `/articles/` и `/articles/latest.json` не должны измениться до его ручной публикации.
 
 ## nginx
 
@@ -172,6 +189,7 @@ systemd-run --pty --wait --collect --unit=oknotika-bootstrap-editor \
 
 4. Открыть выданный one-time authorization URL в браузере Сани. После redirect вставить полный callback URL только в prompt, не в shell command/history. Скрипт выполняет code+PKCE exchange и полную проверку ID token, затем показывает локально verified `sub`/fingerprint. Сверить identity с Саней отдельным каналом и ввести `ENROLL-<fingerprint>`.
 5. Сохранить в evidence только timestamp, approvers и fingerprint, не callback/code/token/subject. Процедура подробно описана в `admin-app/ENROLLMENT.md`.
+6. После включения admin vhost Саня входит в «Новости», проверяет Telegram `https://t.me/oknotika`, оставляет YouTube/VK пустыми до получения точных URL и подтверждает, что незаданные площадки не показываются публично. Затем выполнить draft-only ingestion smoke из предыдущего раздела.
 
 Удаление доступа: остановить admin, сделать verified backup, выполнить `npm run disable-editor -- --database /var/lib/oknotika-admin/db/admin.sqlite`, запустить service и убедиться, что старые sessions отозваны и вход запрещён. Для нового subject требуется reviewed maintenance change; автоматической замены editor/RBAC нет.
 
@@ -201,13 +219,13 @@ sudo systemd-run --pty --wait --collect --unit=oknotika-bootstrap-content \
 При подозрении на компрометацию:
 
 1. `systemctl stop oknotika-admin.service` и отключить admin vhost symlink; после `nginx -t` reload nginx.
-2. Публичный vhost и `article-releases/active` не переключать: сайт и текущий «Факт недели» продолжают работать статически.
+2. Публичный vhost и `article-releases/active` не переключать: сайт и текущие «Новости» продолжают работать статически.
 3. Сохранить journal/audit evidence в защищённое хранилище, отозвать Telegram credentials, отключить editor и его sessions.
 4. Сделать forensic copy, восстановить доверенный application release и DB/uploads из проверенного snapshot, затем повторить enrollment и все security gates.
 
 ## Раздельные rollback procedures
 
-Content rollback: в закрытом редакторе выбрать старую immutable редакцию и вернуть её как новый draft, проверить preview и опубликовать. Для operational rollback всей рубрики выбрать предыдущий completed article release; publisher атомарно переключит `article-releases/active` и запишет audit event. Это не меняет application или marketing release.
+Content rollback: в закрытом редакторе выбрать старую immutable редакцию и вернуть её как новый draft, проверить preview и опубликовать. Operational rollback всей рубрики доступен только через защищённую operator capability и намеренно убран из ежедневного экрана Сани: оператор выбирает предыдущий completed article release, после чего publisher атомарно переключает `article-releases/active` и пишет audit event. Это не меняет application или marketing release.
 
 Marketing rollback: выбрать предыдущий `/srv/oknotika/releases/<sha>`, проверить его checksum, создать рядом новый относительный symlink и атомарно выполнить `mv -T` в `/srv/oknotika/current`. Не трогать `/articles/`, DB или admin service; затем проверить главную и продуктовые страницы.
 
@@ -228,14 +246,18 @@ npm run build
 npm run render:fixture
 ```
 
-Обязательные deferred production gates; не отмечать их выполненными в credential-free package:
+Обязательные deferred production gates принадлежат Жене; credential-free package не является доказательством их выполнения:
 
-- [ ] создать Telegram Web Login application и зарегистрировать exact redirect URI;
-- [ ] загрузить OIDC credentials и verified allowlisted subject через systemd credentials/enrollment;
-- [ ] выполнить реальный Telegram login/logout/revocation rehearsal;
-- [ ] выполнить `nginx -t`, `systemd-analyze verify` и live smoke test на Linux host;
-- [ ] настроить реальный encrypted off-host restic repository и выполнить production restore drill;
-- [ ] переключать production symlinks только после явного разрешения на deployment.
+- [ ] DNS/TLS: направить `oknotika.ru` и `admin.oknotika.ru` на production, выпустить валидные сертификаты и зарегистрировать единственный callback `https://admin.oknotika.ru/auth/callback`; admin vhost не открывать раньше.
+- [ ] Pinned runtime: установить проверенный Node.js `24.18.0`, подтвердить bundled SQLite `3.53.1`, lockfile SHA-256 из `deploy/release-manifest.json` и выполнить `preflight.sh`.
+- [ ] Encrypted credentials: загрузить отдельные OIDC client ID/secret, общий для admin/Tuesday caller `weekly-ingest-token`, off-host `restic-repository` и `restic-password` через `LoadCredentialEncrypted`; прямых secret values в env, argv и evidence быть не должно.
+- [ ] Enrollment Сани: выполнить verified PKCE bootstrap из `admin-app/ENROLLMENT.md`, независимо сверить identity и сохранить только fingerprint/approvers/timestamp.
+- [ ] Linux config: выполнить `nginx -t` и все четыре `systemd-analyze verify`, затем проверить enabled/active units, file ownership/modes и journal без credentials.
+- [ ] Live auth: пройти реальный Telegram login, logout, replay rejection, non-allowlisted rejection, session revocation и credential rotation по `release-evidence/qa/PRODUCTION_OIDC_REHEARSAL.md`.
+- [ ] Weekly ingestion: из credential-scoped Tuesday unit выполнить `smoke-weekly-ingestion.mjs` с реальным private payload, подтвердить identical retry, draft-only статус в «Новости» и отсутствие публичного изменения.
+- [ ] Public smoke: выполнить `smoke-test.sh` на двух canonical HTTPS origins; после первого withdrawal повторить его с HTTP 410 path.
+- [ ] Restore: настроить реальный encrypted off-host restic repository, сделать backup и isolated restore drill, проверить SQLite/releases/active symlink и уложиться в RPO 24 часа / RTO 2 часа.
+- [ ] Activation: переключать production symlinks и включать vhosts только после явного разрешения на deployment; записать pass/fail gates и rollback decision вне ZIP без private identifiers.
 
 Live gate после включения TLS/vhosts:
 

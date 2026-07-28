@@ -37,6 +37,27 @@ def main() -> None:
         r"3\.\d+\.\d+", runtime.get("sqliteVersion", "")
     ):
         fail("bundled SQLite provider/version must be pinned")
+    editorial = manifest.get("editorial", {})
+    if editorial.get("publicSection") != {
+        "name": "Новости",
+        "path": "/articles/",
+        "weeklyMaterialLabel": "Дайджест недели",
+    }:
+        fail("weekly news public section metadata is stale")
+    ingestion = editorial.get("weeklyIngestion", {})
+    if ingestion.get("path") != "/api/ingestion/weekly-drafts" \
+            or ingestion.get("maximumBodyBytes") != 128 * 1024 \
+            or ingestion.get("credential") != "weekly-ingest-token" \
+            or ingestion.get("authority") != "create-or-update-private-weekly-draft-only":
+        fail("weekly ingestion deployment contract is stale")
+    credentials = manifest.get("credentials", {})
+    if credentials.get("provider") != "systemd LoadCredentialEncrypted" \
+            or credentials.get("environmentValuesForbidden") is not True \
+            or "weekly-ingest-token" not in credentials.get("weeklyCaller", []):
+        fail("encrypted weekly caller credential contract is missing")
+    if manifest.get("packageBoundaries", {}).get("marketing") \
+            != "deploy/scripts/install-marketing.sh public_paths allowlist only":
+        fail("marketing/technical package boundary is missing")
 
     lock_path = root / "admin-app/package-lock.json"
     lock_hash = hashlib.sha256(lock_path.read_bytes()).hexdigest()
@@ -149,11 +170,26 @@ def main() -> None:
         "duplicate migration version",
         "fingerprint.digest('hex')",
     )
-    require_text(
+    install_marketing = require_text(
         deploy / "scripts/install-marketing.sh",
         "public_paths=(",
         "releases/$release_sha",
         "mv -Tf",
+    )
+    public_paths = re.search(r"public_paths=\((.*?)\)", install_marketing, re.DOTALL)
+    if not public_paths:
+        fail("marketing public path allowlist is unreadable")
+    for forbidden_path in ("admin-app", "deploy", "docs", "release-evidence", "tests"):
+        if re.search(rf"(?:^|\s){re.escape(forbidden_path)}(?:\s|$)", public_paths.group(1)):
+            fail(f"technical path leaked into marketing allowlist: {forbidden_path}")
+
+    require_text(
+        deploy / "scripts/smoke-weekly-ingestion.mjs",
+        "CREDENTIALS_DIRECTORY",
+        "/api/ingestion/weekly-drafts",
+        "weekly ingestion retry is not idempotent",
+        "/api/releases/rollback",
+        "editorialCapabilities: 'denied'",
     )
 
     scripts = sorted((deploy / "scripts").glob("*.sh"))
@@ -187,6 +223,12 @@ def main() -> None:
         "--property=User=oknotika-admin --property=Group=www-data --property=UMask=0027",
         "run bootstrap-content",
         "install-marketing.sh",
+        "Tuesday ingestion и draft-only smoke",
+        "smoke-weekly-ingestion.mjs",
+        "DNS/TLS",
+        "Pinned runtime",
+        "Enrollment Сани",
+        "Weekly ingestion",
     )
     print(f"deploy package check passed: {len(scripts)} shell scripts, Node {runtime['nodeVersion']}")
 
