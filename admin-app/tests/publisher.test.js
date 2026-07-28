@@ -60,6 +60,43 @@ for (const boundary of BOUNDARIES) {
   });
 }
 
+for (const boundary of BOUNDARIES) {
+  test(`social-link failure at ${boundary} preserves or reconciles one public configuration`, async (t) => {
+    const harness = createHarness(t);
+    const releasesRoot = resolve(harness.root, 'social-link-failures');
+    const publisher = createPublisher(harness.db, {
+      releasesRoot,
+      publicOrigin: 'https://oknotika.ru',
+      clock: () => new Date('2026-07-13T12:00:00.000Z'),
+    });
+    const proposed = harness.service.prepareSocialLinks({
+      telegramUrl: 'https://t.me/oknotika',
+      youtubeUrl: 'https://youtube.com/@oknotika',
+      vkUrl: 'https://vk.com/oknotika',
+    }, harness.editorId);
+
+    await assert.rejects(publisher.publish({
+      editorId: harness.editorId,
+      transition: { type: 'social_links', socialLinks: proposed },
+      inject: async (current) => {
+        if (current === boundary) throw new Error(`injected ${boundary}`);
+      },
+    }), new RegExp(`injected ${boundary}`));
+
+    const switched = ['after-active-switch', 'before-db-finalize', 'after-db-finalize'].includes(boundary);
+    assert.deepEqual(harness.service.getSocialLinks(), {
+      telegramUrl: 'https://t.me/oknotika',
+      youtubeUrl: switched ? 'https://youtube.com/@oknotika' : null,
+      vkUrl: switched ? 'https://vk.com/oknotika' : null,
+      updatedAt: switched ? '2026-07-13T12:00:00.000Z' : '1970-01-01T00:00:00.000Z',
+    });
+    assert.equal(
+      harness.db.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE event_type = 'social_links.updated'").get().count,
+      switched ? 1 : 0,
+    );
+  });
+}
+
 test('publisher switches one symlink atomically and operational rollback restores a whole release', async (t) => {
   let tick = 0;
   const harness = createHarness(t, {
@@ -88,6 +125,49 @@ test('publisher switches one symlink atomically and operational rollback restore
   );
   const event = harness.db.prepare("SELECT details_json FROM audit_events WHERE event_type = 'release.rolled_back'").get();
   assert.equal(JSON.parse(event.details_json).previous, second.releaseId);
+});
+
+test('rollback restores release social links and unrelated publication keeps them restored', async (t) => {
+  let tick = 0;
+  const harness = createHarness(t, {
+    clock: () => new Date(Date.parse('2026-07-13T12:00:00.000Z') + tick++ * 1000),
+  });
+  const publisher = createPublisher(harness.db, {
+    releasesRoot: resolve(harness.root, 'social-link-rollback'),
+    publicOrigin: 'https://oknotika.ru',
+    clock: () => new Date(Date.parse('2026-07-14T12:00:00.000Z') + tick++ * 1000),
+  });
+  const weekly = harness.service.ingestWeeklyDraft(weeklyIngestionInput(harness.coverAssetId));
+  const first = await publisher.publish({
+    editorId: harness.editorId,
+    transition: publication(weekly),
+  });
+  const proposed = harness.service.prepareSocialLinks({
+    telegramUrl: 'https://t.me/oknotika',
+    youtubeUrl: 'https://youtube.com/@oknotika',
+    vkUrl: 'https://vk.com/oknotika',
+  }, harness.editorId);
+  const second = await publisher.publish({
+    editorId: harness.editorId,
+    transition: { type: 'social_links', socialLinks: proposed },
+  });
+  assert.equal(second.socialLinks.youtubeUrl, 'https://youtube.com/@oknotika');
+
+  await publisher.rollback(first.releaseId, { editorId: harness.editorId });
+  assert.equal(harness.service.getSocialLinks().youtubeUrl, null);
+  assert.equal(harness.service.getSocialLinks().vkUrl, null);
+
+  const unrelated = harness.service.createArticle(articleInput(harness.coverAssetId, {
+    title: 'Новая публикация после rollback',
+    publicationDate: '2026-08-01',
+  }), harness.editorId);
+  const afterRollback = await publisher.publish({
+    editorId: harness.editorId,
+    transition: publication(unrelated),
+  });
+  assert.deepEqual(afterRollback.socialLinks, first.socialLinks);
+  assert.equal(harness.service.getSocialLinks().youtubeUrl, null);
+  assert.equal(harness.service.getSocialLinks().vkUrl, null);
 });
 
 test('publication and withdrawal permanently block weekly machine overwrite across rollback', async (t) => {

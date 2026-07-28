@@ -302,33 +302,9 @@ export function createContentService(db, { clock = () => new Date() } = {}) {
       return readSocialLinks(db);
     },
 
-    configureSocialLinks(input, editorId) {
+    prepareSocialLinks(input, editorId) {
       assertEditor(db, editorId);
-      const links = validateSocialLinks(input);
-      const timestamp = now(clock);
-      return transaction(db, () => {
-        db.prepare(`
-          UPDATE site_social_links
-          SET telegram_url = ?, youtube_url = ?, vk_url = ?, updated_by = ?, updated_at = ?
-          WHERE singleton = 1
-        `).run(
-          links.telegramUrl,
-          links.youtubeUrl,
-          links.vkUrl,
-          editorId,
-          timestamp,
-        );
-        insertAudit(db, {
-          type: 'social_links.updated',
-          editorId,
-          details: {
-            telegramConfigured: true,
-            youtubeConfigured: links.youtubeUrl !== null,
-            vkConfigured: links.vkUrl !== null,
-          },
-        }, clock);
-        return readSocialLinks(db);
-      });
+      return validateSocialLinks(input);
     },
 
     getArticle(articleId) {

@@ -50,9 +50,12 @@ export function createAdminActions({
 
   async function configureSocialLinks(input, editorId, confirmation) {
     requireConfirmation(confirmation, 'SOCIAL_LINKS');
-    const links = contentService.configureSocialLinks(input, editorId);
-    const manifest = await publisher.publish({ editorId, transition: null });
-    return { ...links, releaseId: manifest.releaseId };
+    const socialLinks = contentService.prepareSocialLinks(input, editorId);
+    const manifest = await publisher.publish({
+      editorId,
+      transition: { type: 'social_links', socialLinks },
+    });
+    return { ...contentService.getSocialLinks(), releaseId: manifest.releaseId };
   }
 
   function reviseDraft(articleId, input, editorId, expectedRevisionId) {

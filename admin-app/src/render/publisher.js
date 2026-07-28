@@ -14,7 +14,14 @@ import {
 } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { transaction } from '../content/database.js';
-import { loadPublicSnapshot, loadRevisionSnapshot, renderRelease, validateRelease } from './renderer.js';
+import {
+  loadPublicSnapshot,
+  loadRevisionSnapshot,
+  loadSocialLinks,
+  renderRelease,
+  validateRelease,
+} from './renderer.js';
+import { validateSocialLinks } from '../content/validation.js';
 
 export function createPublisher(db, {
   releasesRoot,
@@ -47,7 +54,7 @@ export function createPublisher(db, {
       const generatedAt = clock().toISOString();
       const prospective = buildProspectiveSnapshot(db, transition);
       const snapshot = prospective.snapshot;
-      const releaseId = createReleaseId(generatedAt, snapshot);
+      const releaseId = createReleaseId(generatedAt, snapshot, prospective.socialLinks);
       stage = resolve(stagingRoot, `${releaseId}-${randomUUID()}`);
       const final = resolve(immutableRoot, releaseId);
       const previous = db.prepare('SELECT active_release_id FROM site_state WHERE singleton = 1').get()?.active_release_id ?? null;
@@ -65,6 +72,7 @@ export function createPublisher(db, {
         releaseId,
         generatedAt,
         transition: prospective.transition,
+        socialLinks: prospective.socialLinks,
       });
       validateRelease(stage);
       await inject('after-stage-render');
@@ -154,6 +162,7 @@ export function createPublisher(db, {
       `).run(manifest.releaseId, JSON.stringify(manifest), current, manifest.generatedAt, timestamp);
       recordReleaseArticles(db, manifest);
       synchronizePublicState(db, manifest, timestamp);
+      synchronizeSocialLinks(db, manifest, timestamp);
       db.prepare('UPDATE site_state SET active_release_id = ?, updated_at = ? WHERE singleton = 1')
         .run(manifest.releaseId, timestamp);
       db.prepare(`
@@ -183,6 +192,7 @@ export function createPublisher(db, {
       const timestamp = clock().toISOString();
       transaction(db, () => {
         synchronizePublicState(db, manifest, timestamp);
+        synchronizeSocialLinks(db, manifest, timestamp);
         db.prepare('UPDATE site_state SET active_release_id = ?, updated_at = ? WHERE singleton = 1')
           .run(targetReleaseId, timestamp);
         db.prepare(`
@@ -232,6 +242,7 @@ function finalizeRelease(db, manifest, previous, timestamp, editorId) {
     `).run(JSON.stringify(manifest), previous, timestamp, manifest.releaseId);
     recordReleaseArticles(db, manifest);
     synchronizePublicState(db, manifest, timestamp);
+    synchronizeSocialLinks(db, manifest, timestamp, editorId);
     db.prepare('UPDATE site_state SET active_release_id = ?, updated_at = ? WHERE singleton = 1')
       .run(manifest.releaseId, timestamp);
     db.prepare(`
@@ -242,6 +253,8 @@ function finalizeRelease(db, manifest, previous, timestamp, editorId) {
       insertTransitionAudit(db, editorId, 'article.published', manifest.transition, manifest.releaseId, timestamp);
     } else if (manifest.transition?.type === 'withdraw') {
       insertTransitionAudit(db, editorId, 'article.withdrawn', manifest.transition, manifest.releaseId, timestamp);
+    } else if (manifest.transition?.type === 'social_links') {
+      insertSocialTransitionAudit(db, editorId, manifest, timestamp);
     }
   });
 }
@@ -256,6 +269,14 @@ function insertTransitionAudit(db, editorId, type, transition, releaseId, timest
 
 function reconcileTransitionAudit(db, manifest, timestamp) {
   const transition = manifest.transition;
+  if (transition?.type === 'social_links') {
+    const existing = db.prepare(`
+      SELECT 1 FROM audit_events
+      WHERE event_type = 'social_links.updated' AND release_id = ?
+    `).get(manifest.releaseId);
+    if (!existing) insertSocialTransitionAudit(db, null, manifest, timestamp);
+    return;
+  }
   if (!transition || !['publish', 'withdraw'].includes(transition.type)) return;
   const type = transition.type === 'publish' ? 'article.published' : 'article.withdrawn';
   const existing = db.prepare(`
@@ -263,6 +284,17 @@ function reconcileTransitionAudit(db, manifest, timestamp) {
     WHERE event_type = ? AND article_id = ? AND revision_id = ? AND release_id = ?
   `).get(type, transition.articleId, transition.revisionId, manifest.releaseId);
   if (!existing) insertTransitionAudit(db, null, type, transition, manifest.releaseId, timestamp);
+}
+
+function insertSocialTransitionAudit(db, editorId, manifest, timestamp) {
+  db.prepare(`
+    INSERT INTO audit_events (editor_id, event_type, release_id, details_json, created_at)
+    VALUES (?, 'social_links.updated', ?, ?, ?)
+  `).run(editorId, manifest.releaseId, JSON.stringify({
+    telegramConfigured: true,
+    youtubeConfigured: manifest.socialLinks.youtubeUrl !== null,
+    vkConfigured: manifest.socialLinks.vkUrl !== null,
+  }), timestamp);
 }
 
 function synchronizePublicState(db, manifest, timestamp) {
@@ -291,9 +323,37 @@ function synchronizePublicState(db, manifest, timestamp) {
   }
 }
 
+function synchronizeSocialLinks(db, manifest, timestamp, editorId = null) {
+  if (!manifest.socialLinks) return;
+  const socialLinks = validateSocialLinks(manifest.socialLinks);
+  const current = loadSocialLinks(db);
+  if (JSON.stringify(current) === JSON.stringify(socialLinks)) return;
+  const result = db.prepare(`
+    UPDATE site_social_links
+    SET telegram_url = ?, youtube_url = ?, vk_url = ?, updated_by = ?, updated_at = ?
+    WHERE singleton = 1
+  `).run(
+    socialLinks.telegramUrl,
+    socialLinks.youtubeUrl,
+    socialLinks.vkUrl,
+    editorId,
+    timestamp,
+  );
+  if (result.changes !== 1) throw new Error('Social-link state is missing');
+}
+
 function buildProspectiveSnapshot(db, transition) {
-  const snapshot = loadPublicSnapshot(db);
-  if (transition === null) return { snapshot, transition: null };
+  const socialLinks = transition?.type === 'social_links'
+    ? validateSocialLinks(transition.socialLinks)
+    : loadSocialLinks(db);
+  const snapshot = loadPublicSnapshot(db).map((article) => ({
+    ...article,
+    social_links: socialLinks,
+  }));
+  if (transition === null) return { snapshot, transition: null, socialLinks };
+  if (transition?.type === 'social_links') {
+    return { snapshot, transition: { type: 'social_links' }, socialLinks };
+  }
   if (!transition || !['publish', 'withdraw'].includes(transition.type)) {
     throw new TypeError('A valid publication transition is required');
   }
@@ -325,7 +385,7 @@ function buildProspectiveSnapshot(db, transition) {
   filtered.push(row);
   filtered.sort((left, right) => right.publication_at.localeCompare(left.publication_at)
     || Number(right.article_id) - Number(left.article_id));
-  return { snapshot: filtered, transition: normalized };
+  return { snapshot: filtered, transition: normalized, socialLinks };
 }
 
 function positiveInteger(value, name) {
@@ -357,9 +417,13 @@ function switchActive(releasesRoot, activePath, target) {
   }
 }
 
-function createReleaseId(generatedAt, snapshot) {
+function createReleaseId(generatedAt, snapshot, socialLinks) {
   const timestamp = generatedAt.replace(/[-:.TZ]/g, '').slice(0, 14);
-  const digest = createHash('sha256').update(JSON.stringify(snapshot)).update(generatedAt).digest('hex').slice(0, 16);
+  const digest = createHash('sha256')
+    .update(JSON.stringify({ snapshot, socialLinks }))
+    .update(generatedAt)
+    .digest('hex')
+    .slice(0, 16);
   return `${timestamp}-${digest}`;
 }
 

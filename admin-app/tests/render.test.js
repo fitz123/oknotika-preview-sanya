@@ -12,10 +12,11 @@ import {
   weeklyIngestionInput,
 } from './helpers.js';
 
-function render(harness, name, snapshot) {
+function render(harness, name, snapshot, socialLinks = null) {
   const outputDirectory = resolve(harness.root, name);
   const manifest = renderRelease({
     snapshot,
+    socialLinks,
     outputDirectory,
     publicOrigin: 'https://oknotika.ru',
     releaseId: name,
@@ -119,7 +120,7 @@ test('weekly digests render three-to-five items, verified sources and only confi
       ].join('\n'),
     },
   }));
-  harness.service.configureSocialLinks({
+  const socialLinks = harness.service.prepareSocialLinks({
     telegramUrl: 'https://t.me/oknotika',
     youtubeUrl: 'https://youtube.com/@oknotika',
     vkUrl: null,
@@ -129,7 +130,7 @@ test('weekly digests render three-to-five items, verified sources and only confi
     loadRevisionSnapshot(harness.db, threeItems.articleId, threeItems.revisionId, 'published'),
     loadRevisionSnapshot(harness.db, fiveItems.articleId, fiveItems.revisionId, 'published'),
   ];
-  const { outputDirectory } = render(harness, 'weekly-digests', snapshot);
+  const { outputDirectory } = render(harness, 'weekly-digests', snapshot, socialLinks);
   const threeItemDetail = readFileSync(
     resolve(outputDirectory, `articles/${threeItems.slug}/index.html`),
     'utf8',

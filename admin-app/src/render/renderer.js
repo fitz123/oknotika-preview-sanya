@@ -72,6 +72,7 @@ export function loadPreviewSnapshot(db, revisionId) {
 export function renderRelease({
   db,
   snapshot = null,
+  socialLinks = null,
   outputDirectory,
   publicOrigin,
   releaseId,
@@ -80,8 +81,12 @@ export function renderRelease({
 }) {
   const origin = normalizeOrigin(publicOrigin);
   if (!releaseId || !/^[a-zA-Z0-9._-]+$/.test(releaseId)) throw new TypeError('A safe releaseId is required');
-  const articles = (snapshot ?? loadPublicSnapshot(db))
-    .map((article) => ({ ...article }))
+  const sourceArticles = snapshot ?? loadPublicSnapshot(db);
+  const releaseSocialLinks = validateSocialLinks(
+    socialLinks ?? sourceArticles[0]?.social_links ?? loadSocialLinks(db),
+  );
+  const articles = sourceArticles
+    .map((article) => ({ ...article, social_links: releaseSocialLinks }))
     .sort((left, right) => right.publication_at.localeCompare(left.publication_at)
       || Number(right.article_id) - Number(left.article_id));
   const publicArticles = articles.filter((article) => article.state === 'published');
@@ -131,6 +136,7 @@ export function renderRelease({
     releaseId,
     generatedAt,
     transition,
+    socialLinks: releaseSocialLinks,
     articles: articles.map((article) => ({
       articleId: article.article_id,
       revisionId: article.revision_id,
@@ -225,6 +231,7 @@ export function validateRelease(outputDirectory) {
       throw new Error('Release manifest contains an invalid article slug');
     }
   }
+  if (manifest.schemaVersion >= 3) validateSocialLinks(manifest.socialLinks);
   return manifest;
 }
 
@@ -267,15 +274,7 @@ function hydratePublicRows(db, rows) {
     SELECT url FROM article_revision_sources
     WHERE revision_id = ? ORDER BY position
   `);
-  const social = db.prepare(`
-    SELECT telegram_url, youtube_url, vk_url
-    FROM site_social_links WHERE singleton = 1
-  `).get();
-  const socialLinks = validateSocialLinks({
-    telegramUrl: social.telegram_url,
-    youtubeUrl: social.youtube_url,
-    vkUrl: social.vk_url,
-  });
+  const socialLinks = loadSocialLinks(db);
   return rows.map((row) => {
     const sourceUrls = sourceQuery.all(row.revision_id).map((source) => source.url);
     return {
@@ -285,6 +284,18 @@ function hydratePublicRows(db, rows) {
         : (row.source_url ? [row.source_url] : []),
       social_links: socialLinks,
     };
+  });
+}
+
+export function loadSocialLinks(db) {
+  const social = db.prepare(`
+    SELECT telegram_url, youtube_url, vk_url
+    FROM site_social_links WHERE singleton = 1
+  `).get();
+  return validateSocialLinks({
+    telegramUrl: social.telegram_url,
+    youtubeUrl: social.youtube_url,
+    vkUrl: social.vk_url,
   });
 }
 
@@ -352,7 +363,7 @@ function buildManifest(outputDirectory, base) {
     };
   }
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     ...base,
     files,
   };

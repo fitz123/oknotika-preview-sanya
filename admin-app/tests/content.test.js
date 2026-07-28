@@ -55,21 +55,26 @@ test('multiple source URLs are stored immutably with the legacy first-source col
 });
 
 test('global social links validate platform hosts and retain nullable destinations', (t) => {
-  const { service, editorId } = createHarness(t);
+  const { db, service, editorId } = createHarness(t);
   assert.deepEqual(service.getSocialLinks(), {
     telegramUrl: 'https://t.me/oknotika',
     youtubeUrl: null,
     vkUrl: null,
     updatedAt: '1970-01-01T00:00:00.000Z',
   });
-  const configured = service.configureSocialLinks({
+  const prepared = service.prepareSocialLinks({
     telegramUrl: 'https://t.me/oknotika',
     youtubeUrl: 'https://www.youtube.com/@oknotika',
     vkUrl: 'https://vk.com/oknotika',
   }, editorId);
-  assert.equal(configured.youtubeUrl, 'https://www.youtube.com/@oknotika');
-  assert.equal(configured.vkUrl, 'https://vk.com/oknotika');
-  assert.throws(() => service.configureSocialLinks({
+  assert.equal(prepared.youtubeUrl, 'https://www.youtube.com/@oknotika');
+  assert.equal(prepared.vkUrl, 'https://vk.com/oknotika');
+  assert.equal(service.getSocialLinks().youtubeUrl, null);
+  assert.equal(
+    db.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE event_type = 'social_links.updated'").get().count,
+    0,
+  );
+  assert.throws(() => service.prepareSocialLinks({
     telegramUrl: 'https://evil.example/oknotika',
     youtubeUrl: null,
     vkUrl: null,
@@ -79,7 +84,7 @@ test('global social links validate platform hosts and retain nullable destinatio
     'https://t.me/oknotika/',
     'https://t.me/oknotika?start=redirect',
   ]) {
-    assert.throws(() => service.configureSocialLinks({
+    assert.throws(() => service.prepareSocialLinks({
       telegramUrl,
       youtubeUrl: null,
       vkUrl: null,
@@ -98,6 +103,13 @@ test('weekly editor and ingestion require one ordered list of 3–5 items and ve
     '1. Первая новость.\n2. Вторая новость.',
     '1. Первая.\n2. Вторая.\n3. Третья.\n4. Четвёртая.\n5. Пятая.\n6. Шестая.',
     'Вступление.\n\n1. Первая.\n2. Вторая.\n3. Третья.',
+    '1.\n2.\n3.',
+    [
+      '1. ![Первая](https://example.com/one.png)',
+      '2. ![Вторая](https://example.com/two.png)',
+      '3. ![Третья](https://example.com/three.png)',
+    ].join('\n'),
+    '1. Первая.\n2. ` `\n3. Третья.',
   ]) {
     assert.throws(
       () => service.createArticle(
