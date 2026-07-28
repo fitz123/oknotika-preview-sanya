@@ -39,6 +39,7 @@ test('production configuration pins canonical origins, exact callback and privat
     OKNOTIKA_PUBLIC_ORIGIN: 'https://oknotika.ru',
     TELEGRAM_OIDC_CLIENT_ID: '123456789',
     TELEGRAM_OIDC_CLIENT_SECRET: 'secret',
+    OKNOTIKA_WEEKLY_INGEST_TOKEN: 'weekly-ingestion-token-for-tests-1234567890',
     TELEGRAM_OIDC_REDIRECT_URI: 'https://admin.oknotika.ru/auth/callback',
     TELEGRAM_OIDC_SIGNING_ALG: 'RS256',
     OKNOTIKA_DATABASE_PATH: '/var/lib/oknotika-admin/db/admin.sqlite',
@@ -60,19 +61,41 @@ test('production configuration pins canonical origins, exact callback and privat
   assert.throws(() => loadConfiguration({
     ...env, OKNOTIKA_ARTICLE_RELEASES_ROOT: '/srv/oknotika/current/article-releases',
   }), /outside the public/);
+  assert.throws(() => loadConfiguration({
+    ...env, OKNOTIKA_WEEKLY_INGEST_TOKEN: 'a'.repeat(31),
+  }), /at least 32 bytes/);
+  assert.equal(
+    loadConfiguration({
+      ...env, OKNOTIKA_WEEKLY_INGEST_TOKEN: 'a'.repeat(32),
+    }).weeklyIngestionToken,
+    'a'.repeat(32),
+  );
+  for (const weeklyIngestionToken of [
+    'weekly ingestion token with forbidden whitespace',
+    'weekly,ingestion,token,with,forbidden,commas',
+    'еженедельный-токен-достаточной-длины',
+  ]) {
+    assert.throws(() => loadConfiguration({
+      ...env,
+      OKNOTIKA_WEEKLY_INGEST_TOKEN: weeklyIngestionToken,
+    }), /printable ASCII/);
+  }
 });
 
 test('production configuration reads OIDC secrets from systemd credential files', (t) => {
   const harness = createHarness(t);
   const clientIdFile = `${harness.root}/client-id`;
   const clientSecretFile = `${harness.root}/client-secret`;
+  const ingestionTokenFile = `${harness.root}/weekly-ingest-token`;
   writeFileSync(clientIdFile, '123456789\n', { mode: 0o600 });
   writeFileSync(clientSecretFile, 'credential-secret\n', { mode: 0o600 });
+  writeFileSync(ingestionTokenFile, 'weekly-ingestion-credential-1234567890\n', { mode: 0o600 });
   const config = loadConfiguration({
     OKNOTIKA_ADMIN_ORIGIN: 'https://admin.oknotika.ru',
     OKNOTIKA_PUBLIC_ORIGIN: 'https://oknotika.ru',
     TELEGRAM_OIDC_CLIENT_ID_FILE: clientIdFile,
     TELEGRAM_OIDC_CLIENT_SECRET_FILE: clientSecretFile,
+    OKNOTIKA_WEEKLY_INGEST_TOKEN_FILE: ingestionTokenFile,
     TELEGRAM_OIDC_REDIRECT_URI: 'https://admin.oknotika.ru/auth/callback',
     OKNOTIKA_DATABASE_PATH: `${harness.root}/db/admin.sqlite`,
     OKNOTIKA_UPLOADS_ROOT: `${harness.root}/uploads`,
@@ -82,6 +105,7 @@ test('production configuration reads OIDC secrets from systemd credential files'
   });
   assert.equal(config.clientId, '123456789');
   assert.equal(config.clientSecret, 'credential-secret');
+  assert.equal(config.weeklyIngestionToken, 'weekly-ingestion-credential-1234567890');
   assert.throws(() => loadConfiguration({
     ...configEnvironment(harness.root),
     TELEGRAM_OIDC_CLIENT_ID: 'direct',
@@ -359,6 +383,7 @@ function configEnvironment(root) {
     OKNOTIKA_PUBLIC_ORIGIN: 'https://oknotika.ru',
     TELEGRAM_OIDC_CLIENT_ID: '123456789',
     TELEGRAM_OIDC_CLIENT_SECRET: 'secret',
+    OKNOTIKA_WEEKLY_INGEST_TOKEN: 'weekly-ingestion-token-for-tests-1234567890',
     TELEGRAM_OIDC_REDIRECT_URI: 'https://admin.oknotika.ru/auth/callback',
     OKNOTIKA_DATABASE_PATH: `${root}/db/admin.sqlite`,
     OKNOTIKA_UPLOADS_ROOT: `${root}/uploads`,

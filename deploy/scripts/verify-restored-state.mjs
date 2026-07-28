@@ -45,6 +45,14 @@ if (activeTarget !== null) {
     if (!isDeepStrictEqual(storedManifest, manifest)) {
       throw new Error('Restored SQLite release manifest differs from the active manifest');
     }
+    const socialLinks = stateDb.prepare(`
+      SELECT telegram_url, youtube_url, vk_url, futuchat_url
+      FROM site_social_links WHERE singleton = 1
+    `).get();
+    if (!socialLinks
+        || !isDeepStrictEqual({ ...socialLinks }, manifestSocialLinks(manifest))) {
+      throw new Error('Restored social-link state differs from the active manifest');
+    }
     const releaseArticleCount = stateDb.prepare(
       'SELECT COUNT(*) AS count FROM release_articles WHERE release_id = ?',
     ).get(activeReleaseId).count;
@@ -98,6 +106,31 @@ function verifyManifest(manifestPath) {
     if (digest !== metadata.sha256) throw new Error(`Release hash mismatch: ${file}`);
   }
   return manifest;
+}
+
+function manifestSocialLinks(manifest) {
+  if (Number(manifest.schemaVersion) < 3) {
+    return {
+      telegram_url: 'https://t.me/oknotika',
+      youtube_url: null,
+      vk_url: null,
+      futuchat_url: null,
+    };
+  }
+  const links = manifest.socialLinks;
+  const fields = Number(manifest.schemaVersion) >= 4
+    ? ['telegramUrl', 'youtubeUrl', 'vkUrl', 'futuchatUrl']
+    : ['telegramUrl', 'youtubeUrl', 'vkUrl'];
+  if (!links || typeof links !== 'object' || Array.isArray(links)
+      || fields.some(field => !Object.hasOwn(links, field))) {
+    throw new Error('Restored active manifest social-link contract is invalid');
+  }
+  return {
+    telegram_url: links.telegramUrl,
+    youtube_url: links.youtubeUrl,
+    vk_url: links.vkUrl,
+    futuchat_url: Number(manifest.schemaVersion) >= 4 ? links.futuchatUrl : null,
+  };
 }
 
 function readActiveTarget(path) {

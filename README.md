@@ -1,10 +1,10 @@
 # ОКНОТИКА — финальный beta-релиз сайта
 
-Версия `v2.28.0-beta.1` сохраняет утверждённую композицию V2.27 и добавляет согласованные изменения: шесть новых портретов в восьми карточках команды, роль Евгения Жалнина «Операционный директор», отдельный фасадный блок Schüco и закрытый Telegram OIDC-редактор рубрики «Факт недели».
+Версия `v2.28.0-beta.1` сохраняет утверждённую композицию V2.27 и добавляет согласованные изменения: шесть новых портретов в восьми карточках команды, роль Евгения Жалнина «Операционный директор», отдельный фасадный блок Schüco и закрытый Telegram OIDC-редактор раздела «Новости» с еженедельным «Дайджестом недели».
 
 Публичный сайт остаётся статическим. Node.js-сервис нужен только авторизованному редактору: он хранит черновики в SQLite, генерирует immutable article release и атомарно переключает symlink. Остановка админки не останавливает сайт и не скрывает уже опубликованные статьи.
 
-Beta-пакет не активирует production. Реальный Telegram login, Linux-проверки nginx/systemd, DNS/TLS и encrypted off-host backup остаются обязательными gates из `deploy/README_ZHENYA.md`.
+Beta-пакет не активирует production. Реальный Telegram login, Tuesday ingestion smoke, Linux-проверки nginx/systemd, DNS/TLS и encrypted off-host backup остаются обязательными gates из `deploy/README_ZHENYA.md`.
 
 ## Состав проекта
 
@@ -29,9 +29,13 @@ python3 -m http.server 8080
 
 После запуска открыть `http://127.0.0.1:8080/`. Статические страницы не требуют npm-зависимостей.
 
-## Content model «Факта недели»
+## Content model «Новости» / «Дайджест недели»
 
-Рубрика фиксирована и не редактируется. У статьи обязательны title, publication date, lead, ограниченный Markdown body, cover и alt; source URL опционален, допускает только `https:` и никогда не загружается сервером. Время хранится в UTC и показывается в `Europe/Moscow`.
+Раздел фиксирован как «Новости», а weekly material помечается «Дайджест недели». У статьи обязательны title, publication date, lead, ограниченный Markdown body из 3–5 редакционных пунктов, cover и alt; список из 1–20 уникальных источников допускает только точные `https:` URL и никогда не загружается сервером. Время хранится в UTC и показывается в `Europe/Moscow`.
+
+Tuesday research run в 12:00 MSK создаёт или обновляет один private draft через отдельный draft-only bearer credential. `issueId` и монотонный `contentVersion` делают retry идемпотентным; ручная правка, публикация или withdrawal блокирует машинную перезапись конфликтом. В пятницу к 18:00 MSK Саня проверяет draft и публикует его только явным Telegram-authenticated действием. Точный contract и encrypted caller path описаны в `docs/WEEKLY_INGESTION.md`.
+
+Финальный CTA использует четыре глобальных validated destinations с точными non-secret defaults: Telegram `https://t.me/oknotika`, YouTube `https://youtube.com/@oknotika`, VK `https://vk.ru/oknotika` и отдельный FUTUCHAT `https://t.me/FUTU_CHAT`. Telegram зафиксирован; остальные три поля можно независимо изменить или очистить в редакторе без code edit. Явно подтверждённое сохранение строит и атомарно активирует новый immutable article release, поэтому уже опубликованные дайджесты обновляются сразу; очищенная optional-площадка публично не рендерится.
 
 Slug создаётся при первом сохранении из title как lowercase ASCII. Collision получает суффикс `-2`, `-3` и далее. После создания slug и публичный URL неизменяемы, даже если title изменён.
 
@@ -51,12 +55,13 @@ SQLite schema находится в `admin-app/migrations/`; renderer и publish
 
 ## Editor flow
 
-1. Редактор входит через Telegram и создаёт статью с обязательными полями и cover.
-2. Сохранение создаёт новый draft/revision; optimistic revision check не даёт затереть параллельную правку.
-3. Preview открывается только в текущей authenticated session по unguessable URL, с `no-store` и `noindex`.
-4. Publish требует явного подтверждения. Publisher сначала получает crash-recoverable single lock, строит один immutable prospective snapshot, рендерит и валидирует staging release, затем атомарно переключает `article-releases/active` и только после switch синхронизирует public state/audit в DB. Ошибка до switch не меняет editorial/public state; startup reconciliation завершает post-switch crash.
-5. Withdraw также требует подтверждения и создаёт новый release с 410 для прежнего URL.
-6. Editorial restore копирует выбранную старую revision в новый draft. Operational rollback отдельно переключает весь active article release. Оба действия пишутся в audit log.
+1. Tuesday ingestion автоматически создаёт private draft weekly issue; его credential не может читать private listing, preview, publish, withdraw, restore или rollback.
+2. Редактор входит через Telegram, проверяет «Дайджест недели» и при необходимости создаёт или редактирует материал с обязательными полями, cover, источниками и social destinations.
+3. Сохранение создаёт новый draft/revision; optimistic revision check не даёт затереть параллельную или машинную правку.
+4. Preview открывается только в текущей authenticated session по unguessable URL, с `no-store` и `noindex`.
+5. Publish требует явного подтверждения. Publisher сначала получает crash-recoverable single lock, строит один immutable prospective snapshot, рендерит и валидирует staging release, затем атомарно переключает `article-releases/active` и только после switch синхронизирует public state/audit в DB. Ошибка до switch не меняет editorial/public state; startup reconciliation завершает post-switch crash.
+6. Withdraw также требует подтверждения и создаёт новый release с 410 для прежнего URL.
+7. Editorial restore копирует выбранную старую revision в новый draft. Operational rollback отдельно переключает весь active article release, остаётся operator-only, отсутствует в editor HTTP API и запускается Женей только через root-controlled `npm run rollback-release`. Оба действия пишутся в audit log.
 
 Главная не переписывается при публикации: `js/latest-fact.js` читает `/articles/latest.json`, сохраняя статический fallback при сетевой ошибке.
 
@@ -74,7 +79,7 @@ npm run build
 npm run render:fixture
 ```
 
-Production-конфигурация обязательна и fail-closed. `admin-app/.env.example` содержит только placeholders; секреты передаются через encrypted systemd credentials. Runtime DB, uploads, previews, sessions и generated releases не должны находиться в Git или публичном document root.
+Production-конфигурация обязательна и fail-closed. `admin-app/.env.example` содержит только non-secret paths/origins; OIDC, weekly-ingestion и backup secrets передаются через encrypted systemd credentials. Runtime DB, uploads, previews, sessions, Tuesday payloads и generated releases не должны находиться в Git или публичном document root.
 
 ## Полная локальная валидация
 
@@ -99,7 +104,7 @@ python3 scripts/check_generated_articles.py var/test-release
 python3 scripts/scan_release_zip.py release/oknotika-final.zip
 ```
 
-Linux/production gates не заменяются локальной macOS-проверкой: перед активацией обязательны `nginx -t`, `systemd-analyze verify`, live smoke test, реальный Telegram login/logout/revocation и restore из реального encrypted off-host restic repository.
+Linux/production gates не заменяются локальной macOS-проверкой: перед активацией обязательны DNS/TLS, pinned runtime, encrypted credentials, enrollment Сани, `nginx -t`, `systemd-analyze verify`, live auth/public/weekly-ingestion smoke и restore из реального encrypted off-host restic repository.
 
 ## Перегенерация портретов и visual evidence
 

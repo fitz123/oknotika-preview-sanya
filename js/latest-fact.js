@@ -8,16 +8,16 @@
     headers: { Accept: 'application/json' },
   })
     .then((response) => {
-      if (!response.ok) throw new Error('Latest fact is unavailable');
+      if (!response.ok) throw new Error('Latest news is unavailable');
       return response.json();
     })
     .then((fact) => {
-      if (!isValidFact(fact)) throw new Error('Latest fact payload is invalid');
+      if (!isValidFact(fact)) throw new Error('Latest news payload is invalid');
       card.querySelector('[data-latest-title]').textContent = fact.title;
       card.querySelector('[data-latest-lead]').textContent = fact.lead;
       const link = card.querySelector('[data-latest-link]');
       link.href = fact.url;
-      link.textContent = 'Открыть факт недели →';
+      link.textContent = 'Открыть новости →';
       card.dataset.latestFactState = 'loaded';
     })
     .catch(() => {
@@ -25,7 +25,7 @@
     });
 
   function isValidFact(fact) {
-    if (!fact || fact.category !== 'Факт недели') return false;
+    if (!fact || !['Новости', 'Факт недели'].includes(fact.category)) return false;
     if (typeof fact.title !== 'string' || fact.title.length < 1 || fact.title.length > 240) return false;
     if (typeof fact.lead !== 'string' || fact.lead.length < 1 || fact.lead.length > 1200) return false;
     try {

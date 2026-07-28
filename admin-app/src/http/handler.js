@@ -9,6 +9,8 @@ import {
   SESSION_COOKIE,
   sessionCookie,
 } from '../auth/sessions.js';
+import { WEEKLY_INGESTION_BODY_MAXIMUM } from '../content/validation.js';
+import { WEEKLY_INGESTION_PATH } from './ingestion-auth.js';
 import { assertMutationRequest, assertSameOriginNavigation, httpError } from './security.js';
 
 const TEMPLATE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../templates/admin');
@@ -18,6 +20,8 @@ export function createAdminHandler({
   oidcService,
   sessionService,
   actions,
+  weeklyIngestion,
+  ingestionAuthenticator,
   previewsRoot,
 } = {}) {
   return async function handle(request) {
@@ -27,6 +31,9 @@ export function createAdminHandler({
 
       if (request.method === 'GET' && url.pathname === '/login') {
         return html(readTemplate('login.html'));
+      }
+      if (request.method === 'GET' && url.pathname === '/admin.css') {
+        return response(readTemplate('admin.css'), 200, 'text/css; charset=utf-8');
       }
       if (request.method === 'GET' && url.pathname === '/auth/start') {
         assertSameOriginNavigation(request, adminOrigin);
@@ -41,6 +48,15 @@ export function createAdminHandler({
           sessionCookie(session.token),
           expireCookie(OIDC_BINDING_COOKIE),
         ]);
+      }
+
+      if (request.method === 'POST' && url.pathname === WEEKLY_INGESTION_PATH) {
+        if (!ingestionAuthenticator?.authenticate(request.headers.get('authorization'))) {
+          throw httpError(401, 'Authentication required');
+        }
+        const body = await readJson(request, WEEKLY_INGESTION_BODY_MAXIMUM);
+        const result = weeklyIngestion.upsertDraft(body);
+        return json(result, result.created ? 201 : 200);
       }
 
       const session = sessionService.authenticate(request.headers.get('cookie'));
@@ -65,9 +81,21 @@ export function createAdminHandler({
       if (request.method === 'GET' && url.pathname === '/api/articles') {
         return json({ articles: actions.listArticles() });
       }
+      if (request.method === 'GET' && url.pathname === '/api/social-links') {
+        return json(actions.getSocialLinks());
+      }
       if (request.method === 'POST' && url.pathname === '/api/articles') {
         const body = await readJson(request);
         return json(actions.createDraft(body, Number(session.editor_id)), 201);
+      }
+      if (request.method === 'POST' && url.pathname === '/api/social-links') {
+        const body = await readJson(request);
+        const { confirmation, ...links } = body;
+        return json(await actions.configureSocialLinks(
+          links,
+          Number(session.editor_id),
+          confirmation,
+        ));
       }
       const reviseMatch = /^\/api\/articles\/(\d+)\/revisions$/.exec(url.pathname);
       if (request.method === 'POST' && reviseMatch) {
@@ -95,11 +123,6 @@ export function createAdminHandler({
         const manifest = await actions.withdraw(
           withdrawMatch[1], body.expectedRevisionId, Number(session.editor_id), body.confirmation,
         );
-        return json({ releaseId: manifest.releaseId });
-      }
-      if (request.method === 'POST' && url.pathname === '/api/releases/rollback') {
-        const body = await readJson(request);
-        const manifest = await actions.rollbackRelease(body.releaseId, Number(session.editor_id), body.confirmation);
         return json({ releaseId: manifest.releaseId });
       }
       const restoreMatch = /^\/api\/articles\/(\d+)\/restore$/.exec(url.pathname);
@@ -143,48 +166,110 @@ export function createAdminHandler({
 function renderDashboard(actions, session) {
   const articles = actions.listArticles();
   const rows = articles.length === 0
-    ? '<tr><td colspan="4">Пока нет черновиков.</td></tr>'
+    ? '<div class="empty-state">Пока нет черновиков. Новый дайджест можно создать в форме выше.</div>'
     : articles.map((article) => `
-      <tr>
-        <td>${escapeHtml(article.title)}</td>
-        <td>${escapeHtml(article.state)}</td>
-        <td>${escapeHtml(article.slug)}</td>
-        <td>
-          <button type="button" data-action="edit" data-id="${article.id}">Редактировать</button>
-          <button type="button" data-action="preview" data-revision="${article.current_revision_id}">Preview</button>
+      <article class="material-card">
+        <div class="material-card__top">
+          <div>
+            <p class="eyebrow">Дайджест недели${article.weekly_issue_id ? ` · ${escapeHtml(article.weekly_issue_id)}` : ''}</p>
+            <h3>${escapeHtml(article.title)}</h3>
+          </div>
+          ${renderState(article)}
+        </div>
+        <p class="material-card__meta">
+          Последнее изменение: <time datetime="${escapeAttribute(article.updated_at)}">${escapeHtml(formatMoscowDateTime(article.updated_at))}</time>
+          · редакция № ${article.revision_number}
+          · ${article.source_urls.length} ${pluralSources(article.source_urls.length)}
+        </p>
+        ${renderPublicStatus(article)}
+        <div class="material-card__actions">
+          <button type="button" class="button button--quiet" data-action="edit" data-id="${article.id}">Редактировать</button>
+          <button type="button" class="button button--quiet" data-action="preview" data-revision="${article.current_revision_id}">Предпросмотр</button>
           ${article.state !== 'published'
-            ? `<button type="button" data-action="publish" data-id="${article.id}" data-revision="${article.current_revision_id}">Опубликовать</button>`
+            ? `<button type="button" class="button button--primary" data-action="publish" data-id="${article.id}" data-revision="${article.current_revision_id}">Опубликовать</button>`
             : ''}
           ${article.public_state === 'published'
-            ? `<button type="button" data-action="withdraw" data-id="${article.id}" data-revision="${article.current_revision_id}">Снять</button>`
+            ? `<button type="button" class="button button--danger" data-action="withdraw" data-id="${article.id}" data-revision="${article.current_revision_id}">Снять с публикации</button>`
             : ''}
-          ${renderRevisions(actions.listRevisions(article.id), article)}
-        </td>
-      </tr>`).join('');
-  const releases = actions.listReleases().map((release) => `
-    <li>${escapeHtml(release.id)}${release.active ? ' · active' : ` · <button type="button" data-action="rollback" data-release="${escapeAttribute(release.id)}">Переключить</button>`}</li>
-  `).join('') || '<li>Пока нет завершённых releases.</li>';
+        </div>
+        ${renderRevisions(actions.listRevisions(article.id), article)}
+      </article>`).join('');
+  const social = actions.getSocialLinks();
   return interpolate(readTemplate('dashboard.html'), {
     csrfToken: escapeAttribute(session.csrf_token ?? ''),
     rows,
-    releases,
+    telegramUrl: escapeAttribute(social.telegramUrl),
+    youtubeUrl: escapeAttribute(social.youtubeUrl ?? ''),
+    vkUrl: escapeAttribute(social.vkUrl ?? ''),
+    futuchatUrl: escapeAttribute(social.futuchatUrl ?? ''),
+    telegramStatus: renderSocialStatus('Telegram', social.telegramUrl),
+    youtubeStatus: renderSocialStatus('YouTube', social.youtubeUrl),
+    vkStatus: renderSocialStatus('VK', social.vkUrl),
+    futuchatStatus: renderSocialStatus('FUTUCHAT', social.futuchatUrl),
   });
 }
 
 function renderRevisions(revisions, article) {
   if (revisions.length < 2) return '';
   const items = revisions.map((revision) => revision.id === article.current_revision_id
-    ? `<li>№ ${revision.revision_number} · текущая</li>`
-    : `<li>№ ${revision.revision_number} · ${escapeHtml(revision.title)} · <button type="button" data-action="restore" data-id="${article.id}" data-source="${revision.id}" data-revision="${article.current_revision_id}">Вернуть как новый черновик</button></li>`).join('');
-  return `<details><summary>История редакций</summary><ul>${items}</ul></details>`;
+    ? `<li><span>№ ${revision.revision_number} · текущая · ${escapeHtml(formatMoscowDateTime(revision.created_at))}</span></li>`
+    : `<li><span>№ ${revision.revision_number} · ${escapeHtml(revision.title)} · ${escapeHtml(formatMoscowDateTime(revision.created_at))}</span><button type="button" class="text-button" data-action="restore" data-id="${article.id}" data-source="${revision.id}" data-revision="${article.current_revision_id}">Вернуть как новый черновик</button></li>`).join('');
+  return `<details class="revisions"><summary>История редакций</summary><ul>${items}</ul></details>`;
 }
 
-async function readJson(request) {
-  if (!request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) {
+function renderState(article) {
+  const published = article.public_state === 'published'
+    && Number(article.current_revision_id) === Number(article.published_revision_id);
+  const label = published ? 'Опубликовано' : 'Черновик';
+  const modifier = published ? 'published' : 'draft';
+  return `<span class="state state--${modifier}">${label}</span>`;
+}
+
+function renderPublicStatus(article) {
+  if (!article.public_url) {
+    return article.public_state === 'withdrawn'
+      ? '<p class="public-status">Материал снят с публикации. Текущая редакция остаётся черновиком.</p>'
+      : '<p class="public-status">На сайте ещё не опубликован.</p>';
+  }
+  const draftNote = Number(article.current_revision_id) === Number(article.published_revision_id)
+    ? ''
+    : ' На сайте пока видна предыдущая редакция.';
+  return `<p class="public-status public-status--live">Опубликовано: <a href="${escapeAttribute(article.public_url)}" target="_blank" rel="noreferrer noopener">${escapeHtml(article.public_url)}</a>.${draftNote}</p>`;
+}
+
+function renderSocialStatus(name, url) {
+  const modifier = url ? 'ready' : 'missing';
+  const label = url ? 'настроен' : 'не настроен';
+  return `<span class="social-status social-status--${modifier}">${escapeHtml(name)}: ${label}</span>`;
+}
+
+function formatMoscowDateTime(value) {
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Moscow',
+  }).format(new Date(value));
+}
+
+function pluralSources(count) {
+  const remainder100 = count % 100;
+  const remainder10 = count % 10;
+  if (remainder100 >= 11 && remainder100 <= 14) return 'источников';
+  if (remainder10 === 1) return 'источник';
+  if (remainder10 >= 2 && remainder10 <= 4) return 'источника';
+  return 'источников';
+}
+
+async function readJson(request, maximum = 1024 * 1024) {
+  const mediaType = request.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase();
+  if (mediaType !== 'application/json') {
     throw httpError(415, 'Content-Type must be application/json');
   }
   const text = await request.text();
-  if (Buffer.byteLength(text) > 1024 * 1024) throw httpError(413, 'JSON request is too large');
+  if (Buffer.byteLength(text) > maximum) throw httpError(413, 'JSON request is too large');
   try {
     const value = JSON.parse(text);
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error();

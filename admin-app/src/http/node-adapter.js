@@ -1,25 +1,38 @@
 import { assertMutationRequest } from './security.js';
+import { WEEKLY_INGESTION_BODY_MAXIMUM } from '../content/validation.js';
+import { WEEKLY_INGESTION_PATH } from './ingestion-auth.js';
 
 const JSON_BODY_MAXIMUM = 1024 * 1024;
 const UPLOAD_BODY_MAXIMUM = 10 * 1024 * 1024;
 const JSON_MUTATION_PATHS = [
   /^\/api\/articles$/,
+  /^\/api\/social-links$/,
   /^\/api\/articles\/\d+\/revisions$/,
   /^\/api\/articles\/\d+\/(?:publish|withdraw|restore)$/,
-  /^\/api\/releases\/rollback$/,
 ];
 
-export async function createProxiedRequest(incoming, { adminOrigin, sessionService }) {
+export async function createProxiedRequest(incoming, {
+  adminOrigin,
+  sessionService,
+  ingestionAuthenticator,
+}) {
   const method = String(incoming.method ?? 'GET').toUpperCase();
   const target = new URL(incoming.url ?? '/', adminOrigin);
   const init = { method, headers: incoming.headers };
   const headerOnlyRequest = new Request(target, init);
   if (['GET', 'HEAD'].includes(method)) return headerOnlyRequest;
 
-  const session = sessionService.authenticate(headerOnlyRequest.headers.get('cookie'));
-  if (!session || !hasValidMutationHeaders(headerOnlyRequest, adminOrigin, session, sessionService)) {
-    discardBody(incoming);
-    return headerOnlyRequest;
+  if (method === 'POST' && target.pathname === WEEKLY_INGESTION_PATH) {
+    if (!ingestionAuthenticator?.authenticate(headerOnlyRequest.headers.get('authorization'))) {
+      discardBody(incoming);
+      return headerOnlyRequest;
+    }
+  } else {
+    const session = sessionService.authenticate(headerOnlyRequest.headers.get('cookie'));
+    if (!session || !hasValidMutationHeaders(headerOnlyRequest, adminOrigin, session, sessionService)) {
+      discardBody(incoming);
+      return headerOnlyRequest;
+    }
   }
 
   const maximum = requestBodyMaximum(headerOnlyRequest);
@@ -33,9 +46,14 @@ export async function createProxiedRequest(incoming, { adminOrigin, sessionServi
 
 export function requestBodyMaximum(request) {
   const url = new URL(request.url);
+  const mediaType = request.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase();
+  if (request.method === 'POST' && url.pathname === WEEKLY_INGESTION_PATH
+      && mediaType === 'application/json') {
+    return WEEKLY_INGESTION_BODY_MAXIMUM;
+  }
   if (request.method === 'POST' && url.pathname === '/api/uploads') return UPLOAD_BODY_MAXIMUM;
   if (request.method === 'POST'
-      && request.headers.get('content-type')?.toLowerCase().startsWith('application/json')
+      && mediaType === 'application/json'
       && JSON_MUTATION_PATHS.some((pattern) => pattern.test(url.pathname))) {
     return JSON_BODY_MAXIMUM;
   }
@@ -45,7 +63,10 @@ export function requestBodyMaximum(request) {
 export async function readRequestBody(request, maximum) {
   const declaredValue = request.headers['content-length'];
   const declared = declaredValue === undefined ? 0 : Number(declaredValue);
-  if (!Number.isSafeInteger(declared) || declared < 0 || declared > maximum) throw requestTooLarge();
+  if (!Number.isSafeInteger(declared) || declared < 0 || declared > maximum) {
+    discardBody(request);
+    throw requestTooLarge();
+  }
   const chunks = [];
   let length = 0;
   try {

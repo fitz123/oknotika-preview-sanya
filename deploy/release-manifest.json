@@ -26,6 +26,54 @@
     "application": "admin-app/package-lock.json is authoritative and npm ci is mandatory",
     "sqlite": "SQLite is bundled with the exact Node.js patch and verified by preflight"
   },
+  "editorial": {
+    "publicSection": {
+      "name": "Новости",
+      "path": "/articles/",
+      "weeklyMaterialLabel": "Дайджест недели"
+    },
+    "weeklySchedule": {
+      "draftCreation": "Tuesday 12:00 Europe/Moscow",
+      "publicationTarget": "Friday 18:00 Europe/Moscow",
+      "publicationAuthority": "telegram-oidc-editor-only"
+    },
+    "weeklyIngestion": {
+      "path": "/api/ingestion/weekly-drafts",
+      "method": "POST",
+      "maximumBodyBytes": 131072,
+      "credential": "weekly-ingest-token",
+      "authority": "create-or-update-private-weekly-draft-only",
+      "idempotency": "issueId plus monotonic contentVersion"
+    },
+    "socialDestinations": {
+      "telegram": "https://t.me/oknotika",
+      "youtube": "https://youtube.com/@oknotika",
+      "vk": "https://vk.ru/oknotika",
+      "futuchat": "https://t.me/FUTU_CHAT",
+      "configuration": "confirmed editor action atomically activates validated values in a new immutable article release; null destinations are not rendered"
+    }
+  },
+  "credentials": {
+    "provider": "systemd LoadCredentialEncrypted",
+    "adminService": [
+      "telegram-oidc-client-id",
+      "telegram-oidc-client-secret",
+      "weekly-ingest-token"
+    ],
+    "weeklyCaller": [
+      "weekly-ingest-token"
+    ],
+    "backupService": [
+      "restic-repository",
+      "restic-password"
+    ],
+    "environmentValuesForbidden": true
+  },
+  "packageBoundaries": {
+    "marketing": "deploy/scripts/install-marketing.sh public_paths allowlist only",
+    "technical": "secret-free release ZIP outside every nginx document root",
+    "privateRuntime": "/var/lib/oknotika-admin and /run/credentials; never packaged or public"
+  },
   "backup": {
     "engine": "restic",
     "retention": {

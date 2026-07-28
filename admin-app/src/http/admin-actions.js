@@ -10,15 +10,32 @@ export function createAdminActions({
   clock = () => new Date(),
 } = {}) {
   function listArticles() {
-    return db.prepare(`
+    const articles = db.prepare(`
       SELECT a.id, a.slug, a.state, a.public_state, a.current_revision_id,
-             a.published_revision_id, r.revision_number,
+             a.published_revision_id, a.updated_at, r.revision_number,
              r.title, r.publication_at, r.lead, r.body_markdown, r.cover_asset_id,
-             r.cover_alt, r.source_url
+             r.cover_alt, r.source_url, w.issue_id AS weekly_issue_id
       FROM articles a
       JOIN article_revisions r ON r.id = a.current_revision_id
+      LEFT JOIN weekly_ingestion_issues w ON w.article_id = a.id
       ORDER BY a.updated_at DESC, a.id DESC
     `).all();
+    const sources = db.prepare(`
+      SELECT url FROM article_revision_sources
+      WHERE revision_id = ? ORDER BY position
+    `);
+    return articles.map((article) => {
+      const sourceUrls = sources.all(article.current_revision_id).map((source) => source.url);
+      return {
+        ...article,
+        source_urls: sourceUrls.length > 0
+          ? sourceUrls
+          : (article.source_url ? [article.source_url] : []),
+        public_url: article.public_state === 'published'
+          ? new URL(`/articles/${article.slug}/`, publicOrigin).href
+          : null,
+      };
+    });
   }
 
   function listRevisions(articleId) {
@@ -28,18 +45,22 @@ export function createAdminActions({
     `).all(integer(articleId, 'articleId'));
   }
 
-  function listReleases() {
-    return db.prepare(`
-      SELECT r.id, r.created_at, r.activated_at,
-             CASE WHEN s.active_release_id = r.id THEN 1 ELSE 0 END AS active
-      FROM releases r CROSS JOIN site_state s
-      WHERE r.status = 'complete'
-      ORDER BY r.activated_at DESC, r.created_at DESC LIMIT 20
-    `).all();
+  function createDraft(input, editorId) {
+    return contentService.createArticle(input, editorId, { contentKind: 'weekly_digest' });
   }
 
-  function createDraft(input, editorId) {
-    return contentService.createArticle(input, editorId);
+  function getSocialLinks() {
+    return contentService.getSocialLinks();
+  }
+
+  async function configureSocialLinks(input, editorId, confirmation) {
+    requireConfirmation(confirmation, 'SOCIAL_LINKS');
+    const socialLinks = contentService.prepareSocialLinks(input, editorId);
+    const manifest = await publisher.publish({
+      editorId,
+      transition: { type: 'social_links', socialLinks },
+    });
+    return { ...contentService.getSocialLinks(), releaseId: manifest.releaseId };
   }
 
   function reviseDraft(articleId, input, editorId, expectedRevisionId) {
@@ -90,14 +111,6 @@ export function createAdminActions({
     });
   }
 
-  async function rollbackRelease(releaseId, editorId, confirmation) {
-    requireConfirmation(confirmation, 'ROLLBACK');
-    if (typeof releaseId !== 'string' || !/^[a-zA-Z0-9._-]+$/.test(releaseId)) {
-      throw new TypeError('releaseId is invalid');
-    }
-    return publisher.rollback(releaseId, { editorId });
-  }
-
   function restoreRevision(articleId, sourceRevisionId, expectedRevisionId, editorId, confirmation) {
     requireConfirmation(confirmation, 'RESTORE');
     return contentService.restoreRevision(
@@ -124,13 +137,13 @@ export function createAdminActions({
   return {
     listArticles,
     listRevisions,
-    listReleases,
     createDraft,
+    getSocialLinks,
+    configureSocialLinks,
     reviseDraft,
     preview,
     publish,
     withdraw,
-    rollbackRelease,
     restoreRevision,
     upload,
   };

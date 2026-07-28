@@ -44,7 +44,11 @@ def archive_with(extra: dict[str, bytes] | None = None) -> Path:
         "RELEASE_NOTES.md": b"notes",
         "index.html": b"<title>OKNOTIKA</title>",
         "admin-app/package-lock.json": b"{}",
+        "admin-app/scripts/register-weekly-cover.js": b"operator cover registration",
+        "admin-app/scripts/rollback-release.js": b"operator rollback",
+        "docs/WEEKLY_INGESTION.md": b"weekly ingestion",
         "deploy/README_ZHENYA.md": b"deploy",
+        "deploy/scripts/smoke-weekly-ingestion.mjs": b"#!/usr/bin/env node\n",
         "deploy/systemd/oknotika-admin.service": b"[Service]",
         **(extra or {}),
     }
@@ -72,13 +76,17 @@ class ReleaseZipTests(unittest.TestCase):
         result = scanner.scan_archive(str(archive_with({
             "uploads/raw/source.jpg": b"private",
             "admin-app/.env": b"TELEGRAM_OIDC_CLIENT_" + b"SECRET=" + b"credential-value-for-test",
+            "admin-app/runtime.conf": b"OKNOTIKA_WEEKLY_INGEST_" + b"TOKEN=credential-value-for-test",
+            "admin-app/weekly-ingest-token": b"raw-bearer-credential-value-for-test",
             "server.key": b"-----BEGIN PRIVATE " + b"KEY-----\nprivate\n",
         })))
         self.assertEqual(result["status"], "fail")
         joined = "\n".join(result["errors"])
         self.assertIn("private/runtime path", joined)
         self.assertIn("environment file", joined)
+        self.assertIn("credential file", joined)
         self.assertIn("private key", joined)
+        self.assertIn("assigned weekly ingestion token", joined)
 
     def test_manifest_tampering_is_detected(self) -> None:
         filename = archive_with()
@@ -137,7 +145,7 @@ class FinalDocumentationTests(unittest.TestCase):
         )
         self.assertTrue(any("index.html" in error and "V2.25" in error for error in homepage_errors))
 
-    def test_release_only_followup_is_allowed_but_later_source_change_is_stale(self) -> None:
+    def test_non_payload_followup_is_allowed_but_later_source_change_is_stale(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             repo = Path(directory)
             subprocess.run(["git", "init", "-q", str(repo)], check=True)
@@ -152,7 +160,10 @@ class FinalDocumentationTests(unittest.TestCase):
             ).stdout.strip()
             (repo / "release").mkdir()
             (repo / "release/package.zip").write_bytes(b"release")
+            (repo / "docs/plans").mkdir(parents=True)
+            (repo / "docs/plans/task.md").write_text("- [x] packaged\n", encoding="utf-8")
             subprocess.run(["git", "-C", str(repo), "add", "release"], check=True)
+            subprocess.run(["git", "-C", str(repo), "add", "docs/plans/task.md"], check=True)
             subprocess.run(["git", "-C", str(repo), "commit", "-qm", "release"], check=True)
             self.assertEqual(docs_checker.non_release_changes_since(repo, implementation), [])
 

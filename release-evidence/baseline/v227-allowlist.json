@@ -12,8 +12,14 @@
       "aluminum/index.html",
       "articles/al-bahr-towers-dynamic-facade/index.html",
       "articles/index.html",
+      "carbon-glass/index.html",
+      "glass/index.html",
       "index.html",
-      "style.css"
+      "oknotika-smart-window/index.html",
+      "protectapeel/index.html",
+      "pvc/index.html",
+      "style.css",
+      "wood-stoller/index.html"
     ],
     "allow_add": [
       ".gitignore",
@@ -22,7 +28,9 @@
       "admin-app/**",
       "deploy/**",
       "docs/adr/**",
+      "docs/WEEKLY_INGESTION.md",
       "docs/plans/2026-07-13-oknotika-final-site-telegram-admin.md",
+      "docs/plans/2026-07-28-oknotika-news-admin-v2.md",
       "img/aluminum/schueco-*.webp",
       "img/team/*-2026-07.jpg",
       "img/team/*-2026-07.webp",
@@ -52,12 +60,14 @@
       {"tag": "section", "id": "team"},
       {"tag": "aside", "classes": ["weekly-fact"]},
       {"tag": "a", "attributes": {"href": "aluminum/"}},
+      {"tag": "a", "attributes": {"href": "articles/"}},
       {"tag": "footer", "classes": ["footer"]},
       {"tag": "script", "attributes": {"src": "js/latest-fact.js"}}
     ],
     "aluminum/index.html": [
       {"tag": "title"},
       {"tag": "meta", "attributes": {"name": "description"}},
+      {"tag": "a", "attributes": {"href": "../articles/"}},
       {"tag": "section", "classes": ["page-hero--aluminum"]},
       {"tag": "section", "classes": ["aluminum-systems"]},
       {"tag": "section", "classes": ["schueco-focus"]},
@@ -73,6 +83,7 @@
       {"tag": "meta", "attributes": {"name": "robots"}},
       {"tag": "meta", "attribute_prefixes": {"property": "og:"}},
       {"tag": "link", "attributes": {"rel": "canonical"}},
+      {"tag": "a", "attributes": {"href": "../articles/"}},
       {"tag": "main", "id": "top"}
     ],
     "articles/al-bahr-towers-dynamic-facade/index.html": [
@@ -82,7 +93,27 @@
       {"tag": "meta", "attribute_prefixes": {"property": "og:"}},
       {"tag": "meta", "attributes": {"property": "article:published_time"}},
       {"tag": "link", "attributes": {"rel": "canonical"}},
-      {"tag": "main", "id": "top"}
+      {"tag": "a", "attributes": {"href": "../"}},
+      {"tag": "main", "id": "top"},
+      {"tag": "footer", "classes": ["footer"]}
+    ],
+    "carbon-glass/index.html": [
+      {"tag": "a", "attributes": {"href": "../articles/"}}
+    ],
+    "glass/index.html": [
+      {"tag": "a", "attributes": {"href": "../articles/"}}
+    ],
+    "oknotika-smart-window/index.html": [
+      {"tag": "a", "attributes": {"href": "../articles/"}}
+    ],
+    "protectapeel/index.html": [
+      {"tag": "a", "attributes": {"href": "../articles/"}}
+    ],
+    "pvc/index.html": [
+      {"tag": "a", "attributes": {"href": "../articles/"}}
+    ],
+    "wood-stoller/index.html": [
+      {"tag": "a", "attributes": {"href": "../articles/"}}
     ]
   },
   "css": {

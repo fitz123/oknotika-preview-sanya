@@ -37,6 +37,38 @@ def main() -> None:
         r"3\.\d+\.\d+", runtime.get("sqliteVersion", "")
     ):
         fail("bundled SQLite provider/version must be pinned")
+    editorial = manifest.get("editorial", {})
+    if editorial.get("publicSection") != {
+        "name": "Новости",
+        "path": "/articles/",
+        "weeklyMaterialLabel": "Дайджест недели",
+    }:
+        fail("weekly news public section metadata is stale")
+    ingestion = editorial.get("weeklyIngestion", {})
+    if ingestion.get("path") != "/api/ingestion/weekly-drafts" \
+            or ingestion.get("maximumBodyBytes") != 128 * 1024 \
+            or ingestion.get("credential") != "weekly-ingest-token" \
+            or ingestion.get("authority") != "create-or-update-private-weekly-draft-only":
+        fail("weekly ingestion deployment contract is stale")
+    if editorial.get("socialDestinations") != {
+        "telegram": "https://t.me/oknotika",
+        "youtube": "https://youtube.com/@oknotika",
+        "vk": "https://vk.ru/oknotika",
+        "futuchat": "https://t.me/FUTU_CHAT",
+        "configuration": (
+            "confirmed editor action atomically activates validated values in a new immutable "
+            "article release; null destinations are not rendered"
+        ),
+    }:
+        fail("official social destinations are stale")
+    credentials = manifest.get("credentials", {})
+    if credentials.get("provider") != "systemd LoadCredentialEncrypted" \
+            or credentials.get("environmentValuesForbidden") is not True \
+            or "weekly-ingest-token" not in credentials.get("weeklyCaller", []):
+        fail("encrypted weekly caller credential contract is missing")
+    if manifest.get("packageBoundaries", {}).get("marketing") \
+            != "deploy/scripts/install-marketing.sh public_paths allowlist only":
+        fail("marketing/technical package boundary is missing")
 
     lock_path = root / "admin-app/package-lock.json"
     lock_hash = hashlib.sha256(lock_path.read_bytes()).hexdigest()
@@ -45,6 +77,9 @@ def main() -> None:
     package = json.loads((root / "admin-app/package.json").read_text(encoding="utf-8"))
     if package.get("engines", {}).get("node") != ">=24 <25":
         fail("package engine must stay on Node 24")
+    for command in ("register-weekly-cover", "rollback-release"):
+        if command not in package.get("scripts", {}):
+            fail(f"operator command is missing: {command}")
     for group in ("dependencies", "devDependencies"):
         for name, version in package.get(group, {}).items():
             if not re.fullmatch(r"\d+\.\d+\.\d+", version):
@@ -61,8 +96,8 @@ def main() -> None:
         "OKNOTIKA_PUBLIC_ROOT=/srv/oknotika/current",
         "OKNOTIKA_LISTEN_SOCKET=/run/oknotika-admin/app.sock",
     )
-    if re.search(r"TELEGRAM_OIDC_CLIENT_(?:ID|SECRET)=", config):
-        fail("sample environment must not contain direct OIDC credential values")
+    if re.search(r"(?:TELEGRAM_OIDC_CLIENT_(?:ID|SECRET)|OKNOTIKA_WEEKLY_INGEST_TOKEN)=", config):
+        fail("sample environment must not contain direct credential values")
 
     require_text(
         deploy / "nginx/oknotika-public.conf",
@@ -98,6 +133,7 @@ def main() -> None:
         "Group=www-data",
         "UMask=0027",
         "LoadCredentialEncrypted=telegram-oidc-client-secret",
+        "LoadCredentialEncrypted=weekly-ingest-token",
         "NoNewPrivileges=yes",
         "ProtectSystem=strict",
         "CapabilityBoundingSet=",
@@ -115,6 +151,45 @@ def main() -> None:
         root / "admin-app/src/http/start.js",
         "chmodSync(config.listenSocket, 0o660)",
         "assertTrustedProxyHeaders",
+    )
+    editor_handler = (root / "admin-app/src/http/handler.js").read_text(encoding="utf-8")
+    if "/api/releases/rollback" in editor_handler:
+        fail("operational rollback must not be exposed by the editor HTTP handler")
+    require_text(
+        root / "admin-app/scripts/register-weekly-cover.js",
+        "createUploadStore",
+        "Exactly one enabled editor",
+        "assetId",
+    )
+    require_text(
+        root / "admin-app/scripts/rollback-release.js",
+        "publisher.reconcile()",
+        "publisher.rollback",
+        "releaseId is invalid",
+        "applicationSchemaVersion",
+    )
+    require_text(
+        root / "admin-app/migrations/005_article_content_kind.sql",
+        "content_kind",
+        "'weekly_digest'",
+        "weekly_ingestion_issues",
+    )
+    require_text(
+        root / "admin-app/migrations/006_futuchat_social_destination.sql",
+        "ADD COLUMN futuchat_url",
+        "https://youtube.com/@oknotika",
+        "https://vk.ru/oknotika",
+        "https://t.me/FUTU_CHAT",
+    )
+    require_text(
+        root / "admin-app/migrations/007_pending_social_defaults.sql",
+        "pending_social_link_defaults",
+        "SELECT singleton, telegram_url, youtube_url, vk_url, futuchat_url",
+    )
+    require_text(
+        root / "admin-app/src/http/start.js",
+        "publisher.reconcile()",
+        "activatePendingSocialDefaults",
     )
     require_text(
         deploy / "systemd/oknotika-admin-backup.timer",
@@ -148,11 +223,33 @@ def main() -> None:
         "duplicate migration version",
         "fingerprint.digest('hex')",
     )
-    require_text(
+    install_marketing = require_text(
         deploy / "scripts/install-marketing.sh",
         "public_paths=(",
         "releases/$release_sha",
         "mv -Tf",
+    )
+    public_paths = re.search(r"public_paths=\((.*?)\)", install_marketing, re.DOTALL)
+    if not public_paths:
+        fail("marketing public path allowlist is unreadable")
+    for forbidden_path in ("admin-app", "deploy", "docs", "release-evidence", "tests"):
+        if re.search(rf"(?:^|\s){re.escape(forbidden_path)}(?:\s|$)", public_paths.group(1)):
+            fail(f"technical path leaked into marketing allowlist: {forbidden_path}")
+
+    require_text(
+        deploy / "scripts/smoke-weekly-ingestion.mjs",
+        "CREDENTIALS_DIRECTORY",
+        "/api/ingestion/weekly-drafts",
+        "weekly ingestion retry is not idempotent",
+        "/api/releases/rollback",
+        "editorialCapabilities: 'denied'",
+    )
+    require_text(
+        deploy / "scripts/smoke-test.sh",
+        "--weekly-path",
+        "--social-manifest",
+        "manifest.socialLinks",
+        "destination must be absent",
     )
 
     scripts = sorted((deploy / "scripts").glob("*.sh"))
@@ -186,6 +283,18 @@ def main() -> None:
         "--property=User=oknotika-admin --property=Group=www-data --property=UMask=0027",
         "run bootstrap-content",
         "install-marketing.sh",
+        "Tuesday ingestion и draft-only smoke",
+        "smoke-weekly-ingestion.mjs",
+        "DNS/TLS",
+        "Pinned runtime",
+        "Enrollment Сани",
+        "Weekly ingestion",
+        "run register-weekly-cover",
+        "run rollback-release",
+        "--application-schema 3",
+        "отсутствует в editor HTTP API",
+        "--token-file",
+        "database-only состояние не считается применённым",
     )
     print(f"deploy package check passed: {len(scripts)} shell scripts, Node {runtime['nodeVersion']}")
 

@@ -1,18 +1,550 @@
 import assert from 'node:assert/strict';
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
 import test from 'node:test';
+import { openDatabase } from '../src/content/database.js';
 import { renderMarkdown } from '../src/content/markdown.js';
 import { formatMoscowDate, normalizePublicationDate } from '../src/content/validation.js';
-import { articleInput, createHarness } from './helpers.js';
+import { articleInput, createHarness, weeklyIngestionInput } from './helpers.js';
 
 test('schema models editor, immutable revisions, assets, releases and audit events', (t) => {
   const { db } = createHarness(t);
   const tables = new Set(db.prepare("SELECT name FROM sqlite_schema WHERE type = 'table'").all().map((row) => row.name));
   for (const expected of [
     'configured_editors', 'articles', 'article_revisions', 'assets', 'releases',
-    'release_articles', 'site_state', 'audit_events',
+    'release_articles', 'site_state', 'audit_events', 'article_revision_sources',
+    'weekly_ingestion_issues', 'site_social_links',
   ]) {
     assert.ok(tables.has(expected), `${expected} table is missing`);
   }
+});
+
+test('multiple source URLs are stored immutably with the legacy first-source column', (t) => {
+  const { db, service, editorId, coverAssetId } = createHarness(t);
+  const sourceUrls = [
+    'https://example.com/first',
+    'https://example.org/second',
+    'https://example.net/third',
+  ];
+  const created = service.createArticle(articleInput(coverAssetId, {
+    sourceUrl: undefined,
+    sourceUrls,
+  }), editorId);
+  const stored = db.prepare(`
+    SELECT position, url FROM article_revision_sources
+    WHERE revision_id = ? ORDER BY position
+  `).all(created.revisionId);
+  assert.deepEqual(stored.map((source) => source.url), sourceUrls);
+  assert.equal(
+    db.prepare('SELECT source_url FROM article_revisions WHERE id = ?').get(created.revisionId).source_url,
+    sourceUrls[0],
+  );
+  assert.throws(
+    () => db.prepare('UPDATE article_revision_sources SET url = ? WHERE revision_id = ? AND position = 0')
+      .run('https://example.com/changed', created.revisionId),
+    /immutable/,
+  );
+
+  const restoredId = service.restoreRevision(created.articleId, created.revisionId, editorId);
+  assert.deepEqual(
+    db.prepare('SELECT url FROM article_revision_sources WHERE revision_id = ? ORDER BY position')
+      .all(restoredId).map((source) => source.url),
+    sourceUrls,
+  );
+});
+
+test('global social links validate platform hosts and retain nullable destinations', (t) => {
+  const { db, service, editorId } = createHarness(t);
+  assert.deepEqual(service.getSocialLinks(), {
+    telegramUrl: 'https://t.me/oknotika',
+    youtubeUrl: 'https://youtube.com/@oknotika',
+    vkUrl: 'https://vk.ru/oknotika',
+    futuchatUrl: 'https://t.me/FUTU_CHAT',
+    updatedAt: '1970-01-01T00:00:00.000Z',
+  });
+  const prepared = service.prepareSocialLinks({
+    telegramUrl: 'https://t.me/oknotika',
+    youtubeUrl: 'https://www.youtube.com/@oknotika',
+    vkUrl: 'https://vk.ru/oknotika',
+    futuchatUrl: 'https://t.me/FUTU_CHAT',
+  }, editorId);
+  assert.equal(prepared.youtubeUrl, 'https://www.youtube.com/@oknotika');
+  assert.equal(prepared.vkUrl, 'https://vk.ru/oknotika');
+  assert.equal(prepared.futuchatUrl, 'https://t.me/FUTU_CHAT');
+  assert.equal(service.getSocialLinks().youtubeUrl, 'https://youtube.com/@oknotika');
+  assert.equal(service.prepareSocialLinks({
+    telegramUrl: 'https://t.me/oknotika',
+    youtubeUrl: 'https://youtube.com/@legacy-client',
+    vkUrl: 'https://vk.ru/legacy-client',
+  }, editorId).futuchatUrl, 'https://t.me/FUTU_CHAT');
+  assert.deepEqual(service.prepareSocialLinks({
+    telegramUrl: 'https://t.me/oknotika',
+    youtubeUrl: null,
+    vkUrl: null,
+    futuchatUrl: null,
+  }, editorId), {
+    telegramUrl: 'https://t.me/oknotika',
+    youtubeUrl: null,
+    vkUrl: null,
+    futuchatUrl: null,
+  });
+  assert.equal(
+    db.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE event_type = 'social_links.updated'").get().count,
+    0,
+  );
+  assert.throws(() => service.prepareSocialLinks({
+    telegramUrl: 'https://evil.example/oknotika',
+    youtubeUrl: null,
+    vkUrl: null,
+    futuchatUrl: null,
+  }, editorId), /approved telegram host/);
+  for (const telegramUrl of [
+    'https://t.me/not-oknotika',
+    'https://t.me/oknotika/',
+    'https://t.me/oknotika?start=redirect',
+  ]) {
+    assert.throws(() => service.prepareSocialLinks({
+      telegramUrl,
+      youtubeUrl: null,
+      vkUrl: null,
+      futuchatUrl: null,
+    }, editorId), /must be exactly/);
+  }
+  for (const futuchatUrl of [
+    'https://telegram.me/FUTU_CHAT',
+    'https://t.me/',
+    'https://t.me/abcd',
+    'https://t.me/FUTU_CHAT/extra',
+    'https://t.me/FUTU_CHAT?start=redirect',
+    'https://t.me/FUTU_CHAT#fragment',
+    `https://t.me/${'a'.repeat(33)}`,
+  ]) {
+    assert.throws(() => service.prepareSocialLinks({
+      telegramUrl: 'https://t.me/oknotika',
+      youtubeUrl: null,
+      vkUrl: null,
+      futuchatUrl,
+    }, editorId), /approved futuchat host|one Telegram channel path/);
+  }
+  for (const futuchatUrl of [
+    'https://t.me/abcde',
+    `https://t.me/${'a'.repeat(32)}`,
+  ]) {
+    assert.equal(service.prepareSocialLinks({
+      telegramUrl: 'https://t.me/oknotika',
+      youtubeUrl: null,
+      vkUrl: null,
+      futuchatUrl,
+    }, editorId).futuchatUrl, futuchatUrl);
+  }
+  const legacyCompatible = service.prepareSocialLinks({
+    telegramUrl: 'https://t.me/oknotika',
+    youtubeUrl: null,
+    vkUrl: 'https://vk.com/legacy-oknotika',
+    futuchatUrl: null,
+  }, editorId);
+  assert.equal(legacyCompatible.vkUrl, 'https://vk.com/legacy-oknotika');
+});
+
+test('social-link validation rejects insecure credentials and enforces URL length', (t) => {
+  const { service, editorId } = createHarness(t);
+  const valid = {
+    telegramUrl: 'https://t.me/oknotika',
+    youtubeUrl: 'https://youtube.com/@oknotika',
+    vkUrl: 'https://vk.ru/oknotika',
+    futuchatUrl: 'https://t.me/FUTU_CHAT',
+  };
+  const insecure = {
+    telegramUrl: ['http://t.me/oknotika', 'https://user:password@t.me/oknotika'],
+    youtubeUrl: ['http://youtube.com/@oknotika', 'https://user:password@youtube.com/@oknotika'],
+    vkUrl: ['http://vk.ru/oknotika', 'https://user:password@vk.ru/oknotika'],
+    futuchatUrl: ['http://t.me/FUTU_CHAT', 'https://user:password@t.me/FUTU_CHAT'],
+  };
+  for (const [field, values] of Object.entries(insecure)) {
+    for (const value of values) {
+      assert.throws(
+        () => service.prepareSocialLinks({ ...valid, [field]: value }, editorId),
+        /HTTPS URL without credentials/,
+      );
+    }
+  }
+
+  const youtubePrefix = 'https://youtube.com/';
+  const exact = `${youtubePrefix}${'a'.repeat(2048 - youtubePrefix.length)}`;
+  assert.equal(
+    service.prepareSocialLinks({ ...valid, youtubeUrl: exact }, editorId).youtubeUrl,
+    exact,
+  );
+  assert.throws(
+    () => service.prepareSocialLinks({ ...valid, youtubeUrl: `${exact}a` }, editorId),
+    /2048 characters/,
+  );
+});
+
+test('weekly editor and ingestion require one ordered list of 3–5 items and verified sources', (t) => {
+  const { service, editorId, coverAssetId } = createHarness(t);
+  const valid = weeklyIngestionInput(coverAssetId).article;
+  const created = service.createArticle(valid, editorId, { contentKind: 'weekly_digest' });
+  assert.ok(created.revisionId);
+
+  for (const bodyMarkdown of [
+    'Обычный абзац без списка.',
+    '1. Первая новость.\n2. Вторая новость.',
+    '1. Первая.\n2. Вторая.\n3. Третья.\n4. Четвёртая.\n5. Пятая.\n6. Шестая.',
+    'Вступление.\n\n1. Первая.\n2. Вторая.\n3. Третья.',
+    '1.\n2.\n3.',
+    [
+      '1. ![Первая](https://example.com/one.png)',
+      '2. ![Вторая](https://example.com/two.png)',
+      '3. ![Третья](https://example.com/three.png)',
+    ].join('\n'),
+    '1. Первая.\n2. ` `\n3. Третья.',
+  ]) {
+    assert.throws(
+      () => service.createArticle(
+        { ...valid, bodyMarkdown },
+        editorId,
+        { contentKind: 'weekly_digest' },
+      ),
+      /ordered list with 3–5/,
+    );
+  }
+  assert.throws(
+    () => service.reviseArticle(
+      created.articleId,
+      { ...valid, sourceUrls: [] },
+      editorId,
+      { expectedRevisionId: created.revisionId },
+    ),
+    /at least one verified source/,
+  );
+  assert.throws(
+    () => service.ingestWeeklyDraft(weeklyIngestionInput(coverAssetId, {
+      issueId: '2026-W32',
+      article: { bodyMarkdown: '1. Только одна новость.' },
+    })),
+    /ordered list with 3–5/,
+  );
+});
+
+test('weekly text and source boundaries apply to create, revise and ingestion paths', (t) => {
+  const { db, service, editorId, coverAssetId } = createHarness(t);
+  const base = weeklyIngestionInput(coverAssetId).article;
+  const exactUrl = `https://example.com/${'a'.repeat(2048 - 'https://example.com/'.length)}`;
+  const exactBody = `1. ${'a'.repeat(100_000 - '1. \n\n2. b\n\n3. c'.length)}\n\n2. b\n\n3. c`;
+  const exactSources = [
+    exactUrl,
+    ...Array.from({ length: 19 }, (_, index) => `https://example.com/source-${index}`),
+  ];
+  const exact = {
+    ...base,
+    bodyMarkdown: exactBody,
+    coverAlt: 'a'.repeat(500),
+    sourceUrls: exactSources,
+  };
+
+  const created = service.createArticle(exact, editorId, { contentKind: 'weekly_digest' });
+  const revised = service.reviseArticle(created.articleId, exact, editorId, {
+    expectedRevisionId: created.revisionId,
+  });
+  const ingested = service.ingestWeeklyDraft(weeklyIngestionInput(coverAssetId, {
+    article: exact,
+  }));
+  assert.ok(revised.revisionId);
+  assert.ok(ingested.revisionId);
+
+  const invalidArticles = [
+    [{ sourceUrls: Array.from({ length: 21 }, (_, index) => `https://example.com/${index}`) }, /20 URLs/],
+    [{ sourceUrls: ['https://example.com/duplicate', 'https://example.com/duplicate'] }, /duplicate/],
+    [{ sourceUrls: [''] }, /empty URLs/],
+    [{
+      sourceUrls: [
+        `https://example.com/${'a'.repeat(2049 - 'https://example.com/'.length)}`,
+      ],
+    }, /2048 characters/],
+    [{ bodyMarkdown: `${exactBody}a` }, /100000 characters/],
+    [{ coverAlt: 'a'.repeat(501) }, /500 characters/],
+    [{ publicationDate: '0' }, /YYYY-MM-DD/],
+  ];
+  const revisionCount = () => db.prepare(
+    'SELECT COUNT(*) AS count FROM article_revisions',
+  ).get().count;
+  const before = revisionCount();
+  const oversizedLegacySource = {
+    ...base,
+    sourceUrls: undefined,
+    sourceUrl: `https://example.com/${'a'.repeat(2049 - 'https://example.com/'.length)}`,
+  };
+  assert.throws(
+    () => service.createArticle(oversizedLegacySource, editorId, { contentKind: 'weekly_digest' }),
+    /2048 characters/,
+  );
+  assert.throws(
+    () => service.reviseArticle(created.articleId, oversizedLegacySource, editorId, {
+      expectedRevisionId: revised.revisionId,
+    }),
+    /2048 characters/,
+  );
+  for (const [override, expectedError] of invalidArticles) {
+    const invalid = { ...base, ...override };
+    assert.throws(
+      () => service.createArticle(invalid, editorId, { contentKind: 'weekly_digest' }),
+      expectedError,
+    );
+    assert.throws(
+      () => service.reviseArticle(created.articleId, invalid, editorId, {
+        expectedRevisionId: revised.revisionId,
+      }),
+      expectedError,
+    );
+    assert.throws(
+      () => service.ingestWeeklyDraft(weeklyIngestionInput(coverAssetId, {
+        issueId: '2026-W32',
+        article: override,
+      })),
+      expectedError,
+    );
+  }
+  assert.equal(revisionCount(), before);
+  assert.equal(
+    service.getArticle(created.articleId).current_revision_id,
+    revised.revisionId,
+  );
+});
+
+test('weekly ingestion rejects nonexistent ISO weeks and unsafe content versions', (t) => {
+  const { db, service, coverAssetId } = createHarness(t);
+  assert.throws(
+    () => service.ingestWeeklyDraft(weeklyIngestionInput(coverAssetId, {
+      issueId: '2025-W53',
+    })),
+    /valid ISO week/,
+  );
+  for (const contentVersion of [Number.MAX_SAFE_INTEGER + 1, 1e100]) {
+    assert.throws(
+      () => service.ingestWeeklyDraft(weeklyIngestionInput(coverAssetId, {
+        contentVersion,
+      })),
+      /safe integer/,
+    );
+  }
+  assert.equal(
+    db.prepare('SELECT COUNT(*) AS count FROM weekly_ingestion_issues').get().count,
+    0,
+  );
+});
+
+test('weekly migration backfills legacy source rows and marks pre-existing articles as legacy', (t) => {
+  const root = mkdtempSync(resolve(tmpdir(), 'oknotika-migration-'));
+  const migrations = resolve(root, 'migrations');
+  const databasePath = resolve(root, 'admin.sqlite');
+  mkdirSync(migrations);
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  for (const name of [
+    '001_content.sql',
+    '002_admin_security.sql',
+    '003_public_revision_state.sql',
+  ]) {
+    copyFileSync(resolve(import.meta.dirname, '../migrations', name), resolve(migrations, name));
+  }
+
+  const old = openDatabase(databasePath, migrations);
+  old.prepare(`
+    INSERT INTO configured_editors (issuer, subject, enabled, created_at)
+    VALUES ('https://oauth.telegram.org', 'legacy-editor', 1, '2026-07-01T00:00:00.000Z')
+  `).run();
+  old.prepare(`
+    INSERT INTO assets
+      (storage_key, private_path, sha256, media_type, width, height, created_at)
+    VALUES ('legacy-cover', '/private/legacy.png', ?, 'image/png', 1, 1, '2026-07-01T00:00:00.000Z')
+  `).run('a'.repeat(64));
+  const articleId = Number(old.prepare(`
+    INSERT INTO articles (slug, state, created_at, updated_at)
+    VALUES ('legacy-article', 'draft', '2026-07-01T00:00:00.000Z', '2026-07-01T00:00:00.000Z')
+  `).run().lastInsertRowid);
+  const revisionId = Number(old.prepare(`
+    INSERT INTO article_revisions
+      (article_id, revision_number, title, publication_at, lead, body_markdown,
+       legacy_eyebrow, cover_asset_id, cover_alt, source_url, created_by, created_at)
+    VALUES (?, 1, 'Legacy', '2026-07-01T00:00:00.000Z', 'Lead', 'Body',
+            'Факт недели · legacy', 1, 'Cover', 'https://example.com/legacy', 1,
+            '2026-07-01T00:00:00.000Z')
+  `).run(articleId).lastInsertRowid);
+  old.prepare('UPDATE articles SET current_revision_id = ? WHERE id = ?').run(revisionId, articleId);
+  old.close();
+
+  copyFileSync(
+    resolve(import.meta.dirname, '../migrations/004_weekly_news.sql'),
+    resolve(migrations, '004_weekly_news.sql'),
+  );
+  const versionFour = openDatabase(databasePath, migrations);
+  const weeklyArticleId = Number(versionFour.prepare(`
+    INSERT INTO articles (slug, state, created_at, updated_at)
+    VALUES ('existing-weekly', 'draft', '2026-07-02T00:00:00.000Z', '2026-07-02T00:00:00.000Z')
+  `).run().lastInsertRowid);
+  const weeklyRevisionId = Number(versionFour.prepare(`
+    INSERT INTO article_revisions
+      (article_id, revision_number, title, publication_at, lead, body_markdown,
+       cover_asset_id, cover_alt, source_url, created_by, created_at)
+    VALUES (?, 1, 'Weekly', '2026-07-02T00:00:00.000Z', 'Lead',
+            '1. One\n2. Two\n3. Three', 1, 'Cover', 'https://example.com/weekly', 1,
+            '2026-07-02T00:00:00.000Z')
+  `).run(weeklyArticleId).lastInsertRowid);
+  versionFour.prepare('UPDATE articles SET current_revision_id = ? WHERE id = ?')
+    .run(weeklyRevisionId, weeklyArticleId);
+  versionFour.prepare(`
+    INSERT INTO weekly_ingestion_issues
+      (issue_id, article_id, content_version, last_ingestion_revision_id,
+       payload_sha256, created_at, updated_at)
+    VALUES ('2026-W27', ?, 1, ?, ?, '2026-07-02T00:00:00.000Z', '2026-07-02T00:00:00.000Z')
+  `).run(weeklyArticleId, weeklyRevisionId, 'b'.repeat(64));
+  versionFour.prepare(`
+    UPDATE site_social_links
+    SET youtube_url = 'https://youtube.com/@existing-channel',
+        vk_url = 'https://vk.ru/existing-channel'
+    WHERE singleton = 1
+  `).run();
+  versionFour.close();
+
+  const upgraded = openDatabase(databasePath);
+  t.after(() => upgraded.close());
+  assert.deepEqual(
+    upgraded.prepare(`
+      SELECT position, url FROM article_revision_sources
+      WHERE revision_id = ? ORDER BY position
+    `).all(revisionId).map((row) => ({ ...row })),
+    [{ position: 0, url: 'https://example.com/legacy' }],
+  );
+  assert.equal(
+    upgraded.prepare('SELECT content_kind FROM articles WHERE id = ?').get(articleId).content_kind,
+    'legacy',
+  );
+  assert.equal(
+    upgraded.prepare('SELECT content_kind FROM articles WHERE id = ?')
+      .get(weeklyArticleId).content_kind,
+    'weekly_digest',
+  );
+  assert.deepEqual(
+    { ...upgraded.prepare(`
+      SELECT telegram_url, youtube_url, vk_url, futuchat_url
+      FROM site_social_links WHERE singleton = 1
+    `).get() },
+    {
+      telegram_url: 'https://t.me/oknotika',
+      youtube_url: 'https://youtube.com/@existing-channel',
+      vk_url: 'https://vk.ru/existing-channel',
+      futuchat_url: 'https://t.me/FUTU_CHAT',
+    },
+  );
+  assert.deepEqual(
+    { ...upgraded.prepare(`
+      SELECT telegram_url, youtube_url, vk_url, futuchat_url
+      FROM pending_social_link_defaults WHERE singleton = 1
+    `).get() },
+    {
+      telegram_url: 'https://t.me/oknotika',
+      youtube_url: 'https://youtube.com/@existing-channel',
+      vk_url: 'https://vk.ru/existing-channel',
+      futuchat_url: 'https://t.me/FUTU_CHAT',
+    },
+  );
+  upgraded.prepare(`
+    UPDATE site_social_links
+    SET youtube_url = NULL, vk_url = NULL
+    WHERE singleton = 1
+  `).run();
+  assert.equal(
+    upgraded.prepare('SELECT futuchat_url FROM site_social_links WHERE singleton = 1').get()
+      .futuchat_url,
+    'https://t.me/FUTU_CHAT',
+  );
+});
+
+test('weekly ingestion is versioned, idempotent and refuses silent manual overwrite', (t) => {
+  const { db, service, editorId, coverAssetId } = createHarness(t);
+  const payload = weeklyIngestionInput(coverAssetId);
+  assert.throws(
+    () => service.ingestWeeklyDraft(weeklyIngestionInput(coverAssetId, {
+      issueId: '2026-W32',
+      contentVersion: 2,
+    })),
+    (error) => error.status === 409 && /start at contentVersion 1/.test(error.message),
+  );
+  assert.equal(
+    db.prepare('SELECT COUNT(*) AS count FROM weekly_ingestion_issues').get().count,
+    0,
+  );
+  const created = service.ingestWeeklyDraft(payload);
+  assert.equal(created.created, true);
+  assert.equal(service.getArticle(created.articleId).state, 'draft');
+
+  const retry = service.ingestWeeklyDraft(payload);
+  assert.equal(retry.idempotent, true);
+  assert.equal(retry.revisionId, created.revisionId);
+  assert.equal(
+    db.prepare('SELECT COUNT(*) AS count FROM article_revisions WHERE article_id = ?')
+      .get(created.articleId).count,
+    1,
+  );
+
+  assert.throws(
+    () => service.ingestWeeklyDraft(weeklyIngestionInput(coverAssetId, {
+      article: { lead: 'Different content under a reused version.' },
+    })),
+    (error) => error.status === 409 && /already used/.test(error.message),
+  );
+
+  const updated = service.ingestWeeklyDraft(weeklyIngestionInput(coverAssetId, {
+    contentVersion: 2,
+    article: { lead: 'A corrected weekly lead.' },
+  }));
+  assert.equal(updated.created, false);
+  assert.equal(updated.idempotent, false);
+  assert.notEqual(updated.revisionId, created.revisionId);
+
+  const countsBeforeOlderVersion = {
+    revisions: db.prepare(
+      'SELECT COUNT(*) AS count FROM article_revisions WHERE article_id = ?',
+    ).get(created.articleId).count,
+    audits: db.prepare(
+      "SELECT COUNT(*) AS count FROM audit_events WHERE event_type = 'weekly_draft.ingested'",
+    ).get().count,
+  };
+  assert.throws(
+    () => service.ingestWeeklyDraft(weeklyIngestionInput(coverAssetId, {
+      contentVersion: 1,
+    })),
+    (error) => error.status === 409 && /older than/.test(error.message),
+  );
+  assert.deepEqual({
+    revisions: db.prepare(
+      'SELECT COUNT(*) AS count FROM article_revisions WHERE article_id = ?',
+    ).get(created.articleId).count,
+    audits: db.prepare(
+      "SELECT COUNT(*) AS count FROM audit_events WHERE event_type = 'weekly_draft.ingested'",
+    ).get().count,
+  }, countsBeforeOlderVersion);
+  assert.equal(
+    service.getArticle(created.articleId).current_revision_id,
+    updated.revisionId,
+  );
+
+  service.reviseArticle(
+    created.articleId,
+    weeklyIngestionInput(coverAssetId, {
+      article: { lead: 'Manual editor correction.' },
+    }).article,
+    editorId,
+    { expectedRevisionId: updated.revisionId },
+  );
+  assert.throws(
+    () => service.ingestWeeklyDraft(weeklyIngestionInput(coverAssetId, {
+      contentVersion: 3,
+      article: { lead: 'Machine correction after a manual edit.' },
+    })),
+    (error) => error.status === 409 && /manual edits/.test(error.message),
+  );
 });
 
 test('database enforces one configured editor plus immutable slugs and revisions', (t) => {
@@ -44,6 +576,13 @@ test('publication dates are stored in UTC and displayed in Europe/Moscow', () =>
     assert.throws(() => normalizePublicationDate(impossible), /valid calendar date/);
   }
   assert.equal(normalizePublicationDate('2024-02-29'), '2024-02-28T21:00:00.000Z');
+  for (const malformed of ['0', '07/10/2026', '2026-07-10T00:00:00.000Z']) {
+    assert.throws(() => normalizePublicationDate(malformed), /YYYY-MM-DD/);
+  }
+  assert.equal(
+    normalizePublicationDate('2026-07-09T21:00:00.000Z', { allowCanonicalTimestamp: true }),
+    '2026-07-09T21:00:00.000Z',
+  );
 });
 
 test('slug collision suffix is stable and title edits never change the URL', (t) => {

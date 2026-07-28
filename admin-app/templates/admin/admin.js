@@ -1,6 +1,7 @@
 const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
 const statusNode = document.querySelector('#status');
 const articleForm = document.querySelector('#article-form');
+const socialForm = document.querySelector('#social-form');
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -38,7 +39,10 @@ articleForm.addEventListener('submit', async (event) => {
       bodyMarkdown: fields.get('bodyMarkdown'),
       coverAssetId,
       coverAlt: fields.get('coverAlt'),
-      sourceUrl: fields.get('sourceUrl'),
+      sourceUrls: String(fields.get('sourceUrls'))
+        .split(/\r?\n/)
+        .map(value => value.trim())
+        .filter(Boolean),
     };
     const articleId = fields.get('articleId');
     if (articleId) {
@@ -67,9 +71,10 @@ document.addEventListener('click', async (event) => {
     if (button.dataset.action === 'edit') {
       const { articles } = await api('/api/articles');
       const article = articles.find((item) => String(item.id) === button.dataset.id);
-      for (const field of ['title', 'lead', 'bodyMarkdown', 'coverAlt', 'sourceUrl']) {
+      for (const field of ['title', 'lead', 'bodyMarkdown', 'coverAlt']) {
         articleForm.elements[field].value = article[field.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)] ?? '';
       }
+      articleForm.elements.sourceUrls.value = article.source_urls.join('\n');
       articleForm.elements.publicationDate.value = new Date(article.publication_at).toLocaleDateString('sv-SE', { timeZone: 'Europe/Moscow' });
       articleForm.elements.articleId.value = article.id;
       articleForm.elements.expectedRevisionId.value = article.current_revision_id;
@@ -96,25 +101,42 @@ document.addEventListener('click', async (event) => {
       location.reload();
       return;
     }
-    if (button.dataset.action === 'rollback') {
-      if (!confirm('ROLLBACK: переключить весь active release?')) return;
-      const result = await api('/api/releases/rollback', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ releaseId: button.dataset.release, confirmation: 'ROLLBACK' }),
-      });
-      report(`Активирован release ${result.releaseId}`);
-      location.reload();
-      return;
-    }
     const confirmation = button.dataset.action === 'publish' ? 'PUBLISH' : 'WITHDRAW';
-    if (!confirm(`${confirmation}: подтвердить действие?`)) return;
-    const result = await api(`/api/articles/${button.dataset.id}/${button.dataset.action}`, {
+    const prompt = button.dataset.action === 'publish'
+      ? 'Опубликовать текущую редакцию на сайте?'
+      : 'Снять материал с публикации?';
+    if (!confirm(prompt)) return;
+    await api(`/api/articles/${button.dataset.id}/${button.dataset.action}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ confirmation, expectedRevisionId: Number(button.dataset.revision) }),
     });
-    report(`Активирован release ${result.releaseId}`);
+    report(button.dataset.action === 'publish'
+      ? 'Дайджест опубликован.'
+      : 'Дайджест снят с публикации.');
+    location.reload();
+  } catch (error) {
+    report(error.message);
+  }
+});
+
+socialForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try {
+    if (!confirm('Обновить ссылки во всех опубликованных дайджестах?')) return;
+    const fields = new FormData(socialForm);
+    await api('/api/social-links', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        telegramUrl: fields.get('telegramUrl'),
+        youtubeUrl: fields.get('youtubeUrl'),
+        vkUrl: fields.get('vkUrl'),
+        futuchatUrl: fields.get('futuchatUrl'),
+        confirmation: 'SOCIAL_LINKS',
+      }),
+    });
+    report('Ссылки социальных сетей опубликованы.');
     location.reload();
   } catch (error) {
     report(error.message);

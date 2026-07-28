@@ -1,6 +1,6 @@
 # Развёртывание ОКНОТИКИ для Жени
 
-Этот пакет разворачивает статический публичный сайт и отдельный закрытый редактор. Публичный nginx не зависит от доступности Node.js: `/articles/` читается из одного immutable release через symlink `active`. В репозитории и release ZIP нет production credentials, Telegram subject, SQLite, uploads, previews или restic password.
+Этот пакет разворачивает статический публичный сайт с разделом «Новости» и отдельный закрытый редактор «Дайджеста недели». Публичный nginx не зависит от доступности Node.js: `/articles/` читается из одного immutable release через symlink `active`. В репозитории и release ZIP нет production credentials, Telegram subject, SQLite, uploads, previews, Tuesday payloads или restic password.
 
 ## Зафиксированный runtime
 
@@ -62,12 +62,57 @@ deploy/scripts/install-marketing.sh \
 
 - `telegram-oidc-client-id`;
 - `telegram-oidc-client-secret`;
+- `weekly-ingest-token` — общий bearer token сервера и Tuesday caller, минимум 32 случайных печатных ASCII-символа без пробелов и запятых;
 - `restic-repository` — строка encrypted off-host repository;
 - `restic-password` — отдельный сильный пароль репозитория.
 
 Исходные значения принимать только по согласованному секретному каналу, не вставлять в shell history, ticket, Telegram или journal. Файлы credentials — `root:root 0600`. Units используют `LoadCredentialEncrypted`; Node читает временные файлы из `%d`, а restic получает `RESTIC_PASSWORD_FILE` и repository file.
 
 Rotation Telegram: создать новые credential-файлы под временными именами, проверить ownership/mode, остановить admin, атомарно заменить `.cred`, запустить сервис и выполнить login/logout/revocation gate. Старый client secret отозвать только после успешной проверки. Rotation restic: сначала создать и проверить новый repository/password и полный backup/restore drill; старый repository сохранять до подтверждённого restore и истечения retention.
+
+Weekly ingestion использует отдельный `weekly-ingest-token`, который не даёт
+Telegram-сессию и принимается только на draft-only endpoint. Server unit читает
+его из `%d/weekly-ingest-token`; cron-side research unit должен загрузить то же
+значение как собственный encrypted systemd credential и собрать Authorization
+header только в памяти. Контракт, version/conflict rule, rotation и запрет
+секрета в argv/env/log описаны в `docs/WEEKLY_INGESTION.md`.
+
+## Tuesday ingestion и draft-only smoke
+
+Tuesday research unit запускается в 12:00 MSK после генерации presenter PDF. Он передаёт тот же проверенный пакет в `POST /api/ingestion/weekly-drafts`, но не получает Telegram-сессию и не может публиковать. В пятницу к 18:00 MSK Саня входит через Telegram, проверяет источники и preview, при необходимости редактирует черновик и сам нажимает publish.
+
+До первого live smoke должны существовать: enrolled editor Сани, зарегистрированный reusable private cover asset, encrypted `weekly-ingest-token` одновременно у admin service и Tuesday caller, а также закрытый JSON payload по контракту `docs/WEEKLY_INGESTION.md`. Payload, cover и response body не сохранять в release evidence или journal.
+
+После enrollment Саня утверждает одну reusable branded cover. Женя помещает исходник в закрытый путь вне public root, доступный `oknotika-admin` только на время команды, и регистрирует его через тот же validated image pipeline, что использует редактор:
+
+```bash
+sudo systemd-run --pty --wait --collect --unit=oknotika-register-weekly-cover \
+  --property=User=oknotika-admin --property=Group=www-data --property=UMask=0027 \
+  --property=WorkingDirectory=/opt/oknotika-admin/current/admin-app \
+  --property=Environment=PATH=/opt/node-v24.18.0/bin:/usr/bin:/bin \
+  --property=ReadWritePaths=/var/lib/oknotika-admin \
+  /opt/node-v24.18.0/bin/npm \
+  run register-weekly-cover -- \
+  --database /var/lib/oknotika-admin/db/admin.sqlite \
+  --uploads-root /var/lib/oknotika-admin/uploads \
+  --public-root /srv/oknotika/current \
+  --cover /private/path/to/approved-weekly-cover.png
+```
+
+Команда требует ровно одного enabled editor, проверяет JPEG/PNG/WebP, decoder/pixel limits, перекодирует в WebP без EXIF и выводит только `assetId`, media type и размеры. Женя переносит numeric `assetId` в root-owned private configuration Tuesday payload generator; это не credential, но его не публикуют в release evidence. Caller вставляет его как `coverAssetId` и не получает upload/list authority. Исходник из временного закрытого пути удаляется оператором после сверки зарегистрированного результата. При смене обложки повторить процедуру, атомарно заменить ID в private caller configuration и выполнить smoke до отказа от старого ID.
+
+Из Tuesday research unit, где `LoadCredentialEncrypted=weekly-ingest-token` уже задаёт `CREDENTIALS_DIRECTORY`, выполнить:
+
+```bash
+/opt/node-v24.18.0/bin/node \
+  /opt/oknotika-admin/current/deploy/scripts/smoke-weekly-ingestion.mjs \
+  --admin-url https://admin.oknotika.ru \
+  --payload-file /private/path/to/generated-weekly-payload.json
+```
+
+Скрипт читает token только из credential file, отправляет payload и его identical retry, требует idempotent результат и проверяет, что bearer credential получает HTTP 401 на listing и operational rollback. В stdout попадает только безопасный pass summary без token, payload, article/revision identifiers или response body. После pass Саня должен увидеть материал как `Черновик` в «Новости», а публичные `/articles/` и `/articles/latest.json` не должны измениться до его ручной публикации.
+
+Для изолированной local/oneshot-диагностики допустим явный `--token-file /root-controlled/path/weekly-ingest-token`: это override только пути к credential file, не значения token. Файл должен оставаться вне Git и public root с доступом `root:root 0600`; token запрещено передавать в argv. В production штатный путь выше через `LoadCredentialEncrypted` и `CREDENTIALS_DIRECTORY` обязателен.
 
 ## nginx
 
@@ -140,7 +185,7 @@ Restore drill выполнять минимум после первоначал�
   --target /var/tmp/oknotika-restore-drill-YYYYMMDD
 ```
 
-Target обязан быть пустым и изолированным. Скрипт проверяет SQLite integrity, чтение audit state, hashes release manifests, exact active symlink target, `site_state`, completed release и все referenced article/revision rows. Затем отдельно запустить downgrade rehearsal на копии pre-migration DB. Результат, snapshot ID, длительность и удаление временных данных записать в release evidence. Production restore разрешён только в согласованное окно: остановить admin, сохранить повреждённое состояние отдельно, восстановить DB/uploads/article releases, проверить владельцев и hashes, затем запустить reconciliation и smoke tests.
+Target обязан быть пустым и изолированным. Скрипт проверяет SQLite integrity, чтение audit state, hashes release manifests, exact active symlink target, `site_state`, соответствие `site_social_links` active manifest, completed release и все referenced article/revision rows. Затем отдельно запустить downgrade rehearsal на копии pre-migration DB. Результат, snapshot ID, длительность и удаление временных данных записать в release evidence. Production restore разрешён только в согласованное окно: остановить admin, сохранить повреждённое состояние отдельно, восстановить DB/uploads/article releases, проверить владельцев и hashes, затем запустить reconciliation и smoke tests.
 
 ## Первичное подключение редактора
 
@@ -164,6 +209,7 @@ systemd-run --pty --wait --collect --unit=oknotika-bootstrap-editor \
 
 4. Открыть выданный one-time authorization URL в браузере Сани. После redirect вставить полный callback URL только в prompt, не в shell command/history. Скрипт выполняет code+PKCE exchange и полную проверку ID token, затем показывает локально verified `sub`/fingerprint. Сверить identity с Саней отдельным каналом и ввести `ENROLL-<fingerprint>`.
 5. Сохранить в evidence только timestamp, approvers и fingerprint, не callback/code/token/subject. Процедура подробно описана в `admin-app/ENROLLMENT.md`.
+6. После включения admin vhost Саня входит в «Новости» и сверяет четыре точных non-secret default: Telegram `https://t.me/oknotika`, YouTube `https://youtube.com/@oknotika`, VK `https://vk.ru/oknotika` и отдельный FUTUCHAT `https://t.me/FUTU_CHAT`. При upgrade с active schema-3 release startup сначала reconciles прежний manifest, затем один раз атомарно активирует pending defaults в новом schema-4 release; database-only состояние не считается применённым. Telegram должен быть readonly; очищенная optional-площадка не должна показываться публично. Затем выполнить draft-only ingestion smoke из предыдущего раздела.
 
 Удаление доступа: остановить admin, сделать verified backup, выполнить `npm run disable-editor -- --database /var/lib/oknotika-admin/db/admin.sqlite`, запустить service и убедиться, что старые sessions отозваны и вход запрещён. Для нового subject требуется reviewed maintenance change; автоматической замены editor/RBAC нет.
 
@@ -193,17 +239,52 @@ sudo systemd-run --pty --wait --collect --unit=oknotika-bootstrap-content \
 При подозрении на компрометацию:
 
 1. `systemctl stop oknotika-admin.service` и отключить admin vhost symlink; после `nginx -t` reload nginx.
-2. Публичный vhost и `article-releases/active` не переключать: сайт и текущий «Факт недели» продолжают работать статически.
+2. Публичный vhost и `article-releases/active` не переключать: сайт и текущие «Новости» продолжают работать статически.
 3. Сохранить journal/audit evidence в защищённое хранилище, отозвать Telegram credentials, отключить editor и его sessions.
 4. Сделать forensic copy, восстановить доверенный application release и DB/uploads из проверенного snapshot, затем повторить enrollment и все security gates.
 
 ## Раздельные rollback procedures
 
-Content rollback: в закрытом редакторе выбрать старую immutable редакцию и вернуть её как новый draft, проверить preview и опубликовать. Для operational rollback всей рубрики выбрать предыдущий completed article release; publisher атомарно переключит `article-releases/active` и запишет audit event. Это не меняет application или marketing release.
+Content rollback: в закрытом редакторе выбрать старую immutable редакцию и вернуть её как новый draft, проверить preview и опубликовать. Operational rollback всей рубрики отсутствует в editor HTTP API и доступен только из root-controlled operator shell. Женя выбирает exact previous completed article release, останавливает admin write surface, запускает CLI от service user и возвращает сервис:
+
+```bash
+sudo systemctl stop oknotika-admin.service
+sudo systemd-run --pty --wait --collect --unit=oknotika-rollback-release \
+  --property=User=oknotika-admin --property=Group=www-data --property=UMask=0027 \
+  --property=WorkingDirectory=/opt/oknotika-admin/current/admin-app \
+  --property=Environment=PATH=/opt/node-v24.18.0/bin:/usr/bin:/bin \
+  --property=ReadWritePaths=/var/lib/oknotika-admin \
+  /opt/node-v24.18.0/bin/npm \
+  run rollback-release -- \
+  --database /var/lib/oknotika-admin/db/admin.sqlite \
+  --releases-root /var/lib/oknotika-admin/article-releases \
+  --public-origin https://oknotika.ru \
+  --release-id EXACT_COMPLETED_RELEASE_ID
+sudo systemctl start oknotika-admin.service
+```
+
+CLI принимает только safe release ID, требует completed DB record, валидирует immutable target, атомарно переключает `article-releases/active`, синхронизирует DB и пишет `release.rolled_back` без editor identity. После команды проверить active symlink, manifest, `/articles/`, `latest.json` и journal. Rollback не снимает durable publish/withdraw lock weekly issue: Tuesday credential не может перезаписать исторически опубликованный материал. Это не меняет application или marketing release.
 
 Marketing rollback: выбрать предыдущий `/srv/oknotika/releases/<sha>`, проверить его checksum, создать рядом новый относительный symlink и атомарно выполнить `mv -T` в `/srv/oknotika/current`. Не трогать `/articles/`, DB или admin service; затем проверить главную и продуктовые страницы.
 
-Application rollback: остановить admin, сделать verified DB backup, проверить совместимость схемы с предыдущим `/opt/oknotika-admin/releases/<sha>`, атомарно вернуть `/opt/oknotika-admin/current` и запустить service. При breaking migration сначала восстановить соответствующий pre-migration DB backup. Публичный vhost остаётся доступен всё время.
+Application rollback с этой версии на предыдущую schema-3 application требует сначала вернуть совместимый active article release, пока `/opt/oknotika-admin/current` ещё указывает на новую application. Остановить admin, сделать verified DB backup, выбрать exact completed schema-2/schema-3 article release из состояния до FUTUCHAT (для schema 3 допустимы только старые поля Telegram/YouTube/VK и `vk.com`, не `vk.ru`) и выполнить guarded rollback:
+
+```bash
+sudo systemd-run --pty --wait --collect --unit=oknotika-prepare-app-rollback \
+  --property=User=oknotika-admin --property=Group=www-data --property=UMask=0027 \
+  --property=WorkingDirectory=/opt/oknotika-admin/current/admin-app \
+  --property=Environment=PATH=/opt/node-v24.18.0/bin:/usr/bin:/bin \
+  --property=ReadWritePaths=/var/lib/oknotika-admin \
+  /opt/node-v24.18.0/bin/npm \
+  run rollback-release -- \
+  --database /var/lib/oknotika-admin/db/admin.sqlite \
+  --releases-root /var/lib/oknotika-admin/article-releases \
+  --public-origin https://oknotika.ru \
+  --release-id EXACT_PRE_FUTUCHAT_RELEASE_ID \
+  --application-schema 3
+```
+
+Флаг fail-closed отклоняет schema-4 release, FUTUCHAT, `vk.ru` и любой другой manifest, который предыдущая application не сможет прочитать. Только после успешной команды проверить `article-releases/active`, manifest и `/articles/`, атомарно вернуть `/opt/oknotika-admin/current` на предыдущий release и запустить service. Additive columns/tables migrations 006–007 старая application игнорирует. Если совместимого immutable article release нет, восстановить один согласованный pre-migration backup, содержащий одновременно DB, `article-releases/releases` и symlink `article-releases/active`; восстановление одной DB недостаточно. Публичный vhost остаётся доступен всё время.
 
 ## Локальные и production gates
 
@@ -220,23 +301,29 @@ npm run build
 npm run render:fixture
 ```
 
-Обязательные deferred production gates; не отмечать их выполненными в credential-free package:
+Обязательные deferred production gates принадлежат Жене; credential-free package не является доказательством их выполнения:
 
-- [ ] создать Telegram Web Login application и зарегистрировать exact redirect URI;
-- [ ] загрузить OIDC credentials и verified allowlisted subject через systemd credentials/enrollment;
-- [ ] выполнить реальный Telegram login/logout/revocation rehearsal;
-- [ ] выполнить `nginx -t`, `systemd-analyze verify` и live smoke test на Linux host;
-- [ ] настроить реальный encrypted off-host restic repository и выполнить production restore drill;
-- [ ] переключать production symlinks только после явного разрешения на deployment.
+- [ ] DNS/TLS: направить `oknotika.ru` и `admin.oknotika.ru` на production, выпустить валидные сертификаты и зарегистрировать единственный callback `https://admin.oknotika.ru/auth/callback`; admin vhost не открывать раньше.
+- [ ] Pinned runtime: установить проверенный Node.js `24.18.0`, подтвердить bundled SQLite `3.53.1`, lockfile SHA-256 из `deploy/release-manifest.json` и выполнить `preflight.sh`.
+- [ ] Encrypted credentials: загрузить отдельные OIDC client ID/secret, общий для admin/Tuesday caller `weekly-ingest-token`, off-host `restic-repository` и `restic-password` через `LoadCredentialEncrypted`; прямых secret values в env, argv и evidence быть не должно.
+- [ ] Enrollment Сани: выполнить verified PKCE bootstrap из `admin-app/ENROLLMENT.md`, независимо сверить identity и сохранить только fingerprint/approvers/timestamp.
+- [ ] Linux config: выполнить `nginx -t` и все четыре `systemd-analyze verify`, затем проверить enabled/active units, file ownership/modes и journal без credentials.
+- [ ] Live auth: пройти реальный Telegram login, logout, replay rejection, non-allowlisted rejection, session revocation и credential rotation по `release-evidence/qa/PRODUCTION_OIDC_REHEARSAL.md`.
+- [ ] Weekly ingestion: из credential-scoped Tuesday unit выполнить `smoke-weekly-ingestion.mjs` с реальным private payload, подтвердить identical retry, draft-only статус в «Новости» и отсутствие публичного изменения.
+- [ ] Public smoke: выполнить `smoke-test.sh` на двух canonical HTTPS origins; для опубликованного weekly digest передать `--weekly-path` вместе с exact active `manifest.json`, проверить configured CTA и отсутствие очищенных optional CTA, после первого withdrawal повторить его с HTTP 410 path.
+- [ ] Restore: настроить реальный encrypted off-host restic repository, сделать backup и isolated restore drill, проверить SQLite/releases/active symlink и уложиться в RPO 24 часа / RTO 2 часа.
+- [ ] Activation: переключать production symlinks и включать vhosts только после явного разрешения на deployment; записать pass/fail gates и rollback decision вне ZIP без private identifiers.
 
 Live gate после включения TLS/vhosts:
 
 ```bash
 ./deploy/scripts/smoke-test.sh \
   --base-url "$OKNOTIKA_PUBLIC_ORIGIN" \
-  --admin-url "$OKNOTIKA_ADMIN_ORIGIN"
+  --admin-url "$OKNOTIKA_ADMIN_ORIGIN" \
+  --weekly-path /articles/<published-weekly-slug>/ \
+  --social-manifest /var/lib/oknotika-admin/article-releases/active/manifest.json
 ```
 
-После первого реального withdrawal повторить smoke с `--withdrawn-path /articles/<slug>/`: gate требует HTTP 410 и generated gone body, а не только текст «410» при HTTP 200.
+До первой weekly publication параметры `--weekly-path` и `--social-manifest` опустить. После неё оба обязательны: gate сверяет exact href/labels с active manifest и требует, чтобы очищенные YouTube, VK или FUTUCHAT отсутствовали. Первые shipped defaults отдельно сверяются на шаге enrollment; последующие подтверждённые изменения не должны ломать steady-state smoke. После первого реального withdrawal повторить smoke с `--withdrawn-path /articles/<slug>/`: gate требует HTTP 410 и generated gone body, а не только текст «410» при HTTP 200.
 
 Если gate не проходит, не продолжать активацию: application symlink вернуть по Application rollback, marketing — только по Marketing rollback, а active article release менять только через Content/operational rollback.

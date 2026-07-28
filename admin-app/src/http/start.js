@@ -11,9 +11,11 @@ import { createContentService } from '../content/service.js';
 import { createPublisher } from '../render/publisher.js';
 import { createAdminActions } from './admin-actions.js';
 import { createAdminHandler } from './handler.js';
+import { createIngestionAuthenticator } from './ingestion-auth.js';
 import { createUploadStore } from './uploads.js';
 import { createProxiedRequest } from './node-adapter.js';
 import { assertTrustedProxyHeaders } from './security.js';
+import { createWeeklyIngestion } from './weekly-ingestion.js';
 
 const config = loadConfiguration();
 for (const directory of [
@@ -33,7 +35,8 @@ const publisher = createPublisher(db, {
   publicOrigin: config.publicOrigin,
   onFatalConsistencyError: (error) => setImmediate(() => { throw error; }),
 });
-publisher.reconcile();
+const activeManifest = publisher.reconcile();
+await publisher.activatePendingSocialDefaults(activeManifest);
 const uploadStore = createUploadStore({
   db,
   contentService,
@@ -48,6 +51,11 @@ const actions = createAdminActions({
   previewsRoot: config.previewsRoot,
   publicOrigin: config.publicOrigin,
 });
+const weeklyIngestion = createWeeklyIngestion({
+  contentService,
+  releasesRoot: config.releasesRoot,
+});
+const ingestionAuthenticator = createIngestionAuthenticator(config.weeklyIngestionToken);
 const sessionService = createSessionService(db);
 const oidcService = createOidcService(db, {
   clientId: config.clientId,
@@ -61,6 +69,8 @@ const handler = createAdminHandler({
   oidcService,
   sessionService,
   actions,
+  weeklyIngestion,
+  ingestionAuthenticator,
   previewsRoot: config.previewsRoot,
 });
 
@@ -70,6 +80,7 @@ const server = createServer(async (incoming, outgoing) => {
     const request = await createProxiedRequest(incoming, {
       adminOrigin: config.adminOrigin,
       sessionService,
+      ingestionAuthenticator,
     });
     const response = await handler(request);
     outgoing.statusCode = response.status;

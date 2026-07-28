@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { chmodSync, copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { renderDetailDocument } from './renderer.js';
+import { loadPreviewSnapshot, renderDetailDocument } from './renderer.js';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 
@@ -10,14 +10,7 @@ export function createPrivatePreview({ db, revisionId, authenticatedEditorId, pr
   const editor = db.prepare('SELECT id FROM configured_editors WHERE id = ? AND enabled = 1')
     .get(authenticatedEditorId);
   if (!editor) throw new Error('Authentication is required for preview');
-  const revision = db.prepare(`
-    SELECT a.slug, r.*, s.private_path, s.media_type
-    FROM article_revisions r
-    JOIN articles a ON a.id = r.article_id
-    JOIN assets s ON s.id = r.cover_asset_id
-    WHERE r.id = ?
-  `).get(revisionId);
-  if (!revision) throw new Error('Revision not found');
+  const revision = loadPreviewSnapshot(db, revisionId);
 
   const previewId = randomBytes(24).toString('base64url');
   const directory = resolve(previewsRoot, previewId);
