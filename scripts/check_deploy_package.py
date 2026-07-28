@@ -181,6 +181,16 @@ def main() -> None:
         "https://t.me/FUTU_CHAT",
     )
     require_text(
+        root / "admin-app/migrations/007_pending_social_defaults.sql",
+        "pending_social_link_defaults",
+        "SELECT singleton, telegram_url, youtube_url, vk_url, futuchat_url",
+    )
+    require_text(
+        root / "admin-app/src/http/start.js",
+        "publisher.reconcile()",
+        "activatePendingSocialDefaults",
+    )
+    require_text(
         deploy / "systemd/oknotika-admin-backup.timer",
         "OnCalendar=",
         "Persistent=true",
@@ -282,6 +292,8 @@ def main() -> None:
         "run register-weekly-cover",
         "run rollback-release",
         "отсутствует в editor HTTP API",
+        "--token-file",
+        "database-only состояние не считается применённым",
     )
     print(f"deploy package check passed: {len(scripts)} shell scripts, Node {runtime['nodeVersion']}")
 

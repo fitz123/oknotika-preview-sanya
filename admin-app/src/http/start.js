@@ -34,7 +34,8 @@ const publisher = createPublisher(db, {
   publicOrigin: config.publicOrigin,
   onFatalConsistencyError: (error) => setImmediate(() => { throw error; }),
 });
-publisher.reconcile();
+const activeManifest = publisher.reconcile();
+await publisher.activatePendingSocialDefaults(activeManifest);
 const uploadStore = createUploadStore({
   db,
   contentService,

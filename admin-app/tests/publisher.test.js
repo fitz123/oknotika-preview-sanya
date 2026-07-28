@@ -194,6 +194,61 @@ test('rollback restores release social links and unrelated publication keeps the
   assert.equal(harness.service.getSocialLinks().futuchatUrl, 'https://t.me/FUTU_CHAT');
 });
 
+test('startup activates pending official defaults after reconciling a schema-three release', async (t) => {
+  let tick = 0;
+  const harness = createHarness(t);
+  const releasesRoot = resolve(harness.root, 'pending-social-defaults');
+  const publisher = createPublisher(harness.db, {
+    releasesRoot,
+    publicOrigin: 'https://oknotika.ru',
+    clock: () => new Date(Date.parse('2026-07-14T12:00:00.000Z') + tick++ * 1000),
+  });
+  const weekly = harness.service.ingestWeeklyDraft(weeklyIngestionInput(harness.coverAssetId));
+  const first = await publisher.publish({
+    editorId: harness.editorId,
+    transition: publication(weekly),
+  });
+  rewriteAsSchemaThreeRelease(
+    harness.db,
+    releasesRoot,
+    first.releaseId,
+    weekly.slug,
+    { youtubeUrl: null, vkUrl: null },
+  );
+  harness.db.prepare(`
+    INSERT INTO pending_social_link_defaults
+      (singleton, telegram_url, youtube_url, vk_url, futuchat_url)
+    VALUES (1, 'https://t.me/oknotika', 'https://youtube.com/@oknotika',
+            'https://vk.ru/oknotika', 'https://t.me/FUTU_CHAT')
+  `).run();
+
+  const reconciled = publisher.reconcile();
+  assert.equal(reconciled.schemaVersion, 3);
+  assert.deepEqual(
+    (({ youtubeUrl, vkUrl, futuchatUrl }) => ({ youtubeUrl, vkUrl, futuchatUrl }))(
+      harness.service.getSocialLinks(),
+    ),
+    { youtubeUrl: null, vkUrl: null, futuchatUrl: null },
+  );
+
+  const activated = await publisher.activatePendingSocialDefaults(reconciled);
+  assert.equal(activated.schemaVersion, 4);
+  assert.deepEqual(activated.socialLinks, {
+    telegramUrl: 'https://t.me/oknotika',
+    youtubeUrl: 'https://youtube.com/@oknotika',
+    vkUrl: 'https://vk.ru/oknotika',
+    futuchatUrl: 'https://t.me/FUTU_CHAT',
+  });
+  assert.equal(
+    harness.db.prepare('SELECT COUNT(*) AS count FROM pending_social_link_defaults').get().count,
+    0,
+  );
+  assert.equal(
+    readlinkSync(publisher.activePath),
+    `releases/${activated.releaseId}`,
+  );
+});
+
 test('rollback to a legacy manifest clears optional social links', async (t) => {
   let tick = 0;
   const harness = createHarness(t, {
@@ -643,15 +698,32 @@ function rewriteAsLegacyRelease(db, releasesRoot, releaseId) {
     .run(JSON.stringify(manifest), releaseId);
 }
 
-function rewriteAsSchemaThreeRelease(db, releasesRoot, releaseId, slug) {
+function rewriteAsSchemaThreeRelease(
+  db,
+  releasesRoot,
+  releaseId,
+  slug,
+  socialOverrides = {},
+) {
   const releaseDirectory = resolve(releasesRoot, 'releases', releaseId);
   const articlePath = `articles/${slug}/index.html`;
   const detailPath = resolve(releaseDirectory, articlePath);
   const detail = readFileSync(detailPath, 'utf8');
-  const legacyDetail = detail.replace(
+  let legacyDetail = detail.replace(
     /\n\s*<li><a href="https:\/\/t\.me\/FUTU_CHAT"[^\n]+\n/,
     '\n',
   );
+  for (const [field, url] of [
+    ['youtubeUrl', 'https://youtube.com/@oknotika'],
+    ['vkUrl', 'https://vk.ru/oknotika'],
+  ]) {
+    if (Object.hasOwn(socialOverrides, field) && socialOverrides[field] === null) {
+      legacyDetail = legacyDetail.replace(
+        new RegExp(`\\n\\s*<li><a href="${url.replaceAll('/', '\\/')}"[^\\n]+\\n`),
+        '\n',
+      );
+    }
+  }
   assert.notEqual(legacyDetail, detail);
   writeFileSync(detailPath, legacyDetail);
 
@@ -659,6 +731,7 @@ function rewriteAsSchemaThreeRelease(db, releasesRoot, releaseId, slug) {
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
   manifest.schemaVersion = 3;
   delete manifest.socialLinks.futuchatUrl;
+  Object.assign(manifest.socialLinks, socialOverrides);
   manifest.files[articlePath] = {
     ...manifest.files[articlePath],
     sha256: createHash('sha256').update(legacyDetail).digest('hex'),

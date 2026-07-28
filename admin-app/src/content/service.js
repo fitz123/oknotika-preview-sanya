@@ -304,7 +304,11 @@ export function createContentService(db, { clock = () => new Date() } = {}) {
 
     prepareSocialLinks(input, editorId) {
       assertEditor(db, editorId);
-      return validateSocialLinks(input);
+      const socialLinks = validateSocialLinks(input);
+      if (!Object.hasOwn(input, 'futuchatUrl')) {
+        socialLinks.futuchatUrl = readSocialLinks(db).futuchatUrl;
+      }
+      return socialLinks;
     },
 
     getArticle(articleId) {

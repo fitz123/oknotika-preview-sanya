@@ -231,6 +231,13 @@ export function validateRelease(outputDirectory) {
       throw new Error('Release manifest contains an invalid article slug');
     }
   }
+  if (manifest.schemaVersion >= 4) {
+    for (const field of ['telegramUrl', 'youtubeUrl', 'vkUrl', 'futuchatUrl']) {
+      if (!Object.hasOwn(manifest.socialLinks ?? {}, field)) {
+        throw new Error(`Release manifest social links are missing ${field}`);
+      }
+    }
+  }
   if (manifest.schemaVersion >= 3) validateSocialLinks(manifest.socialLinks);
   return manifest;
 }

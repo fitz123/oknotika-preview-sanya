@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync, statSync } from 'node:fs';
+import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 import { setImmediate } from 'node:timers';
@@ -215,6 +215,24 @@ test('weekly social CTA renders exact official destinations and omits optional m
   );
   assert.match(partial, /href="https:\/\/t\.me\/oknotika"/);
   assert.doesNotMatch(partial, /youtube\.com|youtu\.be|vk\.(?:com|ru)|FUTU_CHAT|YouTube|>VK<|FUTUCHAT/);
+});
+
+test('schema-four release requires every explicit nullable social field', (t) => {
+  const harness = createHarness(t);
+  const created = harness.service.ingestWeeklyDraft(weeklyIngestionInput(harness.coverAssetId));
+  const article = loadRevisionSnapshot(
+    harness.db, created.articleId, created.revisionId, 'published',
+  );
+  const { outputDirectory } = render(harness, 'strict-schema-four-social-links', [article]);
+  const manifestPath = resolve(outputDirectory, 'manifest.json');
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  delete manifest.socialLinks.futuchatUrl;
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+  assert.throws(
+    () => validateRelease(outputDirectory),
+    /social links are missing futuchatUrl/,
+  );
 });
 
 test('public release rejects a weekly snapshot that violates the digest contract', (t) => {

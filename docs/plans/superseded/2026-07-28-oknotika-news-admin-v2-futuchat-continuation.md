@@ -1,5 +1,10 @@
 # Plan: Oknotika weekly news admin v2 — FUTUCHAT continuation
 
+Status: Superseded before execution by
+`../completed/2026-07-28-oknotika-news-admin-v2-futuchat-continuation-v2.md`.
+This rejected planning record is retained for traceability; none of its
+unchecked tasks represents outstanding work.
+
 ## Goal
 
 Complete Sanya's same approved weekly-news/admin outcome after his 2026-07-28 requirement update: add FUTUCHAT as a fourth first-class configurable public CTA and ship the exact official Telegram, YouTube, VK and FUTUCHAT destinations through the already reviewed storage/admin/API/static-render/release architecture.

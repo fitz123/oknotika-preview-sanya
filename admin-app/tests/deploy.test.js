@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import {
+  chmodSync,
   copyFileSync,
   mkdirSync,
   mkdtempSync,
@@ -18,8 +19,6 @@ import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { openDatabase } from '../src/content/database.js';
 import { createContentService } from '../src/content/service.js';
-import { registerWeeklyCover } from '../scripts/register-weekly-cover.js';
-import { rollbackRelease } from '../scripts/rollback-release.js';
 import {
   acquirePublisherLock,
   createPublisher,
@@ -241,6 +240,18 @@ test('operator CLIs register a validated reusable cover and roll back outside th
   mkdirSync(resolve(root, 'db'), { recursive: true });
   mkdirSync(publicRoot);
 
+  const unconfiguredDatabasePath = resolve(root, 'db/unconfigured.sqlite');
+  openDatabase(unconfiguredDatabasePath).close();
+  const noEditorResult = spawnSync(process.execPath, [
+    resolve(REPO_ROOT, 'admin-app/scripts/register-weekly-cover.js'),
+    '--database', unconfiguredDatabasePath,
+    '--uploads-root', uploadsRoot,
+    '--public-root', publicRoot,
+    '--cover', resolve(REPO_ROOT, 'img/aluminum-world/facades.jpg'),
+  ], { encoding: 'utf8' });
+  assert.equal(noEditorResult.status, 1);
+  assert.match(noEditorResult.stderr, /Exactly one enabled editor/);
+
   let db = openDatabase(databasePath);
   let service = createContentService(db);
   const editorId = service.configureEditor({
@@ -249,14 +260,22 @@ test('operator CLIs register a validated reusable cover and roll back outside th
   });
   db.close();
 
-  const cover = await registerWeeklyCover({
-    databasePath,
-    uploadsRoot,
-    publicRoot,
-    coverPath: resolve(REPO_ROOT, 'img/aluminum-world/facades.jpg'),
-  });
+  const coverResult = spawnSync(process.execPath, [
+    resolve(REPO_ROOT, 'admin-app/scripts/register-weekly-cover.js'),
+    '--database', databasePath,
+    '--uploads-root', uploadsRoot,
+    '--public-root', publicRoot,
+    '--cover', resolve(REPO_ROOT, 'img/aluminum-world/facades.jpg'),
+  ], { encoding: 'utf8' });
+  assert.equal(coverResult.status, 0, coverResult.stderr);
+  const cover = JSON.parse(coverResult.stdout);
   assert.ok(cover.assetId > 0);
   assert.equal(cover.mediaType, 'image/webp');
+  const missingCoverArgument = spawnSync(process.execPath, [
+    resolve(REPO_ROOT, 'admin-app/scripts/register-weekly-cover.js'),
+  ], { encoding: 'utf8' });
+  assert.equal(missingCoverArgument.status, 1);
+  assert.match(missingCoverArgument.stderr, /--database is required/);
 
   let tick = 0;
   db = openDatabase(databasePath);
@@ -291,14 +310,26 @@ test('operator CLIs register a validated reusable cover and roll back outside th
   });
   db.close();
 
-  const rolledBack = await rollbackRelease({
-    databasePath,
-    releasesRoot,
-    publicOrigin: 'https://oknotika.ru',
-    releaseId: first.releaseId,
-  });
+  const rollbackResult = spawnSync(process.execPath, [
+    resolve(REPO_ROOT, 'admin-app/scripts/rollback-release.js'),
+    '--database', databasePath,
+    '--releases-root', releasesRoot,
+    '--public-origin', 'https://oknotika.ru',
+    '--release-id', first.releaseId,
+  ], { encoding: 'utf8' });
+  assert.equal(rollbackResult.status, 0, rollbackResult.stderr);
+  const rolledBack = JSON.parse(rollbackResult.stdout);
   assert.equal(rolledBack.releaseId, first.releaseId);
   assert.notEqual(second.releaseId, first.releaseId);
+  const invalidRollback = spawnSync(process.execPath, [
+    resolve(REPO_ROOT, 'admin-app/scripts/rollback-release.js'),
+    '--database', databasePath,
+    '--releases-root', releasesRoot,
+    '--public-origin', 'https://oknotika.ru',
+    '--release-id', '../invalid',
+  ], { encoding: 'utf8' });
+  assert.equal(invalidRollback.status, 1);
+  assert.match(invalidRollback.stderr, /releaseId is invalid/);
   const checked = openDatabase(databasePath);
   assert.equal(
     checked.prepare('SELECT active_release_id FROM site_state WHERE singleton = 1')
@@ -306,6 +337,106 @@ test('operator CLIs register a validated reusable cover and roll back outside th
     first.releaseId,
   );
   checked.close();
+});
+
+test('public smoke executes weekly-path validation and all four CTA checks', (t) => {
+  const root = mkdtempSync(resolve(tmpdir(), 'oknotika-public-smoke-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const shimRoot = resolve(root, 'bin');
+  const weeklyBodyPath = resolve(root, 'weekly.html');
+  mkdirSync(shimRoot);
+  const curlShim = resolve(shimRoot, 'curl');
+  writeFileSync(curlShim, `#!/usr/bin/env bash
+set -euo pipefail
+headers_path=""
+output_path=""
+write_out=""
+url=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dump-header|--output|--write-out|--proto)
+      name="$1"
+      value="$2"
+      shift 2
+      case "$name" in
+        --dump-header) headers_path="$value" ;;
+        --output) output_path="$value" ;;
+        --write-out) write_out="$value" ;;
+      esac
+      ;;
+    --fail|--silent|--show-error|--location|--tlsv1.2) shift ;;
+    *) url="$1"; shift ;;
+  esac
+done
+headers="HTTP/1.1 200 OK\\r\\n"
+body=""
+case "$url" in
+  https://public.test/)
+    headers+="strict-transport-security: max-age=31536000\\r\\n"
+    body="ОКНОТИКА"
+    ;;
+  https://public.test/articles/)
+    headers+="cache-control: public, max-age=0, must-revalidate\\r\\n"
+    body="Новости"
+    ;;
+  https://public.test/articles/latest.json) body="{}" ;;
+  https://public.test/articles/digest/) body="$(<"$SMOKE_WEEKLY_BODY_PATH")" ;;
+  https://admin.test/login)
+    headers+="cache-control: no-store\\r\\n"
+    headers+="content-security-policy: frame-ancestors 'none'\\r\\n"
+    headers+="x-content-type-options: nosniff\\r\\n"
+    body="Новости Дайджеста недели"
+    ;;
+  *) echo "unexpected URL: $url" >&2; exit 9 ;;
+esac
+printf '%b\\r\\n' "$headers" > "$headers_path"
+printf '%s' "$body" > "$output_path"
+if [[ -n "$write_out" ]]; then printf '200'; fi
+`);
+  chmodSync(curlShim, 0o755);
+  const destinations = [
+    ['https://t.me/oknotika', 'Telegram'],
+    ['https://youtube.com/@oknotika', 'YouTube'],
+    ['https://vk.ru/oknotika', 'VK'],
+    ['https://t.me/FUTU_CHAT', 'FUTUCHAT'],
+  ];
+  const completeBody = destinations
+    .map(([url, label]) => `<a href="${url}">${label}</a>`)
+    .join('\n');
+  const runSmoke = (body, weeklyPath = '/articles/digest/') => {
+    writeFileSync(weeklyBodyPath, body);
+    return spawnSync('bash', [
+      resolve(REPO_ROOT, 'deploy/scripts/smoke-test.sh'),
+      '--base-url', 'https://public.test',
+      '--admin-url', 'https://admin.test',
+      '--weekly-path', weeklyPath,
+    ], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PATH: `${shimRoot}:${process.env.PATH}`,
+        SMOKE_WEEKLY_BODY_PATH: weeklyBodyPath,
+      },
+    });
+  };
+
+  const passed = runSmoke(completeBody);
+  assert.equal(passed.status, 0, passed.stderr);
+  const invalidPath = runSmoke(completeBody, '/../invalid/');
+  assert.equal(invalidPath.status, 2);
+  assert.match(invalidPath.stderr, /--weekly-path must be an article detail path/);
+  for (const [url, label] of destinations) {
+    const missingDestination = runSmoke(
+      completeBody.replace(`href="${url}"`, 'href="https://missing.example/"'),
+    );
+    assert.equal(missingDestination.status, 1);
+    assert.match(missingDestination.stderr, new RegExp(`${label} destination is missing`));
+    const missingLabel = runSmoke(
+      completeBody.replace(`>${label}</a>`, '>missing</a>'),
+    );
+    assert.equal(missingLabel.status, 1);
+    assert.match(missingLabel.stderr, new RegExp(`${label} CTA label is missing`));
+  }
 });
 
 test('admin ingress isolates large uploads and caps their global concurrency', () => {

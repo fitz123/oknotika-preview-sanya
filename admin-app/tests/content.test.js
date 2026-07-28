@@ -73,6 +73,11 @@ test('global social links validate platform hosts and retain nullable destinatio
   assert.equal(prepared.vkUrl, 'https://vk.ru/oknotika');
   assert.equal(prepared.futuchatUrl, 'https://t.me/FUTU_CHAT');
   assert.equal(service.getSocialLinks().youtubeUrl, 'https://youtube.com/@oknotika');
+  assert.equal(service.prepareSocialLinks({
+    telegramUrl: 'https://t.me/oknotika',
+    youtubeUrl: 'https://youtube.com/@legacy-client',
+    vkUrl: 'https://vk.ru/legacy-client',
+  }, editorId).futuchatUrl, 'https://t.me/FUTU_CHAT');
   assert.deepEqual(service.prepareSocialLinks({
     telegramUrl: 'https://t.me/oknotika',
     youtubeUrl: null,
@@ -109,8 +114,11 @@ test('global social links validate platform hosts and retain nullable destinatio
   for (const futuchatUrl of [
     'https://telegram.me/FUTU_CHAT',
     'https://t.me/',
+    'https://t.me/abcd',
     'https://t.me/FUTU_CHAT/extra',
     'https://t.me/FUTU_CHAT?start=redirect',
+    'https://t.me/FUTU_CHAT#fragment',
+    `https://t.me/${'a'.repeat(33)}`,
   ]) {
     assert.throws(() => service.prepareSocialLinks({
       telegramUrl: 'https://t.me/oknotika',
@@ -118,6 +126,17 @@ test('global social links validate platform hosts and retain nullable destinatio
       vkUrl: null,
       futuchatUrl,
     }, editorId), /approved futuchat host|one Telegram channel path/);
+  }
+  for (const futuchatUrl of [
+    'https://t.me/abcde',
+    `https://t.me/${'a'.repeat(32)}`,
+  ]) {
+    assert.equal(service.prepareSocialLinks({
+      telegramUrl: 'https://t.me/oknotika',
+      youtubeUrl: null,
+      vkUrl: null,
+      futuchatUrl,
+    }, editorId).futuchatUrl, futuchatUrl);
   }
   const legacyCompatible = service.prepareSocialLinks({
     telegramUrl: 'https://t.me/oknotika',
@@ -262,7 +281,8 @@ test('weekly migration backfills legacy source rows and marks pre-existing artic
   `).run(weeklyArticleId, weeklyRevisionId, 'b'.repeat(64));
   versionFour.prepare(`
     UPDATE site_social_links
-    SET youtube_url = 'https://youtube.com/@existing-channel'
+    SET youtube_url = 'https://youtube.com/@existing-channel',
+        vk_url = 'https://vk.ru/existing-channel'
     WHERE singleton = 1
   `).run();
   versionFour.close();
@@ -293,7 +313,19 @@ test('weekly migration backfills legacy source rows and marks pre-existing artic
     {
       telegram_url: 'https://t.me/oknotika',
       youtube_url: 'https://youtube.com/@existing-channel',
-      vk_url: 'https://vk.ru/oknotika',
+      vk_url: 'https://vk.ru/existing-channel',
+      futuchat_url: 'https://t.me/FUTU_CHAT',
+    },
+  );
+  assert.deepEqual(
+    { ...upgraded.prepare(`
+      SELECT telegram_url, youtube_url, vk_url, futuchat_url
+      FROM pending_social_link_defaults WHERE singleton = 1
+    `).get() },
+    {
+      telegram_url: 'https://t.me/oknotika',
+      youtube_url: 'https://youtube.com/@existing-channel',
+      vk_url: 'https://vk.ru/existing-channel',
       futuchat_url: 'https://t.me/FUTU_CHAT',
     },
   );

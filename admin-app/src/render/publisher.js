@@ -137,6 +137,26 @@ export function createPublisher(db, {
     }
   }
 
+  async function activatePendingSocialDefaults(activeManifest) {
+    const pending = loadPendingSocialDefaults(db);
+    if (!pending) return activeManifest;
+    if (activeManifest === null) {
+      transaction(db, () => {
+        synchronizePendingSocialDefaults(db, pending);
+        clearPendingSocialDefaults(db);
+      });
+      return null;
+    }
+    if (activeManifest.schemaVersion >= 4
+        && isDeepStrictEqual(validateSocialLinks(activeManifest.socialLinks), pending)) {
+      transaction(db, () => clearPendingSocialDefaults(db));
+      return activeManifest;
+    }
+    return publish({
+      transition: { type: 'social_links', socialLinks: pending },
+    });
+  }
+
   function reconcileUnderLock() {
     let target;
     try {
@@ -180,6 +200,13 @@ export function createPublisher(db, {
       `).run(manifest.releaseId, JSON.stringify({ activeTarget: basename(target) }), timestamp);
       reconcileTransitionAudit(db, manifest, timestamp);
       if (pendingRollback) insertRollbackAudit(db, pendingRollback, timestamp);
+      if (manifest.schemaVersion >= 4) {
+        const pending = loadPendingSocialDefaults(db);
+        if (pending
+            && isDeepStrictEqual(validateSocialLinks(manifest.socialLinks), pending)) {
+          clearPendingSocialDefaults(db);
+        }
+      }
     });
     return manifest;
   }
@@ -241,7 +268,13 @@ export function createPublisher(db, {
     }
   }
 
-  return { publish, reconcile, rollback, activePath };
+  return {
+    publish,
+    reconcile,
+    activatePendingSocialDefaults,
+    rollback,
+    activePath,
+  };
 }
 
 function assertPublisherIsWritable(quarantineError) {
@@ -306,6 +339,7 @@ function finalizeRelease(db, manifest, previous, timestamp, editorId) {
     } else if (manifest.transition?.type === 'social_links') {
       insertSocialTransitionAudit(db, editorId, manifest, timestamp);
     }
+    if (manifest.schemaVersion >= 4) clearPendingSocialDefaults(db);
   });
 }
 
@@ -440,6 +474,38 @@ function synchronizeSocialLinks(db, manifest, timestamp, editorId = null) {
     timestamp,
   );
   if (result.changes !== 1) throw new Error('Social-link state is missing');
+}
+
+function loadPendingSocialDefaults(db) {
+  const row = db.prepare(`
+    SELECT telegram_url, youtube_url, vk_url, futuchat_url
+    FROM pending_social_link_defaults WHERE singleton = 1
+  `).get();
+  if (!row) return null;
+  return validateSocialLinks({
+    telegramUrl: row.telegram_url,
+    youtubeUrl: row.youtube_url,
+    vkUrl: row.vk_url,
+    futuchatUrl: row.futuchat_url,
+  });
+}
+
+function synchronizePendingSocialDefaults(db, socialLinks) {
+  const result = db.prepare(`
+    UPDATE site_social_links
+    SET telegram_url = ?, youtube_url = ?, vk_url = ?, futuchat_url = ?
+    WHERE singleton = 1
+  `).run(
+    socialLinks.telegramUrl,
+    socialLinks.youtubeUrl,
+    socialLinks.vkUrl,
+    socialLinks.futuchatUrl,
+  );
+  if (result.changes !== 1) throw new Error('Social-link state is missing');
+}
+
+function clearPendingSocialDefaults(db) {
+  db.prepare('DELETE FROM pending_social_link_defaults WHERE singleton = 1').run();
 }
 
 function buildProspectiveSnapshot(db, transition) {

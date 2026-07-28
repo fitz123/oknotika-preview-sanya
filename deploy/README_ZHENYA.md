@@ -112,6 +112,8 @@ sudo systemd-run --pty --wait --collect --unit=oknotika-register-weekly-cover \
 
 Скрипт читает token только из credential file, отправляет payload и его identical retry, требует idempotent результат и проверяет, что bearer credential получает HTTP 401 на listing и operational rollback. В stdout попадает только безопасный pass summary без token, payload, article/revision identifiers или response body. После pass Саня должен увидеть материал как `Черновик` в «Новости», а публичные `/articles/` и `/articles/latest.json` не должны измениться до его ручной публикации.
 
+Для изолированной local/oneshot-диагностики допустим явный `--token-file /root-controlled/path/weekly-ingest-token`: это override только пути к credential file, не значения token. Файл должен оставаться вне Git и public root с доступом `root:root 0600`; token запрещено передавать в argv. В production штатный путь выше через `LoadCredentialEncrypted` и `CREDENTIALS_DIRECTORY` обязателен.
+
 ## nginx
 
 Установить:
@@ -207,7 +209,7 @@ systemd-run --pty --wait --collect --unit=oknotika-bootstrap-editor \
 
 4. Открыть выданный one-time authorization URL в браузере Сани. После redirect вставить полный callback URL только в prompt, не в shell command/history. Скрипт выполняет code+PKCE exchange и полную проверку ID token, затем показывает локально verified `sub`/fingerprint. Сверить identity с Саней отдельным каналом и ввести `ENROLL-<fingerprint>`.
 5. Сохранить в evidence только timestamp, approvers и fingerprint, не callback/code/token/subject. Процедура подробно описана в `admin-app/ENROLLMENT.md`.
-6. После включения admin vhost Саня входит в «Новости» и сверяет четыре точных non-secret default: Telegram `https://t.me/oknotika`, YouTube `https://youtube.com/@oknotika`, VK `https://vk.ru/oknotika` и отдельный FUTUCHAT `https://t.me/FUTU_CHAT`. Telegram должен быть readonly; очищенная optional-площадка не должна показываться публично. Затем выполнить draft-only ingestion smoke из предыдущего раздела.
+6. После включения admin vhost Саня входит в «Новости» и сверяет четыре точных non-secret default: Telegram `https://t.me/oknotika`, YouTube `https://youtube.com/@oknotika`, VK `https://vk.ru/oknotika` и отдельный FUTUCHAT `https://t.me/FUTU_CHAT`. При upgrade с active schema-3 release startup сначала reconciles прежний manifest, затем один раз атомарно активирует pending defaults в новом schema-4 release; database-only состояние не считается применённым. Telegram должен быть readonly; очищенная optional-площадка не должна показываться публично. Затем выполнить draft-only ingestion smoke из предыдущего раздела.
 
 Удаление доступа: остановить admin, сделать verified backup, выполнить `npm run disable-editor -- --database /var/lib/oknotika-admin/db/admin.sqlite`, запустить service и убедиться, что старые sessions отозваны и вход запрещён. Для нового subject требуется reviewed maintenance change; автоматической замены editor/RBAC нет.
 

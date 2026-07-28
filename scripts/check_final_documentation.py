@@ -144,6 +144,8 @@ def validate(root: Path) -> list[str]:
         "run rollback-release",
         "https://vk.ru/oknotika",
         "https://t.me/FUTU_CHAT",
+        "--token-file",
+        "database-only состояние не считается применённым",
     ), errors)
 
     ingestion = (root / "docs/WEEKLY_INGESTION.md").read_text(encoding="utf-8")
@@ -160,6 +162,7 @@ def validate(root: Path) -> list[str]:
         "https://youtube.com/@oknotika",
         "https://vk.ru/oknotika",
         "https://t.me/FUTU_CHAT",
+        "--token-file",
     ), errors)
 
     release = root / "release"

@@ -159,6 +159,12 @@ requires an idempotent retry and verifies that the same bearer receives HTTP
 401 from editorial listing and rollback capabilities. It prints no response
 body or draft identifiers.
 
+For an isolated local or one-shot diagnostic, `--token-file
+/root-controlled/path/weekly-ingest-token` may override only the credential
+file path. Keep that file outside Git and every public root as `root:root 0600`;
+never place the token value itself in argv. Production runs must use the
+credential-scoped unit and `CREDENTIALS_DIRECTORY` path above.
+
 Sanya must then confirm that the result is a `Черновик` in `Новости`. The
 public listing and `latest.json` must remain unchanged until his explicit
 Friday publish. Never use a fabricated cover ID or replace any of the exact
