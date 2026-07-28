@@ -347,6 +347,108 @@ test('rollback reads a schema-three social snapshot with FUTUCHAT absent', async
   assert.doesNotMatch(activeHtml, /FUTU_CHAT|FUTUCHAT/);
 });
 
+test('application rollback preparation activates a predecessor-readable schema-three release', async (t) => {
+  let tick = 0;
+  const harness = createHarness(t, {
+    clock: () => new Date(Date.parse('2026-07-13T12:00:00.000Z') + tick++ * 1000),
+  });
+  const releasesRoot = resolve(harness.root, 'schema-three-application-rollback');
+  const publisher = createPublisher(harness.db, {
+    releasesRoot,
+    publicOrigin: 'https://oknotika.ru',
+    clock: () => new Date(Date.parse('2026-07-14T12:00:00.000Z') + tick++ * 1000),
+  });
+  const weekly = harness.service.ingestWeeklyDraft(weeklyIngestionInput(harness.coverAssetId));
+  const predecessor = await publisher.publish({
+    editorId: harness.editorId,
+    transition: publication(weekly),
+  });
+  rewriteAsSchemaThreeRelease(
+    harness.db,
+    releasesRoot,
+    predecessor.releaseId,
+    weekly.slug,
+    { vkUrl: null },
+  );
+  await publisher.publish({
+    editorId: harness.editorId,
+    transition: {
+      type: 'social_links',
+      socialLinks: harness.service.prepareSocialLinks({
+        telegramUrl: 'https://t.me/oknotika',
+        youtubeUrl: 'https://youtube.com/@oknotika',
+        vkUrl: 'https://vk.ru/oknotika',
+        futuchatUrl: 'https://t.me/FUTU_CHAT_TEST',
+      }, harness.editorId),
+    },
+  });
+
+  const restored = await publisher.rollback(predecessor.releaseId, {
+    applicationSchemaVersion: 3,
+  });
+
+  assert.equal(restored.schemaVersion, 3);
+  assert.equal(readlinkSync(publisher.activePath), `releases/${predecessor.releaseId}`);
+  assert.deepEqual(
+    (({ telegramUrl, youtubeUrl, vkUrl, futuchatUrl }) => ({
+      telegramUrl, youtubeUrl, vkUrl, futuchatUrl,
+    }))(harness.service.getSocialLinks()),
+    {
+      telegramUrl: 'https://t.me/oknotika',
+      youtubeUrl: 'https://youtube.com/@oknotika',
+      vkUrl: null,
+      futuchatUrl: null,
+    },
+  );
+});
+
+test('application rollback preparation rejects unreadable schema-four and vk.ru targets', async (t) => {
+  let tick = 0;
+  const harness = createHarness(t, {
+    clock: () => new Date(Date.parse('2026-07-13T12:00:00.000Z') + tick++ * 1000),
+  });
+  const releasesRoot = resolve(harness.root, 'rejected-application-rollback');
+  const publisher = createPublisher(harness.db, {
+    releasesRoot,
+    publicOrigin: 'https://oknotika.ru',
+    clock: () => new Date(Date.parse('2026-07-14T12:00:00.000Z') + tick++ * 1000),
+  });
+  const weekly = harness.service.ingestWeeklyDraft(weeklyIngestionInput(harness.coverAssetId));
+  const predecessor = await publisher.publish({
+    editorId: harness.editorId,
+    transition: publication(weekly),
+  });
+  rewriteAsSchemaThreeRelease(
+    harness.db,
+    releasesRoot,
+    predecessor.releaseId,
+    weekly.slug,
+  );
+  const current = await publisher.publish({
+    editorId: harness.editorId,
+    transition: {
+      type: 'social_links',
+      socialLinks: harness.service.prepareSocialLinks({
+        telegramUrl: 'https://t.me/oknotika',
+        youtubeUrl: 'https://youtube.com/@oknotika',
+        vkUrl: 'https://vk.ru/oknotika',
+        futuchatUrl: 'https://t.me/FUTU_CHAT_TEST',
+      }, harness.editorId),
+    },
+  });
+
+  await assert.rejects(
+    publisher.rollback(current.releaseId, { applicationSchemaVersion: 3 }),
+    /requires a schema-2 or schema-3 article release/,
+  );
+  await assert.rejects(
+    publisher.rollback(predecessor.releaseId, { applicationSchemaVersion: 3 }),
+    /requires a legacy vk\.com destination/,
+  );
+  assert.equal(readlinkSync(publisher.activePath), `releases/${current.releaseId}`);
+  assert.equal(existsSync(resolve(releasesRoot, '.publisher.lock')), false);
+});
+
 test('rollback rejects on-disk manifest divergence before switching the active release', async (t) => {
   let tick = 0;
   const harness = createHarness(t, {

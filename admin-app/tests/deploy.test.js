@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import {
   chmodSync,
   copyFileSync,
@@ -294,6 +294,7 @@ test('operator CLIs register a validated reusable cover and roll back outside th
       expectedRevisionId: created.revisionId,
     },
   });
+  rewriteAsSchemaTwoRelease(db, releasesRoot, first.releaseId);
   const revised = service.reviseArticle(
     created.articleId,
     articleInput(cover.assetId, { title: 'Operator rollback target' }),
@@ -310,12 +311,26 @@ test('operator CLIs register a validated reusable cover and roll back outside th
   });
   db.close();
 
+  const rejectedApplicationRollback = spawnSync(process.execPath, [
+    resolve(REPO_ROOT, 'admin-app/scripts/rollback-release.js'),
+    '--database', databasePath,
+    '--releases-root', releasesRoot,
+    '--public-origin', 'https://oknotika.ru',
+    '--release-id', second.releaseId,
+    '--application-schema', '3',
+  ], { encoding: 'utf8' });
+  assert.equal(rejectedApplicationRollback.status, 1);
+  assert.match(
+    rejectedApplicationRollback.stderr,
+    /requires a schema-2 or schema-3 article release/,
+  );
   const rollbackResult = spawnSync(process.execPath, [
     resolve(REPO_ROOT, 'admin-app/scripts/rollback-release.js'),
     '--database', databasePath,
     '--releases-root', releasesRoot,
     '--public-origin', 'https://oknotika.ru',
     '--release-id', first.releaseId,
+    '--application-schema', '3',
   ], { encoding: 'utf8' });
   assert.equal(rollbackResult.status, 0, rollbackResult.stderr);
   const rolledBack = JSON.parse(rollbackResult.stdout);
@@ -335,6 +350,17 @@ test('operator CLIs register a validated reusable cover and roll back outside th
     checked.prepare('SELECT active_release_id FROM site_state WHERE singleton = 1')
       .get().active_release_id,
     first.releaseId,
+  );
+  assert.deepEqual(
+    { ...checked.prepare(`
+      SELECT telegram_url, youtube_url, vk_url
+      FROM site_social_links WHERE singleton = 1
+    `).get() },
+    {
+      telegram_url: 'https://t.me/oknotika',
+      youtube_url: null,
+      vk_url: null,
+    },
   );
   checked.close();
 });
@@ -611,4 +637,25 @@ function verifyRestoredState(root) {
   return spawnSync(process.execPath, [
     resolve(REPO_ROOT, 'deploy/scripts/verify-restored-state.mjs'), root,
   ], { encoding: 'utf8' });
+}
+
+function rewriteAsSchemaTwoRelease(db, releasesRoot, releaseId) {
+  const releaseDirectory = resolve(releasesRoot, 'releases', releaseId);
+  const latestPath = resolve(releaseDirectory, 'articles/latest.json');
+  const latest = JSON.parse(readFileSync(latestPath, 'utf8'));
+  const latestText = `${JSON.stringify({ ...latest, category: 'Факт недели' }, null, 2)}\n`;
+  writeFileSync(latestPath, latestText);
+
+  const manifestPath = resolve(releaseDirectory, 'manifest.json');
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  manifest.schemaVersion = 2;
+  delete manifest.socialLinks;
+  manifest.files['articles/latest.json'] = {
+    ...manifest.files['articles/latest.json'],
+    sha256: createHash('sha256').update(latestText).digest('hex'),
+    bytes: Buffer.byteLength(latestText),
+  };
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  db.prepare('UPDATE releases SET manifest_json = ? WHERE id = ?')
+    .run(JSON.stringify(manifest), releaseId);
 }

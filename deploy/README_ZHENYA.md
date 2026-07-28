@@ -267,7 +267,24 @@ CLI принимает только safe release ID, требует completed DB
 
 Marketing rollback: выбрать предыдущий `/srv/oknotika/releases/<sha>`, проверить его checksum, создать рядом новый относительный symlink и атомарно выполнить `mv -T` в `/srv/oknotika/current`. Не трогать `/articles/`, DB или admin service; затем проверить главную и продуктовые страницы.
 
-Application rollback: остановить admin, сделать verified DB backup, проверить совместимость схемы с предыдущим `/opt/oknotika-admin/releases/<sha>`, атомарно вернуть `/opt/oknotika-admin/current` и запустить service. При breaking migration сначала восстановить соответствующий pre-migration DB backup. Публичный vhost остаётся доступен всё время.
+Application rollback с этой версии на предыдущую schema-3 application требует сначала вернуть совместимый active article release, пока `/opt/oknotika-admin/current` ещё указывает на новую application. Остановить admin, сделать verified DB backup, выбрать exact completed schema-2/schema-3 article release из состояния до FUTUCHAT (для schema 3 допустимы только старые поля Telegram/YouTube/VK и `vk.com`, не `vk.ru`) и выполнить guarded rollback:
+
+```bash
+sudo systemd-run --pty --wait --collect --unit=oknotika-prepare-app-rollback \
+  --property=User=oknotika-admin --property=Group=www-data --property=UMask=0027 \
+  --property=WorkingDirectory=/opt/oknotika-admin/current/admin-app \
+  --property=Environment=PATH=/opt/node-v24.18.0/bin:/usr/bin:/bin \
+  --property=ReadWritePaths=/var/lib/oknotika-admin \
+  /opt/node-v24.18.0/bin/npm \
+  run rollback-release -- \
+  --database /var/lib/oknotika-admin/db/admin.sqlite \
+  --releases-root /var/lib/oknotika-admin/article-releases \
+  --public-origin https://oknotika.ru \
+  --release-id EXACT_PRE_FUTUCHAT_RELEASE_ID \
+  --application-schema 3
+```
+
+Флаг fail-closed отклоняет schema-4 release, FUTUCHAT, `vk.ru` и любой другой manifest, который предыдущая application не сможет прочитать. Только после успешной команды проверить `article-releases/active`, manifest и `/articles/`, атомарно вернуть `/opt/oknotika-admin/current` на предыдущий release и запустить service. Additive columns/tables migrations 006–007 старая application игнорирует. Если совместимого immutable article release нет, восстановить один согласованный pre-migration backup, содержащий одновременно DB, `article-releases/releases` и symlink `article-releases/active`; восстановление одной DB недостаточно. Публичный vhost остаётся доступен всё время.
 
 ## Локальные и production gates
 

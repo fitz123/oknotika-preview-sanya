@@ -9,15 +9,19 @@ export async function rollbackRelease({
   releasesRoot,
   publicOrigin,
   releaseId,
+  applicationSchemaVersion = null,
 }) {
   if (typeof releaseId !== 'string' || !/^[a-zA-Z0-9._-]+$/.test(releaseId)) {
     throw new TypeError('releaseId is invalid');
+  }
+  if (applicationSchemaVersion !== null && applicationSchemaVersion !== 3) {
+    throw new TypeError('applicationSchemaVersion must be 3 when provided');
   }
   const db = openDatabase(databasePath);
   try {
     const publisher = createPublisher(db, { releasesRoot, publicOrigin });
     publisher.reconcile();
-    return await publisher.rollback(releaseId);
+    return await publisher.rollback(releaseId, { applicationSchemaVersion });
   } finally {
     db.close();
   }
@@ -37,7 +41,14 @@ function parseArguments(values) {
     releasesRoot: resolve(required(parsed, 'releases-root')),
     publicOrigin: required(parsed, 'public-origin'),
     releaseId: required(parsed, 'release-id'),
+    applicationSchemaVersion: optionalApplicationSchema(parsed['application-schema']),
   };
+}
+
+function optionalApplicationSchema(value) {
+  if (value === undefined) return null;
+  if (value !== '3') throw new Error('--application-schema must be 3');
+  return 3;
 }
 
 function required(values, name) {

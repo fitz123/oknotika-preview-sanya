@@ -142,6 +142,7 @@ def validate(root: Path) -> list[str]:
         "Restore:",
         "run register-weekly-cover",
         "run rollback-release",
+        "--application-schema 3",
         "https://vk.ru/oknotika",
         "https://t.me/FUTU_CHAT",
         "--token-file",

@@ -12,6 +12,7 @@
 - Social-default upgrades persist a pending migration record. Startup reconciles the old active manifest first, then atomically activates those pending values in a schema-4 immutable release; the record is cleared only after the active release represents the transition.
 - Publisher order is: acquire crash-recoverable lock, build one prospective snapshot, render/validate staging, immutable rename, atomic active switch, then synchronize DB/audit. Startup reconciliation derives public state from the active manifest.
 - Whole-release rollback is not an editor HTTP capability. It is available only through the root-invoked `npm run rollback-release` operator CLI described in `deploy/README_ZHENYA.md`.
+- Application rollback from schema 4 to the preceding schema-3 binary must first run the current operator CLI with `--application-schema 3`; that guarded step activates an old-readable article release and matching social snapshot before the application symlink moves.
 - Backup uses the same publisher lock while snapshotting SQLite, immutable releases, and `active`. Restore verification must prove DB, symlink, manifest, release rows, articles, and revisions agree.
 
 ## Security invariants

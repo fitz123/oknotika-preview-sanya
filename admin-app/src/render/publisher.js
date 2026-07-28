@@ -30,6 +30,12 @@ const LEGACY_SOCIAL_LINKS = Object.freeze({
   vkUrl: null,
   futuchatUrl: null,
 });
+const SCHEMA_THREE_SOCIAL_FIELDS = Object.freeze([
+  'telegramUrl',
+  'vkUrl',
+  'youtubeUrl',
+]);
+const SCHEMA_THREE_VK_HOSTS = new Set(['vk.com', 'www.vk.com']);
 
 export function createPublisher(db, {
   releasesRoot,
@@ -211,7 +217,11 @@ export function createPublisher(db, {
     return manifest;
   }
 
-  async function rollback(targetReleaseId, { editorId = null, inject = async () => {} } = {}) {
+  async function rollback(targetReleaseId, {
+    editorId = null,
+    inject = async () => {},
+    applicationSchemaVersion = null,
+  } = {}) {
     assertPublisherIsWritable(quarantineError);
     const lock = acquirePublisherLock(releasesRoot);
     let activeSwitched = false;
@@ -220,6 +230,7 @@ export function createPublisher(db, {
       if (!release) throw new Error('Completed release not found');
       const target = resolve(immutableRoot, targetReleaseId);
       const manifest = validateRelease(target);
+      assertApplicationRollbackCompatibility(manifest, applicationSchemaVersion);
       assertRollbackTargetIntegrity(db, release, manifest, targetReleaseId);
       const previous = db.prepare('SELECT active_release_id FROM site_state WHERE singleton = 1').get().active_release_id;
       const operationId = randomUUID();
@@ -282,6 +293,26 @@ function assertPublisherIsWritable(quarantineError) {
     throw new Error('Publisher is quarantined until active-release reconciliation succeeds', {
       cause: quarantineError,
     });
+  }
+}
+
+function assertApplicationRollbackCompatibility(manifest, applicationSchemaVersion) {
+  if (applicationSchemaVersion === null) return;
+  if (applicationSchemaVersion !== 3) {
+    throw new TypeError('Only application schema version 3 rollback preparation is supported');
+  }
+  if (![2, 3].includes(manifest.schemaVersion)) {
+    throw new Error('Application schema version 3 requires a schema-2 or schema-3 article release');
+  }
+  if (manifest.schemaVersion === 2) return;
+
+  const fields = Object.keys(manifest.socialLinks ?? {}).sort();
+  if (!isDeepStrictEqual(fields, SCHEMA_THREE_SOCIAL_FIELDS)) {
+    throw new Error('Schema-3 application rollback requires the legacy Telegram/YouTube/VK social contract');
+  }
+  const vkUrl = manifest.socialLinks.vkUrl;
+  if (vkUrl !== null && !SCHEMA_THREE_VK_HOSTS.has(new URL(vkUrl).hostname.toLowerCase())) {
+    throw new Error('Schema-3 application rollback requires a legacy vk.com destination');
   }
 }
 

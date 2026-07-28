@@ -34,4 +34,4 @@ DNS/TLS, pinned Node/SQLite runtime, encrypted OIDC/weekly-ingestion/restic cred
 
 ## Install and rollback
 
-Verify `release/SHA256SUMS` with `(cd release && sha256sum -c SHA256SUMS)`, unpack into a new immutable application/marketing release directory and follow `deploy/README_ZHENYA.md`. Content, marketing and application rollback are deliberately separate. Stopping or rolling back the admin application must not move the active public article release.
+Verify `release/SHA256SUMS` with `(cd release && sha256sum -c SHA256SUMS)`, unpack into a new immutable application/marketing release directory and follow `deploy/README_ZHENYA.md`. Content, marketing and application rollback are deliberately separate. Before reverting this schema-4 application to its schema-3 predecessor, use the current guarded `rollback-release -- --application-schema 3` procedure to activate a predecessor-readable article release and matching social snapshot; a DB-only or application-symlink-only rollback is unsafe.

@@ -166,6 +166,7 @@ def main() -> None:
         "publisher.reconcile()",
         "publisher.rollback",
         "releaseId is invalid",
+        "applicationSchemaVersion",
     )
     require_text(
         root / "admin-app/migrations/005_article_content_kind.sql",
@@ -291,6 +292,7 @@ def main() -> None:
         "Weekly ingestion",
         "run register-weekly-cover",
         "run rollback-release",
+        "--application-schema 3",
         "отсутствует в editor HTTP API",
         "--token-file",
         "database-only состояние не считается применённым",
