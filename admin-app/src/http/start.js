@@ -15,6 +15,7 @@ import { createIngestionAuthenticator } from './ingestion-auth.js';
 import { createUploadStore } from './uploads.js';
 import { createProxiedRequest } from './node-adapter.js';
 import { assertTrustedProxyHeaders } from './security.js';
+import { createWeeklyIngestion } from './weekly-ingestion.js';
 
 const config = loadConfiguration();
 for (const directory of [
@@ -50,8 +51,9 @@ const actions = createAdminActions({
   previewsRoot: config.previewsRoot,
   publicOrigin: config.publicOrigin,
 });
-const weeklyIngestion = Object.freeze({
-  upsertDraft: (input) => contentService.ingestWeeklyDraft(input),
+const weeklyIngestion = createWeeklyIngestion({
+  contentService,
+  releasesRoot: config.releasesRoot,
 });
 const ingestionAuthenticator = createIngestionAuthenticator(config.weeklyIngestionToken);
 const sessionService = createSessionService(db);

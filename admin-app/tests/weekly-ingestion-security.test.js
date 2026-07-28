@@ -7,6 +7,7 @@ import {
   WEEKLY_INGESTION_PATH,
 } from '../src/http/ingestion-auth.js';
 import { createProxiedRequest } from '../src/http/node-adapter.js';
+import { createWeeklyIngestion } from '../src/http/weekly-ingestion.js';
 import { createHarness, weeklyIngestionInput } from './helpers.js';
 
 const ADMIN_ORIGIN = 'https://admin.oknotika.ru';
@@ -198,9 +199,10 @@ function weeklyHandler(harness) {
     oidcService: {},
     sessionService: { authenticate: () => null },
     actions: {},
-    weeklyIngestion: {
-      upsertDraft: (input) => harness.service.ingestWeeklyDraft(input),
-    },
+    weeklyIngestion: createWeeklyIngestion({
+      contentService: harness.service,
+      releasesRoot: `${harness.root}/weekly-ingestion-releases`,
+    }),
     ingestionAuthenticator,
     previewsRoot: `${harness.root}/previews`,
   });

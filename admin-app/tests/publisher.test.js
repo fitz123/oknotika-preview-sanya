@@ -16,6 +16,7 @@ import {
   createPublisher,
   releasePublisherLock,
 } from '../src/render/publisher.js';
+import { createWeeklyIngestion } from '../src/http/weekly-ingestion.js';
 import { articleInput, createHarness, weeklyIngestionInput } from './helpers.js';
 
 const BOUNDARIES = [
@@ -701,6 +702,65 @@ test('publication and withdrawal permanently block weekly machine overwrite acro
   );
   assert.equal(revisionCount(), 1);
   assert.notEqual(published.releaseId, baselineRelease.releaseId);
+});
+
+test('publication lock blocks weekly machine overwrite after the active switch', async (t) => {
+  let tick = 0;
+  const harness = createHarness(t, {
+    clock: () => new Date(Date.parse('2026-07-13T12:00:00.000Z') + tick++ * 1000),
+  });
+  const releasesRoot = resolve(harness.root, 'weekly-publication-race');
+  const publisher = createPublisher(harness.db, {
+    releasesRoot,
+    publicOrigin: 'https://oknotika.ru',
+    clock: () => new Date(Date.parse('2026-07-14T12:00:00.000Z') + tick++ * 1000),
+  });
+  const weeklyIngestion = createWeeklyIngestion({
+    contentService: harness.service,
+    releasesRoot,
+  });
+  const weekly = weeklyIngestion.upsertDraft(weeklyIngestionInput(harness.coverAssetId));
+  const higherVersion = weeklyIngestionInput(harness.coverAssetId, {
+    contentVersion: 2,
+    article: { lead: 'Machine overwrite during editorial publication.' },
+  });
+  let concurrentIngestionError = null;
+
+  await publisher.publish({
+    editorId: harness.editorId,
+    transition: publication(weekly),
+    inject: async (boundary) => {
+      if (boundary !== 'after-active-switch') return;
+      try {
+        weeklyIngestion.upsertDraft(higherVersion);
+      } catch (error) {
+        concurrentIngestionError = error;
+      }
+    },
+  });
+
+  assert.match(concurrentIngestionError?.message ?? '', /Another publisher holds the release lock/);
+  assert.equal(
+    harness.db.prepare('SELECT COUNT(*) AS count FROM article_revisions WHERE article_id = ?')
+      .get(weekly.articleId).count,
+    1,
+  );
+  assert.deepEqual(
+    {
+      currentRevisionId: Number(harness.service.getArticle(weekly.articleId).current_revision_id),
+      publicState: harness.service.getArticle(weekly.articleId).public_state,
+      state: harness.service.getArticle(weekly.articleId).state,
+    },
+    {
+      currentRevisionId: weekly.revisionId,
+      publicState: 'published',
+      state: 'published',
+    },
+  );
+  assert.throws(
+    () => weeklyIngestion.upsertDraft(higherVersion),
+    (error) => error.status === 409 && /no longer a private draft/.test(error.message),
+  );
 });
 
 test('draft edits keep the last published revision in unrelated releases', async (t) => {
