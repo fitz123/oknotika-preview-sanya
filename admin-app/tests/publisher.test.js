@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { existsSync, readlinkSync, unlinkSync } from 'node:fs';
+import {
+  existsSync,
+  readFileSync,
+  readlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 import { openDatabase } from '../src/content/database.js';
@@ -168,6 +174,47 @@ test('rollback restores release social links and unrelated publication keeps the
   assert.deepEqual(afterRollback.socialLinks, first.socialLinks);
   assert.equal(harness.service.getSocialLinks().youtubeUrl, null);
   assert.equal(harness.service.getSocialLinks().vkUrl, null);
+});
+
+test('rollback to a legacy manifest clears optional social links', async (t) => {
+  let tick = 0;
+  const harness = createHarness(t, {
+    clock: () => new Date(Date.parse('2026-07-13T12:00:00.000Z') + tick++ * 1000),
+  });
+  const releasesRoot = resolve(harness.root, 'legacy-social-link-rollback');
+  const publisher = createPublisher(harness.db, {
+    releasesRoot,
+    publicOrigin: 'https://oknotika.ru',
+    clock: () => new Date(Date.parse('2026-07-14T12:00:00.000Z') + tick++ * 1000),
+  });
+  const article = harness.service.createArticle(articleInput(harness.coverAssetId), harness.editorId);
+  const first = await publisher.publish({
+    editorId: harness.editorId,
+    transition: publication(article),
+  });
+  const manifestPath = resolve(releasesRoot, 'releases', first.releaseId, 'manifest.json');
+  const legacyManifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  legacyManifest.schemaVersion = 2;
+  delete legacyManifest.socialLinks;
+  writeFileSync(manifestPath, `${JSON.stringify(legacyManifest, null, 2)}\n`);
+
+  await publisher.publish({
+    editorId: harness.editorId,
+    transition: {
+      type: 'social_links',
+      socialLinks: harness.service.prepareSocialLinks({
+        telegramUrl: 'https://t.me/oknotika',
+        youtubeUrl: 'https://youtube.com/@oknotika',
+        vkUrl: 'https://vk.com/oknotika',
+      }, harness.editorId),
+    },
+  });
+  await publisher.rollback(first.releaseId, { editorId: harness.editorId });
+
+  const restored = harness.service.getSocialLinks();
+  assert.equal(restored.telegramUrl, 'https://t.me/oknotika');
+  assert.equal(restored.youtubeUrl, null);
+  assert.equal(restored.vkUrl, null);
 });
 
 test('publication and withdrawal permanently block weekly machine overwrite across rollback', async (t) => {
@@ -364,6 +411,13 @@ for (const boundary of ['before-active-switch', 'after-active-switch', 'before-d
       harness.db.prepare('SELECT active_release_id FROM site_state WHERE singleton = 1').get().active_release_id,
       switched ? first.releaseId : second.releaseId,
     );
+    if (switched) {
+      const event = harness.db.prepare(`
+        SELECT details_json FROM audit_events
+        WHERE event_type = 'release.rolled_back' AND release_id = ?
+      `).get(first.releaseId);
+      assert.equal(JSON.parse(event.details_json).previous, second.releaseId);
+    }
   });
 }
 

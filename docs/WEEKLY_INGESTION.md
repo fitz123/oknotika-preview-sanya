@@ -109,9 +109,10 @@ an ID or derive it by scanning another private article.
 
 ## Encrypted credential path
 
-Generate one high-entropy token of at least 32 bytes through the approved
-secret channel. Do not put it in Git, an environment file, a command argument,
-cron text, Telegram, a ticket or logs.
+Generate one high-entropy token of at least 32 printable ASCII characters
+without whitespace or commas through the approved secret channel. Do not put it
+in Git, an environment file, a command argument, cron text, Telegram, a ticket
+or logs.
 
 On the admin server, encrypt it as
 `/etc/credstore.encrypted/weekly-ingest-token.cred` with

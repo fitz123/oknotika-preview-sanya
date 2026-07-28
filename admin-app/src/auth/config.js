@@ -1,5 +1,6 @@
 import { readFileSync, realpathSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
+import { assertWeeklyIngestionToken } from '../http/ingestion-auth.js';
 
 export function loadConfiguration(env = process.env, { requireWeeklyIngestionToken = true } = {}) {
   const adminOrigin = exactHttpsOrigin(requireValue(env, 'OKNOTIKA_ADMIN_ORIGIN'), 'OKNOTIKA_ADMIN_ORIGIN');
@@ -14,9 +15,7 @@ export function loadConfiguration(env = process.env, { requireWeeklyIngestionTok
   const weeklyIngestionToken = requireWeeklyIngestionToken
     ? requireSecret(env, 'OKNOTIKA_WEEKLY_INGEST_TOKEN')
     : null;
-  if (weeklyIngestionToken !== null && Buffer.byteLength(weeklyIngestionToken) < 32) {
-    throw new Error('OKNOTIKA_WEEKLY_INGEST_TOKEN must contain at least 32 bytes');
-  }
+  if (weeklyIngestionToken !== null) assertWeeklyIngestionToken(weeklyIngestionToken);
   const databasePath = resolve(requireValue(env, 'OKNOTIKA_DATABASE_PATH'));
   const uploadsRoot = resolve(requireValue(env, 'OKNOTIKA_UPLOADS_ROOT'));
   const previewsRoot = resolve(requireValue(env, 'OKNOTIKA_PREVIEWS_ROOT'));

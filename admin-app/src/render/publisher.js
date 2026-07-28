@@ -21,7 +21,13 @@ import {
   renderRelease,
   validateRelease,
 } from './renderer.js';
-import { validateSocialLinks } from '../content/validation.js';
+import { FIXED_TELEGRAM_URL, validateSocialLinks } from '../content/validation.js';
+
+const LEGACY_SOCIAL_LINKS = Object.freeze({
+  telegramUrl: FIXED_TELEGRAM_URL,
+  youtubeUrl: null,
+  vkUrl: null,
+});
 
 export function createPublisher(db, {
   releasesRoot,
@@ -153,6 +159,7 @@ export function createPublisher(db, {
     const manifest = validateRelease(target);
     const timestamp = clock().toISOString();
     const current = db.prepare('SELECT active_release_id FROM site_state WHERE singleton = 1').get()?.active_release_id ?? null;
+    const pendingRollback = findPendingRollback(db, manifest.releaseId, current);
     transaction(db, () => {
       db.prepare(`
         INSERT INTO releases (id, status, manifest_json, previous_release_id, created_at, activated_at)
@@ -170,6 +177,7 @@ export function createPublisher(db, {
         VALUES ('release.reconciled', ?, ?, ?)
       `).run(manifest.releaseId, JSON.stringify({ activeTarget: basename(target) }), timestamp);
       reconcileTransitionAudit(db, manifest, timestamp);
+      if (pendingRollback) insertRollbackAudit(db, pendingRollback, timestamp);
     });
     return manifest;
   }
@@ -184,6 +192,12 @@ export function createPublisher(db, {
       const target = resolve(immutableRoot, targetReleaseId);
       const manifest = validateRelease(target);
       const previous = db.prepare('SELECT active_release_id FROM site_state WHERE singleton = 1').get().active_release_id;
+      const operationId = randomUUID();
+      const startedAt = clock().toISOString();
+      db.prepare(`
+        INSERT INTO audit_events (editor_id, event_type, release_id, details_json, created_at)
+        VALUES (?, 'release.rollback_started', ?, ?, ?)
+      `).run(editorId, targetReleaseId, JSON.stringify({ operationId, previous }), startedAt);
       await inject('before-active-switch');
       switchActive(releasesRoot, activePath, target);
       activeSwitched = true;
@@ -195,10 +209,12 @@ export function createPublisher(db, {
         synchronizeSocialLinks(db, manifest, timestamp);
         db.prepare('UPDATE site_state SET active_release_id = ?, updated_at = ? WHERE singleton = 1')
           .run(targetReleaseId, timestamp);
-        db.prepare(`
-          INSERT INTO audit_events (editor_id, event_type, release_id, details_json, created_at)
-          VALUES (?, 'release.rolled_back', ?, ?, ?)
-        `).run(editorId, targetReleaseId, JSON.stringify({ previous }), timestamp);
+        insertRollbackAudit(db, {
+          editorId,
+          operationId,
+          previous,
+          targetReleaseId,
+        }, timestamp);
       });
       await inject('after-db-finalize');
       return manifest;
@@ -297,6 +313,49 @@ function insertSocialTransitionAudit(db, editorId, manifest, timestamp) {
   }), timestamp);
 }
 
+function insertRollbackAudit(db, {
+  editorId,
+  operationId,
+  previous,
+  targetReleaseId,
+}, timestamp) {
+  db.prepare(`
+    INSERT INTO audit_events (editor_id, event_type, release_id, details_json, created_at)
+    VALUES (?, 'release.rolled_back', ?, ?, ?)
+  `).run(
+    editorId,
+    targetReleaseId,
+    JSON.stringify({ operationId, previous }),
+    timestamp,
+  );
+}
+
+function findPendingRollback(db, targetReleaseId, previous) {
+  const completedOperationIds = new Set(db.prepare(`
+    SELECT details_json FROM audit_events
+    WHERE event_type = 'release.rolled_back' AND release_id = ?
+  `).all(targetReleaseId).map((event) => JSON.parse(event.details_json).operationId).filter(Boolean));
+  const starts = db.prepare(`
+    SELECT editor_id, details_json FROM audit_events
+    WHERE event_type = 'release.rollback_started' AND release_id = ?
+    ORDER BY id DESC
+  `).all(targetReleaseId);
+  for (const start of starts) {
+    const details = JSON.parse(start.details_json);
+    if (details.previous === previous
+        && typeof details.operationId === 'string'
+        && !completedOperationIds.has(details.operationId)) {
+      return {
+        editorId: start.editor_id,
+        operationId: details.operationId,
+        previous,
+        targetReleaseId,
+      };
+    }
+  }
+  return null;
+}
+
 function synchronizePublicState(db, manifest, timestamp) {
   db.prepare(`
     UPDATE articles
@@ -324,8 +383,9 @@ function synchronizePublicState(db, manifest, timestamp) {
 }
 
 function synchronizeSocialLinks(db, manifest, timestamp, editorId = null) {
-  if (!manifest.socialLinks) return;
-  const socialLinks = validateSocialLinks(manifest.socialLinks);
+  const socialLinks = validateSocialLinks(
+    manifest.schemaVersion >= 3 ? manifest.socialLinks : LEGACY_SOCIAL_LINKS,
+  );
   const current = loadSocialLinks(db);
   if (JSON.stringify(current) === JSON.stringify(socialLinks)) return;
   const result = db.prepare(`

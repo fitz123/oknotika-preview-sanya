@@ -24,13 +24,18 @@ export function createAdminActions({
       SELECT url FROM article_revision_sources
       WHERE revision_id = ? ORDER BY position
     `);
-    return articles.map((article) => ({
-      ...article,
-      source_urls: sources.all(article.current_revision_id).map((source) => source.url),
-      public_url: article.public_state === 'published'
-        ? new URL(`/articles/${article.slug}/`, publicOrigin).href
-        : null,
-    }));
+    return articles.map((article) => {
+      const sourceUrls = sources.all(article.current_revision_id).map((source) => source.url);
+      return {
+        ...article,
+        source_urls: sourceUrls.length > 0
+          ? sourceUrls
+          : (article.source_url ? [article.source_url] : []),
+        public_url: article.public_state === 'published'
+          ? new URL(`/articles/${article.slug}/`, publicOrigin).href
+          : null,
+      };
+    });
   }
 
   function listRevisions(articleId) {

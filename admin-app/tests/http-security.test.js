@@ -12,6 +12,35 @@ import { articleInput, createHarness, weeklyIngestionInput } from './helpers.js'
 
 const ADMIN_ORIGIN = 'https://admin.oknotika.ru';
 
+test('article listing preserves a legacy source written after the multi-source migration', (t) => {
+  const harness = createHarness(t);
+  const created = harness.service.createArticle(
+    articleInput(harness.coverAssetId),
+    harness.editorId,
+  );
+  const legacyRevisionId = Number(harness.db.prepare(`
+    INSERT INTO article_revisions
+      (article_id, revision_number, title, publication_at, lead, body_markdown,
+       cover_asset_id, cover_alt, source_url, created_by, created_at)
+    VALUES (?, 2, 'Legacy rollback edit', '2026-07-14T00:00:00.000Z', 'Lead', 'Body',
+            ?, 'Cover', 'https://example.com/rollback-source', ?,
+            '2026-07-14T00:00:00.000Z')
+  `).run(created.articleId, harness.coverAssetId, harness.editorId).lastInsertRowid);
+  harness.db.prepare(`
+    UPDATE articles SET current_revision_id = ?, updated_at = ?
+    WHERE id = ?
+  `).run(legacyRevisionId, '2026-07-14T00:00:00.000Z', created.articleId);
+  const actions = createAdminActions({
+    db: harness.db,
+    contentService: harness.service,
+    publicOrigin: 'https://oknotika.ru',
+  });
+
+  assert.deepEqual(actions.listArticles()[0].source_urls, [
+    'https://example.com/rollback-source',
+  ]);
+});
+
 test('Node adapter authenticates before buffering and applies route-specific body limits', async () => {
   const unauthenticated = fakeIncoming({
     url: '/api/uploads',

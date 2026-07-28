@@ -62,7 +62,7 @@ deploy/scripts/install-marketing.sh \
 
 - `telegram-oidc-client-id`;
 - `telegram-oidc-client-secret`;
-- `weekly-ingest-token` — общий bearer token сервера и Tuesday caller, минимум 32 случайных байта;
+- `weekly-ingest-token` — общий bearer token сервера и Tuesday caller, минимум 32 случайных печатных ASCII-символа без пробелов и запятых;
 - `restic-repository` — строка encrypted off-host repository;
 - `restic-password` — отдельный сильный пароль репозитория.
 

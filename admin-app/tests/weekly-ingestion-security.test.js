@@ -12,6 +12,16 @@ import { createHarness, weeklyIngestionInput } from './helpers.js';
 const ADMIN_ORIGIN = 'https://admin.oknotika.ru';
 const INGESTION_TOKEN = 'weekly-ingestion-test-token-12345678901234567890';
 
+test('weekly ingestion rejects configured credentials that cannot be sent as bearer tokens', () => {
+  for (const secret of [
+    'weekly ingestion token with forbidden whitespace',
+    'weekly,ingestion,token,with,forbidden,commas',
+    'еженедельный-токен-достаточной-длины',
+  ]) {
+    assert.throws(() => createIngestionAuthenticator(secret), /printable ASCII/);
+  }
+});
+
 test('weekly ingestion security authenticates before buffering and enforces its smaller body limit', async () => {
   const ingestionAuthenticator = createIngestionAuthenticator(INGESTION_TOKEN);
   const sessionService = { authenticate: () => null };
