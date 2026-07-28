@@ -4,7 +4,7 @@ Beta-пакет сохраняет утверждённую композицию
 
 ## Идентификация релиза
 
-- Verified implementation SHA: `021b30b64f4a92b398f1d1d9a270d03a4aeed34c` (weekly-news ingestion, mobile editor, public rendering, operator gates and package guardrails complete before regeneration).
+- Verified implementation SHA: `0578aee0c95a47ffaaa1f36c843e6c5858492793` (weekly-news ingestion, mobile editor, public rendering and code-review hardening complete before regeneration).
 - V2.27 baseline SHA: `5364ff160ffa9b8e9f2d0998a5eef1cf6cd3f5ed`.
 - Archive SHA-256 and byte/file counts: `release/release-manifest-v2.28.0-beta.1.json`.
 - Проверяемые checksums двух имён одного архива: `release/SHA256SUMS`.
@@ -15,13 +15,15 @@ Beta-пакет сохраняет утверждённую композицию
 - V2.27 path/DOM/CSS allowlist, локальные ссылки, protected desktop pixel diff и responsive protected-DOM geometry на 1440/1280/1180/768/760/390 px.
 - Команда на всех шести ширинах; алюминий и Schüco на desktop/mobile.
 - Mocked OIDC: valid, forged, stale, replayed, wrong issuer/audience/algorithm, unknown key and non-allowlisted subject.
-- Draft invisibility, authenticated no-store preview, publish, edit, withdraw/410, latest fallback, editorial restore and whole-release rollback.
+- Draft invisibility, authenticated no-store preview, publish, edit, withdraw/410, latest fallback, editorial restore and root-controlled whole-release rollback CLI.
 - XSS, CSRF, unsafe URL, MIME confusion, oversized and excessive-pixel/decompression-bomb image rejection.
 - Canonical/Open Graph metadata and deterministic Telegram link-preview simulation.
 - Crash injection at every staging/render/rename/symlink/database boundary and startup reconciliation.
 - Encrypted local restic repository backup, integrity check and isolated restore; restored pre-migration database downgrade rehearsal.
 - Static public articles remain available with the admin HTTP service absent.
 - Tuesday weekly ingestion authentication, 128 KiB contract, idempotent retry, manual-edit conflict and proof that the machine credential cannot publish.
+- Exact 3–5-item weekly validation on ingestion/editor/restore/publication, durable publish/withdraw overwrite locks across rollback and exact `https://t.me/oknotika` enforcement.
+- Validated reusable-cover registration, editor-denied operational rollback, confirmed social-link release activation and fail-closed production smoke response checks.
 - Mobile «Новости» editor flow, multiple verified source links, configured-only Telegram/YouTube/VK CTA and manual Friday publication.
 - Public weekly rendering with 3–5 digest items while preserving the imported Al Bahr URL, canonical metadata, latest fallback and withdrawn HTTP 410 behavior.
 - Secret-free ZIP scanner rejects credentials, SQLite/WAL/SHM, uploads, private previews, raw shoot inputs, logs, runtime releases, unsafe paths, symlinks and manifest tampering.

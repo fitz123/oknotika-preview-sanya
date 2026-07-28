@@ -1,6 +1,6 @@
 # OKNOTIKA v2.28.0-beta.1 release payload changes
 # Baseline: 5364ff160ffa9b8e9f2d0998a5eef1cf6cd3f5ed
-# Verified implementation: 021b30b64f4a92b398f1d1d9a270d03a4aeed34c
+# Verified implementation: 0578aee0c95a47ffaaa1f36c843e6c5858492793
 # Status: A = added to payload, M = modified from baseline
 A	CHANGED_FILES.txt
 A	RELEASE_NOTES.md
@@ -16,6 +16,7 @@ A	admin-app/migrations/001_content.sql
 A	admin-app/migrations/002_admin_security.sql
 A	admin-app/migrations/003_public_revision_state.sql
 A	admin-app/migrations/004_weekly_news.sql
+A	admin-app/migrations/005_article_content_kind.sql
 A	admin-app/package-lock.json
 A	admin-app/package.json
 A	admin-app/scripts/bootstrap-content.js
@@ -23,7 +24,9 @@ A	admin-app/scripts/bootstrap-editor.js
 A	admin-app/scripts/build.js
 A	admin-app/scripts/disable-editor.js
 A	admin-app/scripts/enroll-editor.js
+A	admin-app/scripts/register-weekly-cover.js
 A	admin-app/scripts/rehearse-beta.js
+A	admin-app/scripts/rollback-release.js
 A	admin-app/src/auth/config.js
 A	admin-app/src/auth/conformance.js
 A	admin-app/src/auth/jwt.js
