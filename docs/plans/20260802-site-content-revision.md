@@ -78,13 +78,13 @@ Render and inspect at minimum:
 
 **Serves:** Sanya asked to move RALUMA lower, use the first and third RALUMA photos plus the portal video, replace strange schemes and captions with large photography, and place the “from facade grid to checked node” copy in roughly the left two-fifths on desktop.
 
-- [ ] Replace abstract Schüco visuals on the homepage aluminum card and aluminum page with the existing licensed architectural facade mood photograph; alt/copy must not claim it is a Schüco object/product.
-- [ ] Remove captions such as “авторская схема ОКНОТИКИ”, “чертёж узла” and “изображение продукции Schüco”; do not introduce replacement legalistic caption clutter.
-- [ ] Rebuild the design-path hero as a large photographic composition with desktop copy occupying approximately 40% and a readable mobile fallback; retain the useful six-step content without duplicating it into noisy cards.
-- [ ] Move the detailed RALUMA feature after the main Schüco/design content and build it from the first approved photo, muted autoplay/loop/playsinline MP4, and third approved photo. Supply a poster/fallback and preserve performance.
-- [ ] Remove the “Объектная проверка / Система-кандидат / не обещание поставки / доступность профилей” block and all matching jargon from visible copy.
-- [ ] Update provenance and aluminum composition/source checks for removed in-house schemes and newly supplied RALUMA media.
-- [ ] Validate Task 2 outcome.
+- [x] Replace abstract Schüco visuals on the homepage aluminum card and aluminum page with the existing licensed architectural facade mood photograph; alt/copy must not claim it is a Schüco object/product.
+- [x] Remove captions such as “авторская схема ОКНОТИКИ”, “чертёж узла” and “изображение продукции Schüco”; do not introduce replacement legalistic caption clutter.
+- [x] Rebuild the design-path hero as a large photographic composition with desktop copy occupying approximately 40% and a readable mobile fallback; retain the useful six-step content without duplicating it into noisy cards.
+- [x] Move the detailed RALUMA feature after the main Schüco/design content and build it from the first approved photo, muted autoplay/loop/playsinline MP4, and third approved photo. Supply a poster/fallback and preserve performance.
+- [x] Remove the “Объектная проверка / Система-кандидат / не обещание поставки / доступность профилей” block and all matching jargon from visible copy.
+- [x] Update provenance and aluminum composition/source checks for removed in-house schemes and newly supplied RALUMA media.
+- [x] Validate Task 2 outcome.
 
 ### Task 3: Add a standalone document-revision presentation and safe teaser
 

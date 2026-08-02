@@ -22,11 +22,12 @@
 - `img/team/*-2026-07.{jpg,webp}` — сохранённые derivatives из ранее утверждённой командной съёмки; контрольные SHA-256 записаны в `release-evidence/team-release-evidence.json`.
 - `img/team/{alexey-makarov,andrey-svirida,oksana-skopina,ekaterina-rychkova}-2026-08.{jpg,webp}` — 4:5 derivatives из четырёх реальных портретов, переданных Саней для этой review-only ревизии. Применены только crop, равномерный resize и сжатие без синтеза или изменения лиц. Raw/final SHA-256, crop и границы согласования записаны в `release-evidence/team-release-evidence.json`; raw-файлы и приватные документы не входят в Git или ZIP.
 
-## Оригинальные фасадные визуалы
+## Фасадный mood-визуал и материалы RALUMA
 
-Два абстрактных изображения созданы ОКНОТИКОЙ из геометрических примитивов. Это не чертежи, рендеры, фотографии или логотипы Schüco, и они не содержат сторонних media.
+- `img/product-world/glass-facade.jpg` — Pexels photo 33959681 используется на главной и странице алюминия только как атмосферная архитектурная фотография. Показанный объект не обозначается как объект или продукция Schüco.
+- `img/aluminum/raluma-portal-interior.webp` — web-derivative первой фотографии RALUMA, переданной Саней и одобренной для этой review-only ревизии.
+- `img/aluminum/raluma-portal-loop.mp4` — переданное и одобренное видео RALUMA; web-версия без аудиодорожки, 480×848, H.264, fast-start.
+- `img/aluminum/raluma-portal-poster.webp` — poster/fallback, полученный из одобренного видео RALUMA.
+- `img/aluminum/raluma-portal-exterior.webp` — web-derivative третьей фотографии RALUMA, переданной Саней и одобренной для этой review-only ревизии.
 
-- `img/aluminum/schueco-facade-grid.webp` — original abstract facade-grid composition; © 2026 ООО «ОКНОТИКА», all rights reserved.
-- `img/aluminum/schueco-design-path.webp` — original abstract design-path composition; © 2026 ООО «ОКНОТИКА», all rights reserved.
-
-Точные SHA-256, provenance, назначение и лицензия этих файлов, а также claim-level официальные источники фасадного текста находятся в `ALUMINUM_SOURCES.md`. Официальные страницы Schüco используются только как фактические источники для пересказанных claims; логотип, фото, render, screenshot или drawing Schüco на сайте не переопубликованы.
+Исключённая вторая фотография RALUMA не публикуется. Точные raw/final SHA-256, размеры, назначение и границы использования, а также claim-level официальные источники фасадного текста находятся в `ALUMINUM_SOURCES.md`. Официальные страницы Schüco используются только как фактические источники для пересказанных claims; логотипы Schüco, фото, render, screenshot или drawing Schüco на сайте не переопубликованы.

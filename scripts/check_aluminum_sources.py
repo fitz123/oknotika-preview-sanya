@@ -166,7 +166,27 @@ def validate_materials(
     if not isinstance(raw_materials, list):
         return ["provenance materials must be an array"]
     materials: dict[str, dict[str, object]] = {}
-    required = {"id", "path", "sha256", "created_at", "source", "license", "purpose"}
+    required = {
+        "id",
+        "path",
+        "sha256",
+        "source_sha256",
+        "created_at",
+        "source",
+        "license",
+        "purpose",
+        "media_type",
+        "width",
+        "height",
+        "published_locations",
+        "third_party_content",
+    }
+    expected_source_hashes = {
+        "raluma-portal-interior": "46011b13c5203e64aa1825fbb43a7be9c41f9a30bdffdd880cb1e60fd092e812",
+        "raluma-portal-video": "acae8b73fc96279cec467d7f866843d43de5874cc9bcdd5127ce9d4e3b120cf6",
+        "raluma-portal-poster": "acae8b73fc96279cec467d7f866843d43de5874cc9bcdd5127ce9d4e3b120cf6",
+        "raluma-portal-exterior": "cf1d60d4fb0a76e3979f724c22559b6db8d34e51cf1021d3853c765ec360dda9",
+    }
     for index, raw_material in enumerate(raw_materials):
         if not isinstance(raw_material, dict):
             errors.append(f"material {index} must be an object")
@@ -184,31 +204,77 @@ def validate_materials(
             errors.append(f"material is missing: {path.relative_to(repo)}")
             continue
         content = path.read_bytes()
-        if content[:4] != b"RIFF" or content[8:12] != b"WEBP":
+        media_type = raw_material["media_type"]
+        if media_type == "image/webp" and (content[:4] != b"RIFF" or content[8:12] != b"WEBP"):
             errors.append(f"material is not a WebP file: {path.relative_to(repo)}")
+        elif media_type == "image/jpeg" and content[:2] != b"\xff\xd8":
+            errors.append(f"material is not a JPEG file: {path.relative_to(repo)}")
+        elif media_type == "video/mp4" and (len(content) < 12 or content[4:8] != b"ftyp"):
+            errors.append(f"material is not an MP4 file: {path.relative_to(repo)}")
+        elif media_type not in {"image/webp", "image/jpeg", "video/mp4"}:
+            errors.append(f"material has unsupported media type: {material_id}")
         digest = hashlib.sha256(content).hexdigest()
         if digest != raw_material["sha256"]:
             errors.append(f"material hash mismatch: {path.relative_to(repo)}")
-        if raw_material.get("third_party_content") is not False:
-            errors.append(f"material must explicitly exclude third-party content: {material_id}")
+        source_digest = str(raw_material["source_sha256"])
+        if not re.fullmatch(r"[0-9a-f]{64}", source_digest):
+            errors.append(f"material source hash is invalid: {material_id}")
+        expected_source_hash = expected_source_hashes.get(material_id)
+        if expected_source_hash and source_digest != expected_source_hash:
+            errors.append(f"material source hash does not match the approved input: {material_id}")
+        if not isinstance(raw_material.get("third_party_content"), bool):
+            errors.append(f"material must declare third-party content: {material_id}")
+        if not isinstance(raw_material.get("width"), int) or not isinstance(raw_material.get("height"), int):
+            errors.append(f"material dimensions must be positive integers: {material_id}")
+        elif int(raw_material["width"]) <= 0 or int(raw_material["height"]) <= 0:
+            errors.append(f"material dimensions must be positive integers: {material_id}")
+        if not isinstance(raw_material.get("published_locations"), list) or not raw_material["published_locations"]:
+            errors.append(f"material has no published locations: {material_id}")
         try:
             date.fromisoformat(str(raw_material["created_at"]))
         except ValueError:
             errors.append(f"material {material_id} has an invalid creation date")
+        if material_id == "raluma-portal-video":
+            if len(content) > 2_500_000:
+                errors.append("RALUMA loop exceeds the 2.5 MB performance boundary")
+            if b"soun" in content:
+                errors.append("RALUMA loop must not contain an audio track")
+            moov_position = content.find(b"moov")
+            mdat_position = content.find(b"mdat")
+            if moov_position < 0 or mdat_position < 0 or moov_position > mdat_position:
+                errors.append("RALUMA loop must use fast-start MP4 ordering")
 
-    published_paths = {
-        path.relative_to(repo).as_posix()
-        for path in (repo / "img/aluminum").glob("schueco-*.webp")
+    expected_material_paths = {
+        "licensed-facade-mood": "img/product-world/glass-facade.jpg",
+        "raluma-portal-interior": "img/aluminum/raluma-portal-interior.webp",
+        "raluma-portal-video": "img/aluminum/raluma-portal-loop.mp4",
+        "raluma-portal-poster": "img/aluminum/raluma-portal-poster.webp",
+        "raluma-portal-exterior": "img/aluminum/raluma-portal-exterior.webp",
     }
-    documented_paths = {str(material["path"]) for material in materials.values()}
-    if published_paths != documented_paths:
+    actual_material_paths = {material_id: str(material["path"]) for material_id, material in materials.items()}
+    if actual_material_paths != expected_material_paths:
         errors.append(
-            f"published/documented Schüco material mismatch: published={sorted(published_paths)}, documented={sorted(documented_paths)}"
+            f"approved aluminum media changed: actual={actual_material_paths}, expected={expected_material_paths}"
         )
+
+    legacy_paths = [
+        repo / "img/aluminum/schueco-facade-grid.webp",
+        repo / "img/aluminum/schueco-design-path.webp",
+    ]
+    for legacy_path in legacy_paths:
+        if legacy_path.exists():
+            errors.append(f"removed in-house scheme is still present: {legacy_path.relative_to(repo)}")
+
     asset_ids = {node.attrs["data-asset-id"] for node in page.root.descendants() if node.attrs.get("data-asset-id")}
+    asset_ids.update(
+        node.attrs["data-poster-asset-id"]
+        for node in page.root.descendants()
+        if node.attrs.get("data-poster-asset-id")
+    )
     if asset_ids != set(materials):
         errors.append(f"HTML/material id mismatch: html={sorted(asset_ids)}, documented={sorted(materials)}")
 
+    documented_paths = {str(material["path"]) for material in materials.values()}
     image_source_text = image_sources.read_text(encoding="utf-8") if image_sources.is_file() else ""
     for path in sorted(documented_paths):
         if f"`{path}`" not in image_source_text:
@@ -255,17 +321,72 @@ def validate_page(page: PageParser, homepage: PageParser) -> list[str]:
         if term not in design_text:
             errors.append(f"design path misses {term}")
 
-    caveat = find_class(page.root, "facade-caveat")
-    caveat_text = caveat[0].text().casefold() if len(caveat) == 1 else ""
-    for term in ("доступность", "сертификация", "соответствие местным нормам", "конкретного объекта"):
-        if term not in caveat_text:
-            errors.append(f"object availability/compliance caveat misses {term}")
+    design_features = find_class(page.root, "design-path__feature")
+    if len(design_features) != 1:
+        errors.append("design path must contain one photographic feature")
+    else:
+        feature_images = design_features[0].descendants("img")
+        if len(feature_images) != 1 or feature_images[0].attrs.get("src") != "../img/product-world/glass-facade.jpg":
+            errors.append("design path does not use the licensed facade photograph")
+
+    raluma = find_class(page.root, "raluma-feature")
+    if len(raluma) != 1:
+        errors.append("detailed RALUMA feature must occur exactly once")
+    else:
+        expected_assets = {"raluma-portal-interior", "raluma-portal-video", "raluma-portal-exterior"}
+        actual_assets = {
+            node.attrs["data-asset-id"]
+            for node in raluma[0].descendants()
+            if node.attrs.get("data-asset-id")
+        }
+        if actual_assets != expected_assets:
+            errors.append(f"RALUMA feature uses unexpected media: {sorted(actual_assets)}")
+        expected_images = {
+            "../img/aluminum/raluma-portal-interior.webp",
+            "../img/aluminum/raluma-portal-exterior.webp",
+        }
+        raluma_images = raluma[0].descendants("img")
+        actual_images = {image.attrs.get("src", "") for image in raluma_images}
+        if actual_images != expected_images:
+            errors.append(f"RALUMA feature uses unexpected photography: {sorted(actual_images)}")
+        if any(image.attrs.get("loading") != "lazy" or image.attrs.get("decoding") != "async" for image in raluma_images):
+            errors.append("RALUMA photography must use lazy loading and asynchronous decoding")
+        videos = raluma[0].descendants("video")
+        if len(videos) != 1:
+            errors.append("RALUMA feature must contain one video")
+        else:
+            video = videos[0]
+            for attribute in ("autoplay", "muted", "loop", "playsinline"):
+                if attribute not in video.attrs:
+                    errors.append(f"RALUMA video misses {attribute}")
+            if video.attrs.get("preload") != "metadata":
+                errors.append("RALUMA video must use metadata preload")
+            if video.attrs.get("poster") != "../img/aluminum/raluma-portal-poster.webp":
+                errors.append("RALUMA video poster is missing or changed")
+            sources = video.descendants("source")
+            if len(sources) != 1 or sources[0].attrs.get("src") != "../img/aluminum/raluma-portal-loop.mp4":
+                errors.append("RALUMA video source is missing or changed")
+            elif sources[0].attrs.get("type") != "video/mp4":
+                errors.append("RALUMA video source must declare video/mp4")
+
+    all_nodes = page.root.descendants()
+    design_positions = [index for index, node in enumerate(all_nodes) if "design-path" in node.classes()]
+    raluma_positions = [index for index, node in enumerate(all_nodes) if "raluma-feature" in node.classes()]
+    if design_positions and raluma_positions and raluma_positions[0] <= design_positions[0]:
+        errors.append("detailed RALUMA feature must follow the Schüco design path")
 
     full_text = page.root.text().casefold()
     forbidden_patterns = {
         r"официальн\w*\s+(?:партн[её]р|дилер)": "official partnership/dealership claim",
         r"авторизованн\w*\s+(?:партн[её]р|дилер)": "authorised partnership/dealership claim",
         r"скрыт\w*\s+дренаж\w*\s+(?:во\s+всех|у\s+всех|для\s+всех)": "generalised concealed-drainage claim",
+        r"авторская\s+схема": "legacy in-house scheme caption",
+        r"черт[её]ж\s+узла": "legacy drawing caption",
+        r"изображение\s+продукции\s+schüco": "legacy Schüco-product caption",
+        r"объектная\s+проверка": "removed object-check jargon",
+        r"система\s*[—-]\s*кандидат": "removed candidate-system jargon",
+        r"(?:не\s+)?обещани\w*\s+поставки": "removed supply-promise jargon",
+        r"доступност\w*\s+профил": "removed profile-availability jargon",
     }
     for pattern, label in forbidden_patterns.items():
         if re.search(pattern, full_text):
@@ -283,6 +404,24 @@ def validate_page(page: PageParser, homepage: PageParser) -> list[str]:
         source = image.attrs.get("src", "")
         if source.startswith(("http://", "https://")) or "schueco.com" in source.casefold():
             errors.append(f"external or Schüco-hosted media is forbidden: {source}")
+        if "schüco" in image.attrs.get("alt", "").casefold():
+            errors.append(f"image alt must not identify mood photography as Schüco media: {source}")
+
+    if page.root.descendants("figcaption"):
+        errors.append("aluminum photography must not reintroduce caption clutter")
+
+    hero_images = hero[0].descendants("img") if len(hero) == 1 else []
+    if len(hero_images) != 1 or hero_images[0].attrs.get("src") != "../img/product-world/glass-facade.jpg":
+        errors.append("Schüco focus does not use the licensed facade photograph")
+
+    html_source = " ".join(
+        node.attrs.get(attribute, "")
+        for node in page.root.descendants()
+        for attribute in ("src", "poster", "style")
+    ).casefold()
+    for forbidden_asset in ("schueco-facade-grid", "schueco-design-path", "raluma-unused-second"):
+        if forbidden_asset in html_source:
+            errors.append(f"removed or unapproved visual is still published: {forbidden_asset}")
 
     aluminum_cards = [
         node
@@ -294,10 +433,12 @@ def validate_page(page: PageParser, homepage: PageParser) -> list[str]:
     else:
         card = aluminum_cards[0]
         image = card.descendants("img")[0]
-        if image.attrs.get("src") != "img/aluminum/schueco-facade-grid.webp":
-            errors.append("homepage aluminum card does not use the original facade visual")
-        if "авторская" not in image.attrs.get("alt", "").casefold():
-            errors.append("homepage aluminum card must identify its visual as original")
+        if image.attrs.get("src") != "img/product-world/glass-facade.jpg":
+            errors.append("homepage aluminum card does not use the licensed facade photograph")
+        if image.attrs.get("data-asset-id") != "licensed-facade-mood":
+            errors.append("homepage aluminum card misses facade-photo provenance linkage")
+        if "schüco" in image.attrs.get("alt", "").casefold():
+            errors.append("homepage facade-photo alt must not identify it as Schüco media")
         if "schüco" not in card.text().casefold():
             errors.append("homepage aluminum card does not expose the Schüco focus")
     return errors
@@ -325,11 +466,24 @@ def validate(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("sources", type=Path)
-    parser.add_argument("html", type=Path)
+    parser.add_argument(
+        "paths",
+        type=Path,
+        nargs="*",
+        help="repository root, or legacy ALUMINUM_SOURCES.md and aluminum HTML paths",
+    )
     args = parser.parse_args(argv)
+    if len(args.paths) > 2:
+        parser.error("expected a repository root or two explicit source/HTML paths")
+    if len(args.paths) <= 1:
+        repo = (args.paths[0] if args.paths else Path(".")).resolve()
+        sources = repo / "ALUMINUM_SOURCES.md"
+        html = repo / "aluminum/index.html"
+    else:
+        sources, html = (path.resolve() for path in args.paths)
+        repo = html.parents[1]
     try:
-        errors = validate(args.sources.resolve(), args.html.resolve())
+        errors = validate(sources, html, repo)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"Aluminum source check failed: {exc}", file=sys.stderr)
         return 1
@@ -338,7 +492,7 @@ def main(argv: list[str] | None = None) -> int:
         for error in errors:
             print(f"- {error}", file=sys.stderr)
         return 1
-    print("Aluminum source check passed: 4 scenarios, 5 claim records, 2 original materials")
+    print("Aluminum source check passed: 4 scenarios, 5 claim records, and 5 approved media records")
     return 0
 
 

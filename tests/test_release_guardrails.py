@@ -149,6 +149,61 @@ class AluminumReleaseTests(unittest.TestCase):
         )
         self.assertEqual(errors, [])
 
+    def test_legacy_scheme_caption_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            html = Path(directory) / "index.html"
+            html.write_text(
+                (REPO / "aluminum/index.html").read_text(encoding="utf-8").replace(
+                    "</main>",
+                    "<p>Авторская схема ОКНОТИКИ: не чертёж узла.</p></main>",
+                ),
+                encoding="utf-8",
+            )
+            errors = aluminum.validate(REPO / "ALUMINUM_SOURCES.md", html, REPO)
+            self.assertTrue(any("legacy" in error for error in errors))
+
+    def test_unapproved_raluma_photo_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            html = Path(directory) / "index.html"
+            html.write_text(
+                (REPO / "aluminum/index.html").read_text(encoding="utf-8").replace(
+                    "raluma-portal-exterior.webp",
+                    "raluma-unused-second.jpg",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            errors = aluminum.validate(REPO / "ALUMINUM_SOURCES.md", html, REPO)
+            self.assertTrue(any("unapproved visual" in error for error in errors))
+
+    def test_raluma_loop_requires_muted_autoplay_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            html = Path(directory) / "index.html"
+            html.write_text(
+                (REPO / "aluminum/index.html").read_text(encoding="utf-8").replace(
+                    "<video autoplay muted loop",
+                    "<video autoplay loop",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            errors = aluminum.validate(REPO / "ALUMINUM_SOURCES.md", html, REPO)
+            self.assertTrue(any("video misses muted" in error for error in errors))
+
+    def test_tampered_aluminum_media_hash_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            sources = Path(directory) / "ALUMINUM_SOURCES.md"
+            sources.write_text(
+                (REPO / "ALUMINUM_SOURCES.md").read_text(encoding="utf-8").replace(
+                    '"sha256": "caf81c891fb97aa847a229b343f2114fd98ffcc2b7a3aa96fed6b36206494784"',
+                    '"sha256": "' + "0" * 64 + '"',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            errors = aluminum.validate(sources, REPO / "aluminum/index.html", REPO)
+            self.assertTrue(any("material hash mismatch" in error for error in errors))
+
     def test_generalized_drainage_claim_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             html = Path(directory) / "index.html"

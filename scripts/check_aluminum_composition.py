@@ -69,46 +69,124 @@ const { chromium } = require(process.argv[2]);
         null,
         { timeout: 10000 },
       );
+      await page.evaluate(() => Promise.all(Array.from(document.images, image => image.decode())));
+      await page.waitForFunction(() => {
+        const video = document.querySelector('.raluma-gallery video');
+        return video && video.readyState >= 2;
+      }, null, { timeout: 15000 });
+      await page.evaluate(async () => {
+        const video = document.querySelector('.raluma-gallery video');
+        await video.play();
+      });
+      await page.waitForFunction(() => document.querySelector('.raluma-gallery video').currentTime > 0);
+      await page.evaluate(async () => {
+        const video = document.querySelector('.raluma-gallery video');
+        video.pause();
+        await new Promise(resolve => {
+          video.addEventListener('seeked', resolve, { once: true });
+          video.currentTime = 0.5;
+        });
+      });
       const metrics = await page.evaluate(() => {
         const rects = selector => Array.from(document.querySelectorAll(selector), element => {
           const rect = element.getBoundingClientRect();
           return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
         });
+        const rect = selector => {
+          const bounds = document.querySelector(selector)?.getBoundingClientRect();
+          return bounds ? { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height } : null;
+        };
+        const video = document.querySelector('.raluma-gallery video');
+        const designFeature = rect('.design-path__feature');
+        const designCopy = rect('.design-path__copy');
         return {
           clientWidth: document.documentElement.clientWidth,
           scrollWidth: document.documentElement.scrollWidth,
+          taxonomyCards: rects('.system-grid--scenario .system-card'),
           scenarioCards: rects('.facade-scenario-card'),
           shellItems: rects('.integration-shell__list li'),
           designSteps: rects('.design-path__steps li'),
-          requiredSections: rects('.schueco-hero, .facade-scenarios, .integration-shell, .design-path, .facade-caveat'),
+          designFeature,
+          designCopy,
+          designCopyRatio: designFeature && designCopy ? designCopy.width / designFeature.width : null,
+          ralumaItems: rects('.raluma-gallery__item'),
+          ralumaImages: Array.from(document.querySelectorAll('.raluma-gallery img'), image => ({
+            src: image.getAttribute('src'),
+            naturalWidth: image.naturalWidth,
+            naturalHeight: image.naturalHeight,
+            opacity: getComputedStyle(image).opacity,
+            visibility: getComputedStyle(image).visibility,
+          })),
+          ralumaVideo: video ? {
+            autoplay: video.autoplay,
+            muted: video.muted,
+            loop: video.loop,
+            playsInline: video.playsInline,
+            poster: video.getAttribute('poster'),
+            readyState: video.readyState,
+          } : null,
+          requiredSections: rects('.schueco-hero, .facade-scenarios, .integration-shell, .design-path, .raluma-feature'),
         };
       });
       if (metrics.scrollWidth > metrics.clientWidth + 1) {
         throw new Error(`${width}px page overflows horizontally: ${metrics.scrollWidth}/${metrics.clientWidth}`);
       }
-      if (metrics.scenarioCards.length !== 4 || metrics.shellItems.length !== 6 || metrics.designSteps.length !== 6 || metrics.requiredSections.length !== 5) {
+      if (metrics.taxonomyCards.length !== 4 || metrics.scenarioCards.length !== 4 || metrics.shellItems.length !== 6 || metrics.designSteps.length !== 6 || metrics.ralumaItems.length !== 3 || metrics.requiredSections.length !== 5) {
         throw new Error(`${width}px page misses required composition nodes`);
       }
       if (metrics.requiredSections.some(section => section.height < 100 || section.width > metrics.clientWidth + 1)) {
         throw new Error(`${width}px page contains a collapsed or overflowing section`);
       }
+      if (!metrics.designFeature || metrics.designFeature.height < 500 || !metrics.designCopyRatio) {
+        throw new Error(`${width}px design-path photography is collapsed`);
+      }
+      if (!metrics.ralumaVideo || !metrics.ralumaVideo.autoplay || !metrics.ralumaVideo.muted || !metrics.ralumaVideo.loop || !metrics.ralumaVideo.playsInline || metrics.ralumaVideo.readyState < 2) {
+        throw new Error(`${width}px RALUMA video is not ready for muted looping playback: ${JSON.stringify(metrics.ralumaVideo)}`);
+      }
+      if (metrics.ralumaImages.length !== 2 || metrics.ralumaImages.some(image => image.naturalWidth < 1 || image.naturalHeight < 1 || image.opacity === '0' || image.visibility !== 'visible')) {
+        throw new Error(`${width}px RALUMA photography is not fully rendered: ${JSON.stringify(metrics.ralumaImages)}`);
+      }
+      if (metrics.ralumaVideo.poster !== '../img/aluminum/raluma-portal-poster.webp') {
+        throw new Error(`${width}px RALUMA video poster is missing`);
+      }
+      if (metrics.requiredSections[4].y <= metrics.requiredSections[3].y) {
+        throw new Error(`${width}px RALUMA feature must follow the design path`);
+      }
       if (width === 1440) {
         if (Math.abs(metrics.scenarioCards[0].y - metrics.scenarioCards[1].y) > 2 || metrics.scenarioCards[0].x === metrics.scenarioCards[1].x) {
           throw new Error('desktop scenario cards are not a two-column grid');
         }
+        if (metrics.designCopyRatio < 0.38 || metrics.designCopyRatio > 0.42) {
+          throw new Error(`desktop design copy must occupy about 40%, got ${metrics.designCopyRatio}`);
+        }
+        if (metrics.ralumaItems.some(item => Math.abs(item.y - metrics.ralumaItems[0].y) > 2) || new Set(metrics.ralumaItems.map(item => item.x)).size !== 3) {
+          throw new Error('desktop RALUMA media are not a three-column composition');
+        }
       } else {
+        const stackedCards = [...metrics.taxonomyCards, ...metrics.scenarioCards, ...metrics.ralumaItems];
         const firstX = metrics.scenarioCards[0].x;
-        if (metrics.scenarioCards.some(card => Math.abs(card.x - firstX) > 2)) {
+        if (stackedCards.some(card => Math.abs(card.x - firstX) > 2)) {
           throw new Error('mobile scenario cards are not a single-column stack');
         }
         if (metrics.scenarioCards.some((card, index) => index > 0 && card.y <= metrics.scenarioCards[index - 1].y)) {
           throw new Error('mobile scenario cards overlap or are reordered');
         }
+        if (metrics.ralumaItems.some((item, index) => index > 0 && item.y <= metrics.ralumaItems[index - 1].y)) {
+          throw new Error('mobile RALUMA media overlap or are reordered');
+        }
+        if (metrics.designCopyRatio < 0.9) {
+          throw new Error(`mobile design copy is not full-width, got ${metrics.designCopyRatio}`);
+        }
       }
       const filename = `aluminum-${width === 1440 ? 'desktop-1440' : 'mobile-390'}.jpg`;
+      const ralumaFilename = `aluminum-raluma-${width === 1440 ? 'desktop-1440' : 'mobile-390'}.jpg`;
+      process.stderr.write(`capturing ${ralumaFilename}\n`);
+      await page.locator('.raluma-gallery').screenshot({ path: path.join(output, ralumaFilename), type: 'jpeg', quality: 86, timeout: 30000 });
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.waitForTimeout(100);
       process.stderr.write(`capturing ${filename}\n`);
       await page.screenshot({ path: path.join(output, filename), fullPage: true, type: 'jpeg', quality: 82, timeout: 30000 });
-      results.push({ filename, width, metrics });
+      results.push({ filename, ralumaFilename, width, metrics });
       await context.close();
     }
 
@@ -123,7 +201,7 @@ const { chromium } = require(process.argv[2]);
       throw new Error('homepage aluminum card is missing or invisible');
     }
     const imageSource = await card.locator('img').getAttribute('src');
-    if (imageSource !== 'img/aluminum/schueco-facade-grid.webp') {
+    if (imageSource !== 'img/product-world/glass-facade.jpg') {
       throw new Error(`homepage aluminum card uses unexpected image: ${imageSource}`);
     }
     await card.screenshot({ path: path.join(output, 'homepage-aluminum-card-1440.jpg'), type: 'jpeg', quality: 86, timeout: 30000 });
@@ -152,7 +230,7 @@ def package_path() -> Path:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--repo", type=Path, default=Path("."))
+    parser.add_argument("repo", type=Path, nargs="?", default=Path("."))
     parser.add_argument("--output", type=Path, default=Path("release-evidence/qa"))
     args = parser.parse_args()
     repo = args.repo.resolve()
@@ -193,7 +271,7 @@ def main() -> int:
         json.dumps(metadata, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
-    print("Aluminum composition check passed: desktop, mobile, and homepage card captured")
+    print("Aluminum composition check passed: photographic desktop/mobile layouts, RALUMA loop, and homepage card captured")
     return 0
 
 
