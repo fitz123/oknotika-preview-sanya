@@ -27,6 +27,7 @@ team = load_script("check_team_dom")
 aluminum = load_script("check_aluminum_sources")
 public_claims = load_script("check_public_claims")
 document_revision = load_script("check_document_revision")
+homepage_proof = load_script("check_homepage_proof")
 
 
 class LocalReferenceTests(unittest.TestCase):
@@ -299,6 +300,67 @@ class DocumentRevisionTests(unittest.TestCase):
             )
             errors = document_revision.validate(REPO / "aluminum/index.html", presentation_path)
             self.assertTrue(any("perfect detection" in error for error in errors))
+
+
+class HomepageProofTests(unittest.TestCase):
+    def test_current_homepage_proof_is_valid(self) -> None:
+        errors = homepage_proof.validate(REPO / "index.html", REPO / "IMAGE_SOURCES.md")
+        self.assertEqual(errors, [])
+
+    def test_glass_card_rejects_the_legacy_svg(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            homepage = Path(directory) / "index.html"
+            homepage.write_text(
+                (REPO / "index.html").read_text(encoding="utf-8").replace(
+                    "img/product-world/glass-art.jpg",
+                    "img/products/glass.svg",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            errors = homepage_proof.validate(homepage, REPO / "IMAGE_SOURCES.md")
+            self.assertTrue(any("licensed glass photograph" in error for error in errors))
+
+    def test_rubikon_copy_outside_cases_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            homepage = Path(directory) / "index.html"
+            homepage.write_text(
+                (REPO / "index.html").read_text(encoding="utf-8").replace(
+                    "</main>",
+                    "<p>Компания Рубикон и Лункаш.</p></main>",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            errors = homepage_proof.validate(homepage, REPO / "IMAGE_SOURCES.md")
+            self.assertTrue(any("bounded to the cases" in error for error in errors))
+
+    def test_yandex_embeds_require_lazy_loading_and_exact_organization(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            homepage = Path(directory) / "index.html"
+            homepage.write_text(
+                (REPO / "index.html").read_text(encoding="utf-8")
+                .replace(' loading="lazy" data-yandex-reviews', ' data-yandex-reviews', 1)
+                .replace("122138017646?comments", "999?comments", 1),
+                encoding="utf-8",
+            )
+            errors = homepage_proof.validate(homepage, REPO / "IMAGE_SOURCES.md")
+            self.assertTrue(any("exact official" in error for error in errors))
+            self.assertTrue(any("lazy-loaded" in error for error in errors))
+
+    def test_yandex_proof_rejects_hardcoded_rating(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            homepage = Path(directory) / "index.html"
+            homepage.write_text(
+                (REPO / "index.html").read_text(encoding="utf-8").replace(
+                    "Отзывы загружаются напрямую с Яндекс Карт",
+                    "Рейтинг 5.0 · 100 отзывов",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            errors = homepage_proof.validate(homepage, REPO / "IMAGE_SOURCES.md")
+            self.assertTrue(any("hardcode" in error for error in errors))
 
 
 if __name__ == "__main__":

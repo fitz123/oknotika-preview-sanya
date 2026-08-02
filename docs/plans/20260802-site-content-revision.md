@@ -42,6 +42,8 @@ python3 scripts/check_aluminum_composition.py .
 python3 scripts/check_aluminum_sources.py .
 python3 scripts/check_public_claims.py .
 python3 scripts/check_document_revision.py .
+python3 scripts/check_homepage_proof.py .
+python3 scripts/check_site_content_render.py .
 python3 - <<'PY'
 from pathlib import Path
 from html.parser import HTMLParser
@@ -105,10 +107,10 @@ Render and inspect at minimum:
 
 **Serves:** Sanya asked for more photography in the Schüco and Art/Thermo/Smart/glass areas, a named Rubikon/Lunkash installation-partner mention in cases, and a live Yandex reviews/map widget from the supplied organization card.
 
-- [ ] Replace the homepage glass SVG card with an existing licensed glass photograph and keep the product link intact.
-- [ ] In the cases area, state that ОКНОТИКА remains the single responsibility center and that the team of company «Рубикон», led by Сергей Константинович Лункаш, is a permanent installation partner for commercial, social and private objects. Keep this bounded to cases and do not transfer authorship of all Rubikon work to ОКНОТИКА.
-- [ ] Add official lazy-loaded Yandex reviews and map iframes using organization ID `122138017646`, plus a direct “Оставить отзыв”/open-in-Yandex link; make the block responsive without hardcoded rating or review count.
-- [ ] Extend focused DOM/public-claim/reference checks only as needed for the changed static preview.
-- [ ] Run the full validation commands and rendered desktop/mobile QA for all three affected pages.
-- [ ] Review the final diff for scope, copy accuracy, private-data leakage and unintended admin/deploy/release changes.
-- [ ] Validate Task 4 outcome.
+- [x] Replace the homepage glass SVG card with an existing licensed glass photograph and keep the product link intact.
+- [x] In the cases area, state that ОКНОТИКА remains the single responsibility center and that the team of company «Рубикон», led by Сергей Константинович Лункаш, is a permanent installation partner for commercial, social and private objects. Keep this bounded to cases and do not transfer authorship of all Rubikon work to ОКНОТИКА.
+- [x] Add official lazy-loaded Yandex reviews and map iframes using organization ID `122138017646`, plus a direct “Оставить отзыв”/open-in-Yandex link; make the block responsive without hardcoded rating or review count.
+- [x] Extend focused DOM/public-claim/reference checks only as needed for the changed static preview.
+- [x] Run the full validation commands and rendered desktop/mobile QA for all three affected pages.
+- [x] Review the final diff for scope, copy accuracy, private-data leakage and unintended admin/deploy/release changes.
+- [x] Validate Task 4 outcome.

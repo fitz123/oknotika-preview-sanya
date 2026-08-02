@@ -200,6 +200,17 @@ const { chromium } = require(process.argv[2]);
     if (await card.count() !== 1 || !await card.isVisible()) {
       throw new Error('homepage aluminum card is missing or invisible');
     }
+    await card.scrollIntoViewIfNeeded();
+    await card.locator('img').evaluate(image => { image.loading = 'eager'; });
+    await page.waitForFunction(
+      () => {
+        const image = document.querySelector('a.product-link-card[href="aluminum/"] img');
+        return image && image.complete && image.naturalWidth > 0;
+      },
+      null,
+      { timeout: 10000 },
+    );
+    await card.locator('img').evaluate(image => image.decode());
     const imageSource = await card.locator('img').getAttribute('src');
     if (imageSource !== 'img/product-world/glass-facade.jpg') {
       throw new Error(`homepage aluminum card uses unexpected image: ${imageSource}`);

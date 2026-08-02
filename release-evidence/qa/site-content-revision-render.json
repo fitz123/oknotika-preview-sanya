@@ -1,0 +1,566 @@
+{
+  "playwright": "1.58.2",
+  "chromium": "145.0.7632.6",
+  "results": [
+    {
+      "page": "homepage",
+      "width": 1440,
+      "filename": "site-content-homepage-desktop-1440.jpg",
+      "metrics": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "scrollHeight": 9566,
+        "bodyWidth": 1440,
+        "homepage": {
+          "glassImage": {
+            "src": "img/product-world/glass-art.jpg",
+            "naturalWidth": 1012,
+            "naturalHeight": 1800
+          },
+          "casesPartner": {
+            "x": 100,
+            "y": 4025.3125,
+            "width": 1240,
+            "height": 232.875
+          },
+          "casesPartnerText": "Монтажный контур Постоянная команда на объектах Команда компании «Рубикон» под руководством Сергея Константиновича Лункаша — постоянный монтажный партнёр ОКНОТИКИ на коммерческих, социальных и частных объектах. ОКНОТИКА остаётся единым центром ответственности по своему маршруту реализации; самостоятельные объекты «Рубикона» не приписываются ОКНОТИКЕ.",
+          "teamCards": [
+            {
+              "x": 100,
+              "y": 4787.515625,
+              "width": 402.65625,
+              "height": 673.859375
+            },
+            {
+              "x": 518.65625,
+              "y": 4787.515625,
+              "width": 402.671875,
+              "height": 673.859375
+            },
+            {
+              "x": 937.328125,
+              "y": 4787.515625,
+              "width": 402.65625,
+              "height": 673.859375
+            },
+            {
+              "x": 100,
+              "y": 5477.375,
+              "width": 402.65625,
+              "height": 633.734375
+            },
+            {
+              "x": 518.65625,
+              "y": 5477.375,
+              "width": 402.671875,
+              "height": 633.734375
+            },
+            {
+              "x": 937.328125,
+              "y": 5477.375,
+              "width": 402.65625,
+              "height": 633.734375
+            },
+            {
+              "x": 100,
+              "y": 6127.109375,
+              "width": 402.65625,
+              "height": 633.734375
+            },
+            {
+              "x": 518.65625,
+              "y": 6127.109375,
+              "width": 402.671875,
+              "height": 633.734375
+            },
+            {
+              "x": 937.328125,
+              "y": 6127.109375,
+              "width": 402.65625,
+              "height": 633.734375
+            }
+          ],
+          "teamPortraits": [
+            {
+              "x": 101,
+              "y": 4788.515625,
+              "width": 400.65625,
+              "height": 500.8125
+            },
+            {
+              "x": 519.65625,
+              "y": 4788.515625,
+              "width": 400.671875,
+              "height": 500.828125
+            },
+            {
+              "x": 938.328125,
+              "y": 4788.515625,
+              "width": 400.65625,
+              "height": 500.8125
+            },
+            {
+              "x": 101,
+              "y": 5478.375,
+              "width": 400.65625,
+              "height": 500.8125
+            },
+            {
+              "x": 519.65625,
+              "y": 5478.375,
+              "width": 400.671875,
+              "height": 500.828125
+            },
+            {
+              "x": 938.328125,
+              "y": 5478.375,
+              "width": 400.65625,
+              "height": 500.8125
+            },
+            {
+              "x": 101,
+              "y": 6128.109375,
+              "width": 400.65625,
+              "height": 500.8125
+            },
+            {
+              "x": 519.65625,
+              "y": 6128.109375,
+              "width": 400.671875,
+              "height": 500.828125
+            },
+            {
+              "x": 938.328125,
+              "y": 6128.109375,
+              "width": 400.65625,
+              "height": 500.8125
+            }
+          ],
+          "embeds": [
+            {
+              "x": 100,
+              "y": 7857.328125,
+              "width": 659.875,
+              "height": 688
+            },
+            {
+              "x": 777.875,
+              "y": 7857.328125,
+              "width": 562.125,
+              "height": 688
+            }
+          ],
+          "iframes": [
+            {
+              "x": 101,
+              "y": 7984.328125,
+              "width": 657.875,
+              "height": 560
+            },
+            {
+              "x": 778.875,
+              "y": 7984.328125,
+              "width": 560.125,
+              "height": 560
+            }
+          ],
+          "iframeSources": [
+            "https://yandex.ru/maps-reviews-widget/122138017646?comments",
+            "https://yandex.ru/map-widget/v1/?ll=37.647163%2C55.761092&mode=search&oid=122138017646&ol=biz&z=17"
+          ],
+          "iframeLazy": [
+            "lazy",
+            "lazy"
+          ],
+          "safeReviewLink": true,
+          "width": 1440
+        }
+      }
+    },
+    {
+      "page": "homepage",
+      "width": 390,
+      "filename": "site-content-homepage-mobile-390.jpg",
+      "metrics": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "scrollHeight": 17799,
+        "bodyWidth": 390,
+        "homepage": {
+          "glassImage": {
+            "src": "img/product-world/glass-art.jpg",
+            "naturalWidth": 1012,
+            "naturalHeight": 1800
+          },
+          "casesPartner": {
+            "x": 14,
+            "y": 7239.296875,
+            "width": 362,
+            "height": 439.34375
+          },
+          "casesPartnerText": "Монтажный контур Постоянная команда на объектах Команда компании «Рубикон» под руководством Сергея Константиновича Лункаша — постоянный монтажный партнёр ОКНОТИКИ на коммерческих, социальных и частных объектах. ОКНОТИКА остаётся единым центром ответственности по своему маршруту реализации; самостоятельные объекты «Рубикона» не приписываются ОКНОТИКЕ.",
+          "teamCards": [
+            {
+              "x": 14,
+              "y": 8141.5625,
+              "width": 362,
+              "height": 666.421875
+            },
+            {
+              "x": 14,
+              "y": 8823.984375,
+              "width": 362,
+              "height": 604.59375
+            },
+            {
+              "x": 14,
+              "y": 9444.578125,
+              "width": 362,
+              "height": 582.90625
+            },
+            {
+              "x": 14,
+              "y": 10043.484375,
+              "width": 362,
+              "height": 604.59375
+            },
+            {
+              "x": 14,
+              "y": 10664.078125,
+              "width": 362,
+              "height": 582.90625
+            },
+            {
+              "x": 14,
+              "y": 11262.984375,
+              "width": 362,
+              "height": 582.90625
+            },
+            {
+              "x": 14,
+              "y": 11861.890625,
+              "width": 362,
+              "height": 582.90625
+            },
+            {
+              "x": 14,
+              "y": 12460.796875,
+              "width": 362,
+              "height": 604.59375
+            },
+            {
+              "x": 14,
+              "y": 13081.390625,
+              "width": 362,
+              "height": 582.90625
+            }
+          ],
+          "teamPortraits": [
+            {
+              "x": 15,
+              "y": 8142.5625,
+              "width": 360,
+              "height": 450
+            },
+            {
+              "x": 15,
+              "y": 8824.984375,
+              "width": 360,
+              "height": 450
+            },
+            {
+              "x": 15,
+              "y": 9445.578125,
+              "width": 360,
+              "height": 450
+            },
+            {
+              "x": 15,
+              "y": 10044.484375,
+              "width": 360,
+              "height": 450
+            },
+            {
+              "x": 15,
+              "y": 10665.078125,
+              "width": 360,
+              "height": 450
+            },
+            {
+              "x": 15,
+              "y": 11263.984375,
+              "width": 360,
+              "height": 450
+            },
+            {
+              "x": 15,
+              "y": 11862.890625,
+              "width": 360,
+              "height": 450
+            },
+            {
+              "x": 15,
+              "y": 12461.796875,
+              "width": 360,
+              "height": 450
+            },
+            {
+              "x": 15,
+              "y": 13082.390625,
+              "width": 360,
+              "height": 450
+            }
+          ],
+          "embeds": [
+            {
+              "x": 14,
+              "y": 15216.390625,
+              "width": 362,
+              "height": 591.1875
+            },
+            {
+              "x": 14,
+              "y": 15825.578125,
+              "width": 362,
+              "height": 591.1875
+            }
+          ],
+          "iframes": [
+            {
+              "x": 15,
+              "y": 15326.578125,
+              "width": 360,
+              "height": 480
+            },
+            {
+              "x": 15,
+              "y": 15935.765625,
+              "width": 360,
+              "height": 480
+            }
+          ],
+          "iframeSources": [
+            "https://yandex.ru/maps-reviews-widget/122138017646?comments",
+            "https://yandex.ru/map-widget/v1/?ll=37.647163%2C55.761092&mode=search&oid=122138017646&ol=biz&z=17"
+          ],
+          "iframeLazy": [
+            "lazy",
+            "lazy"
+          ],
+          "safeReviewLink": true,
+          "width": 390
+        }
+      }
+    },
+    {
+      "page": "aluminum",
+      "width": 1440,
+      "filename": "site-content-aluminum-desktop-1440.jpg",
+      "metrics": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "scrollHeight": 9142,
+        "bodyWidth": 1440,
+        "aluminum": {
+          "designFeature": {
+            "x": 100,
+            "y": 5166.484375,
+            "width": 1240,
+            "height": 700
+          },
+          "ralumaItems": [
+            {
+              "x": 100,
+              "y": 7471.296875,
+              "width": 313.03125,
+              "height": 560
+            },
+            {
+              "x": 431.03125,
+              "y": 7471.296875,
+              "width": 313.046875,
+              "height": 560
+            },
+            {
+              "x": 762.078125,
+              "y": 7471.296875,
+              "width": 577.921875,
+              "height": 560
+            }
+          ],
+          "video": {
+            "autoplay": true,
+            "muted": true,
+            "loop": true,
+            "playsInline": true,
+            "poster": "../img/aluminum/raluma-portal-poster.webp"
+          },
+          "safeTeaserLink": true
+        }
+      }
+    },
+    {
+      "page": "aluminum",
+      "width": 390,
+      "filename": "site-content-aluminum-mobile-390.jpg",
+      "metrics": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "scrollHeight": 13488,
+        "bodyWidth": 390,
+        "aluminum": {
+          "designFeature": {
+            "x": 14,
+            "y": 7272.828125,
+            "width": 362,
+            "height": 696.40625
+          },
+          "ralumaItems": [
+            {
+              "x": 14,
+              "y": 10238.953125,
+              "width": 362,
+              "height": 482.65625
+            },
+            {
+              "x": 14,
+              "y": 10739.609375,
+              "width": 362,
+              "height": 639.53125
+            },
+            {
+              "x": 14,
+              "y": 11397.140625,
+              "width": 362,
+              "height": 271.5
+            }
+          ],
+          "video": {
+            "autoplay": true,
+            "muted": true,
+            "loop": true,
+            "playsInline": true,
+            "poster": "../img/aluminum/raluma-portal-poster.webp"
+          },
+          "safeTeaserLink": true
+        }
+      }
+    },
+    {
+      "page": "document-revision",
+      "width": 1440,
+      "filename": "site-content-document-revision-desktop-1440.jpg",
+      "metrics": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "scrollHeight": 7160,
+        "bodyWidth": 1440,
+        "presentation": {
+          "slides": [
+            {
+              "x": 0,
+              "y": 0,
+              "width": 1440,
+              "height": 1000
+            },
+            {
+              "x": 0,
+              "y": 1000,
+              "width": 1440,
+              "height": 1000
+            },
+            {
+              "x": 0,
+              "y": 2000,
+              "width": 1440,
+              "height": 1000
+            },
+            {
+              "x": 0,
+              "y": 3000,
+              "width": 1440,
+              "height": 1000
+            },
+            {
+              "x": 0,
+              "y": 4000,
+              "width": 1440,
+              "height": 1000
+            },
+            {
+              "x": 0,
+              "y": 5000,
+              "width": 1440,
+              "height": 1000
+            },
+            {
+              "x": 0,
+              "y": 6000,
+              "width": 1440,
+              "height": 1000
+            }
+          ],
+          "safeTelegramLink": true
+        }
+      }
+    },
+    {
+      "page": "document-revision",
+      "width": 390,
+      "filename": "site-content-document-revision-mobile-390.jpg",
+      "metrics": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "scrollHeight": 7489,
+        "bodyWidth": 390,
+        "presentation": {
+          "slides": [
+            {
+              "x": 0,
+              "y": 0,
+              "width": 390,
+              "height": 1356.9375
+            },
+            {
+              "x": 0,
+              "y": 1356.9375,
+              "width": 390,
+              "height": 1155.0625
+            },
+            {
+              "x": 0,
+              "y": 2512,
+              "width": 390,
+              "height": 1244.125
+            },
+            {
+              "x": 0,
+              "y": 3756.125,
+              "width": 390,
+              "height": 1027.890625
+            },
+            {
+              "x": 0,
+              "y": 4784.015625,
+              "width": 390,
+              "height": 924.75
+            },
+            {
+              "x": 0,
+              "y": 5708.765625,
+              "width": 390,
+              "height": 918.640625
+            },
+            {
+              "x": 0,
+              "y": 6627.40625,
+              "width": 390,
+              "height": 640.25
+            }
+          ],
+          "safeTelegramLink": true
+        }
+      }
+    }
+  ]
+}
