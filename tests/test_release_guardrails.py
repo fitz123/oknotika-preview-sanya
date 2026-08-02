@@ -26,6 +26,7 @@ allowlist = load_script("check_v227_allowlist")
 team = load_script("check_team_dom")
 aluminum = load_script("check_aluminum_sources")
 public_claims = load_script("check_public_claims")
+document_revision = load_script("check_document_revision")
 
 
 class LocalReferenceTests(unittest.TestCase):
@@ -244,6 +245,60 @@ class AluminumReleaseTests(unittest.TestCase):
             )
             errors = public_claims.validate(root)
             self.assertTrue(any("relationship" in error for error in errors))
+
+
+class DocumentRevisionTests(unittest.TestCase):
+    def test_current_offer_and_presentation_are_valid(self) -> None:
+        errors = document_revision.validate(
+            REPO / "aluminum/index.html",
+            REPO / "aluminum/document-revision-check/index.html",
+        )
+        self.assertEqual(errors, [])
+
+    def test_teaser_requires_safe_new_tab_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            aluminum_path = Path(directory) / "aluminum.html"
+            aluminum_path.write_text(
+                (REPO / "aluminum/index.html").read_text(encoding="utf-8").replace(
+                    'href="document-revision-check/" target="_blank" rel="noopener noreferrer"',
+                    'href="document-revision-check/" target="_blank"',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            errors = document_revision.validate(
+                aluminum_path,
+                REPO / "aluminum/document-revision-check/index.html",
+            )
+            self.assertTrue(any("noopener noreferrer" in error for error in errors))
+
+    def test_refund_boundary_cannot_be_broadened(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            presentation_path = Path(directory) / "presentation.html"
+            presentation_path.write_text(
+                (REPO / "aluminum/document-revision-check/index.html").read_text(encoding="utf-8").replace(
+                    "только если подтверждена фактическая ошибка",
+                    "при любом несогласии",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            errors = document_revision.validate(REPO / "aluminum/index.html", presentation_path)
+            self.assertTrue(any("refund boundary" in error for error in errors))
+
+    def test_unsafe_accuracy_claim_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            presentation_path = Path(directory) / "presentation.html"
+            presentation_path.write_text(
+                (REPO / "aluminum/document-revision-check/index.html").read_text(encoding="utf-8").replace(
+                    "</main>",
+                    "<p>Гарантированно найдём все ошибки и изменения.</p></main>",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            errors = document_revision.validate(REPO / "aluminum/index.html", presentation_path)
+            self.assertTrue(any("perfect detection" in error for error in errors))
 
 
 if __name__ == "__main__":

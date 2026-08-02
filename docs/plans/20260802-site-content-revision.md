@@ -41,6 +41,7 @@ python3 scripts/check_team_dom.py .
 python3 scripts/check_aluminum_composition.py .
 python3 scripts/check_aluminum_sources.py .
 python3 scripts/check_public_claims.py .
+python3 scripts/check_document_revision.py .
 python3 - <<'PY'
 from pathlib import Path
 from html.parser import HTMLParser
@@ -92,11 +93,11 @@ Render and inspect at minimum:
 
 **Serves:** Sanya explicitly asked to insert the joint Sanya/Anton construction-document comparison offer into that site location and open it “в отдельном окне презентацией”.
 
-- [ ] Create `aluminum/document-revision-check/index.html` as a concise static slide-like presentation consistent with the site design.
-- [ ] Explain input, evidence-backed before/after/change register, deliverable, current price 15,000 ₽, exact refund boundary, and mandatory human engineering acceptance.
-- [ ] Add a direct Telegram CTA without claiming automatic approval, perfect detection, legal conclusion or engineer replacement.
-- [ ] Add a compact teaser on the aluminum page linking with `target="_blank"` and `rel="noopener noreferrer"`.
-- [ ] Validate Task 3 outcome, copy boundaries and internal references.
+- [x] Create `aluminum/document-revision-check/index.html` as a concise static slide-like presentation consistent with the site design.
+- [x] Explain input, evidence-backed before/after/change register, deliverable, current price 15,000 ₽, exact refund boundary, and mandatory human engineering acceptance.
+- [x] Add a direct Telegram CTA without claiming automatic approval, perfect detection, legal conclusion or engineer replacement.
+- [x] Add a compact teaser on the aluminum page linking with `target="_blank"` and `rel="noopener noreferrer"`.
+- [x] Validate Task 3 outcome, copy boundaries and internal references.
 
 ### Task 4: Strengthen homepage visuals, cases and official Yandex proof
 
