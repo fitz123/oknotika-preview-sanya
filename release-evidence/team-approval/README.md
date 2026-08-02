@@ -1,7 +1,9 @@
-# Team approval evidence
+# Team review evidence
 
-The two contact sheets render all eight public cards from the final site at 1440 px and 390 px. The six selected shoot frames are locked by their raw SHA-256 values in `team-release-evidence.json`; changing a frame makes the generator fail closed. Сергей Бешенцев and Оксана Скопина retain their V2.27 assets byte-for-byte.
+The two contact sheets render all nine public cards at 1440 px and 390 px. The four replacement frames supplied by Саня are frozen by their SHA-256 values in `team-release-evidence.json`; the other five approved derivatives are verified byte-for-byte.
 
-Саня's approval is recorded at 2026-07-13T21:34:00Z, when the approved private input set was frozen for this release. The original private approval exchange and rights documents are intentionally not copied into Git or the release ZIP.
+Processing is limited to 4:5 crop, uniform resize and metadata-free JPEG/WebP encoding. Faces, expressions and identity are unchanged. Raw media and private supporting records stay outside Git and the deployment package.
 
-Internal web-use confirmation covers publication of these six portraits on the ОКНОТИКА website. It does not transfer rights or permit unrelated reuse. The private supporting records remain outside the repository and deployment package.
+Captured layout metrics verify nine decoded 800×1000 images, three desktop columns, one mobile column, 4:5 boxes and no horizontal overflow.
+
+This evidence covers the review-only preview. Production publication requires the release owner's separate rights confirmation.

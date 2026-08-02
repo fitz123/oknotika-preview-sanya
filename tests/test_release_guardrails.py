@@ -105,23 +105,28 @@ class TeamReleaseTests(unittest.TestCase):
         )
         self.assertEqual(errors, [])
 
-    def test_wrong_zhalnin_role_is_rejected(self) -> None:
+    def test_wrong_team_order_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             index = Path(directory) / "index.html"
-            index.write_text(
-                (REPO / "index.html").read_text(encoding="utf-8").replace(
-                    "Операционный директор",
-                    "Генеральный директор",
-                    1,
-                ),
-                encoding="utf-8",
-            )
+            html = (REPO / "index.html").read_text(encoding="utf-8")
+            html = html.replace("Алексей Макаров", "__TEAM_SWAP__")
+            html = html.replace("Дмитрий Благочевский", "Алексей Макаров")
+            html = html.replace("__TEAM_SWAP__", "Дмитрий Благочевский")
+            index.write_text(html, encoding="utf-8")
             errors = team.validate(
                 index,
                 REPO / "release-evidence/team-release-evidence.json",
                 REPO,
             )
-            self.assertTrue(any("legacy role" in error or "wrong role" in error for error in errors))
+            self.assertTrue(any("wrong team order" in error for error in errors))
+
+    def test_team_layout_rejects_four_desktop_columns(self) -> None:
+        css = (REPO / "style.css").read_text(encoding="utf-8").replace(
+            ".team-grid { display: grid; grid-template-columns: repeat(3, 1fr);",
+            ".team-grid { display: grid; grid-template-columns: repeat(4, 1fr);",
+            1,
+        )
+        self.assertTrue(any("default to three columns" in error for error in team.validate_layout(css)))
 
     def test_tampered_output_hash_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

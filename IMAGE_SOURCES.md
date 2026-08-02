@@ -19,7 +19,8 @@
 - `img/products/carbon-*.jpg` — полученные материалы Carbon Glass; для сайта использованы согласованные изображения реального прототипа, без ранее отклонённого потенциально AI-изображения.
 - `img/products/stoller-*.jpg` — полученные материалы Stoller, согласованные для сайта/prototype.
 - `img/products/protectapeel-*` — полученные фото и видео нанесения/снятия Protectapeel, согласованные для сайта.
-- `img/team/*-2026-07.{jpg,webp}` — шесть публичных derivatives из утверждённых raw-кадров; crop, raw/final SHA-256 и web-use approval записаны в `release-evidence/team-release-evidence.json`. Raw-файлы и приватные документы не входят в Git или ZIP.
+- `img/team/*-2026-07.{jpg,webp}` — сохранённые derivatives из ранее утверждённой командной съёмки; контрольные SHA-256 записаны в `release-evidence/team-release-evidence.json`.
+- `img/team/{alexey-makarov,andrey-svirida,oksana-skopina,ekaterina-rychkova}-2026-08.{jpg,webp}` — 4:5 derivatives из четырёх реальных портретов, переданных Саней для этой review-only ревизии. Применены только crop, равномерный resize и сжатие без синтеза или изменения лиц. Raw/final SHA-256, crop и границы согласования записаны в `release-evidence/team-release-evidence.json`; raw-файлы и приватные документы не входят в Git или ZIP.
 
 ## Оригинальные фасадные визуалы
 

@@ -65,12 +65,12 @@ Render and inspect at minimum:
 
 **Serves:** Sanya reported that team photos had “разлетелись”, supplied replacements for Makarov, Svirida, Skopina and Rychkova, and explicitly requested three rows of three.
 
-- [ ] Produce web-sized derivatives from the four supplied real photos without synthesizing or changing faces; use consistent 4:5 crop and compression.
-- [ ] Replace the Svirida placeholder and the existing Makarov, Skopina and Rychkova images.
-- [ ] Set exact DOM order: Zolotukhin / Makarov / Blagochevsky; Vodyanov / Ryabokon / Svirida; Skopina / Irina Blagochevskaya / Rychkova.
-- [ ] Make desktop/tablet three columns and mobile one column, with consistent image boxes and no portrait stretching.
-- [ ] Update provenance/approval records and focused team assertions.
-- [ ] Validate Task 1 outcome.
+- [x] Produce web-sized derivatives from the four supplied real photos without synthesizing or changing faces; use consistent 4:5 crop and compression.
+- [x] Replace the Svirida placeholder and the existing Makarov, Skopina and Rychkova images.
+- [x] Set exact DOM order: Zolotukhin / Makarov / Blagochevsky; Vodyanov / Ryabokon / Svirida; Skopina / Irina Blagochevskaya / Rychkova.
+- [x] Make desktop/tablet three columns and mobile one column, with consistent image boxes and no portrait stretching.
+- [x] Update provenance/approval records and focused team assertions.
+- [x] Validate Task 1 outcome.
 
 ### Task 2: Recompose aluminum and RALUMA blocks around approved photography
 

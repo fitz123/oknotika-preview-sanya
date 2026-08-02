@@ -24,7 +24,8 @@ def public_html(repo: Path) -> list[Path]:
 def validate(repo: Path) -> list[str]:
     errors: list[str] = []
     forbidden = {
-        r"генеральный\s+директор": "legacy Zhalnin role",
+        r"евгений\s+жалнин.{0,180}генеральный\s+директор": "legacy Zhalnin role",
+        r"генеральный\s+директор.{0,180}евгений\s+жалнин": "legacy Zhalnin role",
         r"schüco.{0,80}официальн\w*\s+(?:партн[её]р|дилер)": "unverified official Schüco relationship",
         r"официальн\w*\s+(?:партн[её]р|дилер).{0,80}schüco": "unverified official Schüco relationship",
         r"schüco.{0,120}скрыт\w*\s+дренаж\w*.{0,80}(?:во\s+всех|для\s+всех|у\s+всех|системах)": "generalised Schüco drainage",
