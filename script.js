@@ -1,9 +1,24 @@
 (() => {
+  const yandexConsentKey = 'oknotika_yandex_embed_consent_v1';
+  const readYandexConsent = () => {
+    try {
+      return window.localStorage.getItem(yandexConsentKey);
+    } catch {
+      return null;
+    }
+  };
+  const writeYandexConsent = (value) => {
+    try {
+      window.localStorage.setItem(yandexConsentKey, value);
+    } catch {
+      // Keep the current-page choice usable when storage is unavailable.
+    }
+  };
   const header = document.querySelector('[data-header]');
   const cookie = document.querySelector('[data-cookie]');
   const accept = document.querySelectorAll('[data-cookie-accept]');
   const decline = document.querySelector('[data-cookie-decline]');
-  const consent = localStorage.getItem('oknotika_cookie_ok');
+  const consent = readYandexConsent();
 
   const loadConsentEmbeds = () => {
     document.querySelectorAll('iframe[data-cookie-src]').forEach((embed) => {
@@ -25,13 +40,13 @@
   }
   accept.forEach((button) => {
     button.addEventListener('click', () => {
-      localStorage.setItem('oknotika_cookie_ok', '1');
+      writeYandexConsent('1');
       loadConsentEmbeds();
       cookie?.classList.remove('is-visible');
     });
   });
   decline?.addEventListener('click', () => {
-    localStorage.setItem('oknotika_cookie_ok', '0');
+    writeYandexConsent('0');
     cookie?.classList.remove('is-visible');
   });
 

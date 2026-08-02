@@ -338,6 +338,22 @@ class HomepageProofTests(unittest.TestCase):
         errors = homepage_proof.validate(REPO / "index.html", REPO / "IMAGE_SOURCES.md")
         self.assertEqual(errors, [])
 
+    def test_yandex_consent_does_not_reuse_legacy_cookie_acceptance(self) -> None:
+        errors = homepage_proof.validate_consent_script(REPO / "script.js")
+        self.assertEqual(errors, [])
+
+        with tempfile.TemporaryDirectory() as directory:
+            script = Path(directory) / "script.js"
+            script.write_text(
+                (REPO / "script.js").read_text(encoding="utf-8").replace(
+                    homepage_proof.YANDEX_CONSENT_KEY,
+                    homepage_proof.LEGACY_COOKIE_KEY,
+                ),
+                encoding="utf-8",
+            )
+            errors = homepage_proof.validate_consent_script(script)
+            self.assertTrue(any("legacy generic cookie consent" in error for error in errors))
+
     def test_glass_card_rejects_the_legacy_svg(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             homepage = Path(directory) / "index.html"

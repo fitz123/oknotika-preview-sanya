@@ -13,6 +13,8 @@ from urllib.parse import parse_qs, urlparse
 
 
 YANDEX_ORGANIZATION_ID = "122138017646"
+YANDEX_CONSENT_KEY = "oknotika_yandex_embed_consent_v1"
+LEGACY_COOKIE_KEY = "oknotika_cookie_ok"
 REVIEWS_WIDGET_URL = f"https://yandex.ru/maps-reviews-widget/{YANDEX_ORGANIZATION_ID}?comments"
 MAP_WIDGET_URL = (
     "https://yandex.ru/map-widget/v1/"
@@ -94,6 +96,18 @@ def parse_html(path: Path) -> PageParser:
 def has_safe_new_tab(link: Node) -> bool:
     rel = set(link.attrs.get("rel", "").casefold().split())
     return link.attrs.get("target", "").casefold() == "_blank" and {"noopener", "noreferrer"} <= rel
+
+
+def validate_consent_script(script_path: Path) -> list[str]:
+    if not script_path.is_file():
+        return [f"shared consent script is missing: {script_path}"]
+    source = script_path.read_text(encoding="utf-8")
+    errors: list[str] = []
+    if YANDEX_CONSENT_KEY not in source:
+        errors.append("Yandex embeds must use the versioned Yandex consent key")
+    if LEGACY_COOKIE_KEY in source:
+        errors.append("legacy generic cookie consent must not authorize Yandex embeds")
+    return errors
 
 
 def validate(homepage_path: Path, image_sources_path: Path) -> list[str]:
@@ -212,6 +226,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     repo = args.repo.resolve()
     errors = validate(repo / "index.html", repo / "IMAGE_SOURCES.md")
+    errors.extend(validate_consent_script(repo / "script.js"))
     if errors:
         print("Homepage proof check failed:", file=sys.stderr)
         for error in errors:

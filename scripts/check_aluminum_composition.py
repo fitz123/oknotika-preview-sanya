@@ -48,7 +48,7 @@ const { chromium } = require(process.argv[2]);
         reducedMotion: 'reduce',
         timezoneId: 'Europe/Moscow',
       });
-      await context.addInitScript(() => localStorage.setItem('oknotika_cookie_ok', '1'));
+      await context.addInitScript(() => localStorage.setItem('oknotika_yandex_embed_consent_v1', '1'));
       const page = await context.newPage();
       await page.goto(`${baseUrl}/aluminum/`, { waitUntil: 'load', timeout: 15000 });
       await page.addStyleTag({ content: `
@@ -191,7 +191,7 @@ const { chromium } = require(process.argv[2]);
     }
 
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, colorScheme: 'dark', reducedMotion: 'reduce' });
-    await context.addInitScript(() => localStorage.setItem('oknotika_cookie_ok', '1'));
+    await context.addInitScript(() => localStorage.setItem('oknotika_yandex_embed_consent_v1', '1'));
     const page = await context.newPage();
     process.stderr.write('checking homepage aluminum card\n');
     await page.goto(`${baseUrl}/`, { waitUntil: 'load', timeout: 15000 });

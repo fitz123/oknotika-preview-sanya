@@ -302,7 +302,7 @@ const { chromium } = require(process.argv[2]);
         reducedMotion: 'reduce',
         timezoneId: 'Europe/Moscow',
       });
-      await context.addInitScript(() => localStorage.setItem('oknotika_cookie_ok', '1'));
+      await context.addInitScript(() => localStorage.setItem('oknotika_yandex_embed_consent_v1', '1'));
       const page = await context.newPage();
       await page.goto(url, { waitUntil: 'networkidle' });
       await page.addStyleTag({ content: `

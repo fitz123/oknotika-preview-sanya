@@ -43,6 +43,37 @@ const pages = [
   }
   const results = [];
   try {
+    const legacyContext = await browser.newContext();
+    await legacyContext.addInitScript(() => localStorage.setItem('oknotika_cookie_ok', '1'));
+    const legacyPage = await legacyContext.newPage();
+    await legacyPage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    await legacyPage.waitForFunction(() => document.querySelector('[data-cookie]')?.classList.contains('is-visible'));
+    const legacySources = await legacyPage.locator('[data-yandex-proof] iframe').evaluateAll(
+      frames => frames.map(frame => frame.getAttribute('src')),
+    );
+    if (legacySources.some(Boolean)) {
+      throw new Error('legacy generic cookie consent authorized Yandex embeds');
+    }
+    await legacyContext.close();
+
+    const blockedStorageContext = await browser.newContext();
+    await blockedStorageContext.addInitScript(() => {
+      Storage.prototype.getItem = () => { throw new Error('storage read blocked'); };
+      Storage.prototype.setItem = () => { throw new Error('storage write blocked'); };
+    });
+    const blockedStoragePage = await blockedStorageContext.newPage();
+    const blockedStorageErrors = [];
+    blockedStoragePage.on('pageerror', error => blockedStorageErrors.push(error.message));
+    await blockedStoragePage.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    await blockedStoragePage.locator('[data-yandex-proof] [data-cookie-accept]').first().click();
+    await blockedStoragePage.waitForFunction(
+      () => Array.from(document.querySelectorAll('[data-yandex-proof] iframe')).every(frame => frame.getAttribute('src')),
+    );
+    if (blockedStorageErrors.length) {
+      throw new Error(`storage-blocked consent raised page errors: ${blockedStorageErrors.join('; ')}`);
+    }
+    await blockedStorageContext.close();
+
     for (const item of pages) {
       for (const width of [1440, 390]) {
         process.stderr.write(`checking ${item.slug} at ${width}px\n`);
@@ -54,7 +85,7 @@ const pages = [
           reducedMotion: 'reduce',
           timezoneId: 'Europe/Moscow',
         });
-        await context.addInitScript(() => localStorage.setItem('oknotika_cookie_ok', '1'));
+        await context.addInitScript(() => localStorage.setItem('oknotika_yandex_embed_consent_v1', '1'));
         const page = await context.newPage();
         await page.goto(`${baseUrl}${item.url}`, { waitUntil: 'domcontentloaded', timeout: 20000 });
         await page.addStyleTag({ content: `
