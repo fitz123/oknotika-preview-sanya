@@ -17,6 +17,7 @@ class Markup(HTMLParser):
         self.links: list[dict[str, str]] = []
         self.slide_count = 0
         self.teaser_count = 0
+        self.section_order: list[str] = []
         self.text_parts: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
@@ -28,6 +29,11 @@ class Markup(HTMLParser):
             self.slide_count += 1
         if tag == "section" and "data-document-revision-teaser" in values:
             self.teaser_count += 1
+            self.section_order.append("document-revision-teaser")
+        elif tag == "section" and values.get("aria-labelledby") == "raluma-title":
+            self.section_order.append("raluma")
+        elif tag == "section" and values.get("aria-labelledby") == "technology-reference-title":
+            self.section_order.append("technology-reference")
         if tag == "a":
             self.links.append(values)
 
@@ -65,6 +71,11 @@ def validate(aluminum_path: Path, presentation_path: Path) -> list[str]:
 
     if aluminum.teaser_count != 1:
         errors.append(f"aluminum page must contain one document-revision teaser, found {aluminum.teaser_count}")
+    required_flow = ["raluma", "technology-reference", "document-revision-teaser"]
+    if aluminum.section_order != required_flow:
+        errors.append(
+            "aluminum page must place RALUMA and technology references before the document-revision teaser"
+        )
     teaser_links = [
         link for link in aluminum.links
         if link.get("href", "").rstrip("/") == "document-revision-check"

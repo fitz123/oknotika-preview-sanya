@@ -1,7 +1,16 @@
 (() => {
   const header = document.querySelector('[data-header]');
   const cookie = document.querySelector('[data-cookie]');
-  const accept = document.querySelector('[data-cookie-accept]');
+  const accept = document.querySelectorAll('[data-cookie-accept]');
+  const decline = document.querySelector('[data-cookie-decline]');
+  const consent = localStorage.getItem('oknotika_cookie_ok');
+
+  const loadConsentEmbeds = () => {
+    document.querySelectorAll('iframe[data-cookie-src]').forEach((embed) => {
+      if (!embed.getAttribute('src')) embed.setAttribute('src', embed.dataset.cookieSrc);
+      embed.closest('.yandex-embed')?.classList.add('is-loaded');
+    });
+  };
 
   const onScroll = () => {
     if (!header) return;
@@ -10,11 +19,19 @@
   onScroll();
   window.addEventListener('scroll', onScroll, { passive: true });
 
-  if (cookie && !localStorage.getItem('oknotika_cookie_ok')) {
+  if (consent === '1') loadConsentEmbeds();
+  if (cookie && consent === null) {
     requestAnimationFrame(() => cookie.classList.add('is-visible'));
   }
-  accept?.addEventListener('click', () => {
-    localStorage.setItem('oknotika_cookie_ok', '1');
+  accept.forEach((button) => {
+    button.addEventListener('click', () => {
+      localStorage.setItem('oknotika_cookie_ok', '1');
+      loadConsentEmbeds();
+      cookie?.classList.remove('is-visible');
+    });
+  });
+  decline?.addEventListener('click', () => {
+    localStorage.setItem('oknotika_cookie_ok', '0');
     cookie?.classList.remove('is-visible');
   });
 

@@ -159,18 +159,34 @@ def validate(homepage_path: Path, image_sources_path: Path) -> list[str]:
     else:
         yandex = yandex_sections[0]
         iframes = yandex.descendants("iframe")
-        iframe_sources = {iframe.attrs.get("src", ""): iframe for iframe in iframes}
+        iframe_sources = {iframe.attrs.get("data-cookie-src", ""): iframe for iframe in iframes}
         if len(iframes) != 2:
             errors.append(f"Yandex proof must contain two iframes, found {len(iframes)}")
         if set(iframe_sources) != {REVIEWS_WIDGET_URL, MAP_WIDGET_URL}:
             errors.append("Yandex proof must use the exact official reviews and map iframe endpoints")
         for source, iframe in iframe_sources.items():
+            if iframe.attrs.get("src"):
+                errors.append(f"Yandex iframe must not load before cookie consent: {source}")
             if iframe.attrs.get("loading") != "lazy":
                 errors.append(f"Yandex iframe must be lazy-loaded: {source}")
             if not iframe.attrs.get("title", "").strip():
                 errors.append(f"Yandex iframe must have an accessible title: {source}")
             if "width" in iframe.attrs:
                 errors.append(f"Yandex iframe must not use a fixed width attribute: {source}")
+
+        load_buttons = [
+            node for node in yandex.descendants("button")
+            if "data-cookie-accept" in node.attrs
+        ]
+        if len(load_buttons) != 2:
+            errors.append(f"Yandex proof must contain two explicit load controls, found {len(load_buttons)}")
+
+        decline_buttons = [
+            node for node in all_nodes
+            if node.tag == "button" and "data-cookie-decline" in node.attrs
+        ]
+        if len(decline_buttons) != 1:
+            errors.append(f"cookie notice must contain one decline control, found {len(decline_buttons)}")
 
         review_links = []
         for link in yandex.descendants("a"):

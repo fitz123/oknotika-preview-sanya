@@ -151,6 +151,20 @@ class AluminumReleaseTests(unittest.TestCase):
         )
         self.assertEqual(errors, [])
 
+    def test_premium_taxonomy_preserves_approved_systems(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            aluminum_path = Path(directory) / "aluminum.html"
+            aluminum_path.write_text(
+                (REPO / "aluminum/index.html").read_text(encoding="utf-8").replace(
+                    "UNISTEM · Reynaers · Keller · ALUMIL",
+                    "Reynaers · ALUPORT · Keller",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            errors = aluminum.validate(REPO / "ALUMINUM_SOURCES.md", aluminum_path, REPO)
+            self.assertTrue(any("taxonomy order changed" in error for error in errors))
+
     def test_legacy_scheme_caption_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             html = Path(directory) / "index.html"
@@ -256,6 +270,23 @@ class DocumentRevisionTests(unittest.TestCase):
         )
         self.assertEqual(errors, [])
 
+    def test_teaser_replaces_the_final_aluminum_caveat(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            aluminum_path = Path(directory) / "aluminum.html"
+            html = (REPO / "aluminum/index.html").read_text(encoding="utf-8")
+            teaser_start = html.index('    <section class="section document-revision-teaser"')
+            teaser_end = html.index("\n    </section>", teaser_start) + len("\n    </section>")
+            teaser = html[teaser_start:teaser_end]
+            html = html[:teaser_start] + html[teaser_end:]
+            raluma_start = html.index('    <section class="section raluma-feature"')
+            html = html[:raluma_start] + teaser + "\n\n" + html[raluma_start:]
+            aluminum_path.write_text(html, encoding="utf-8")
+            errors = document_revision.validate(
+                aluminum_path,
+                REPO / "aluminum/document-revision-check/index.html",
+            )
+            self.assertTrue(any("technology references before" in error for error in errors))
+
     def test_teaser_requires_safe_new_tab_contract(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             aluminum_path = Path(directory) / "aluminum.html"
@@ -348,12 +379,27 @@ class HomepageProofTests(unittest.TestCase):
             self.assertTrue(any("exact official" in error for error in errors))
             self.assertTrue(any("lazy-loaded" in error for error in errors))
 
+    def test_yandex_embeds_wait_for_cookie_consent(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            homepage = Path(directory) / "index.html"
+            homepage.write_text(
+                (REPO / "index.html").read_text(encoding="utf-8").replace(
+                    "<iframe data-cookie-src=",
+                    '<iframe src="https://yandex.ru/" data-cookie-src=',
+                    1,
+                ).replace(" data-cookie-decline", "", 1),
+                encoding="utf-8",
+            )
+            errors = homepage_proof.validate(homepage, REPO / "IMAGE_SOURCES.md")
+            self.assertTrue(any("before cookie consent" in error for error in errors))
+            self.assertTrue(any("decline control" in error for error in errors))
+
     def test_yandex_proof_rejects_hardcoded_rating(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             homepage = Path(directory) / "index.html"
             homepage.write_text(
                 (REPO / "index.html").read_text(encoding="utf-8").replace(
-                    "Отзывы загружаются напрямую с Яндекс Карт",
+                    "После вашего согласия отзывы загружаются напрямую с Яндекс Карт",
                     "Рейтинг 5.0 · 100 отзывов",
                     1,
                 ),

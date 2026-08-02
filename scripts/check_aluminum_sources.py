@@ -288,8 +288,8 @@ def validate_page(page: PageParser, homepage: PageParser) -> list[str]:
     expected_taxonomy = [
         "АЛРОКС · СИАЛ · ТАТПРОФ",
         "АЛЮТЕХ · Алюмарк",
+        "UNISTEM · Reynaers · Keller · ALUMIL",
         "Schüco",
-        "Reynaers · ALUPORT · Keller",
     ]
     if len(taxonomy) != 1:
         errors.append("aluminum taxonomy section must occur exactly once")
