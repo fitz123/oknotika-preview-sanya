@@ -4,7 +4,7 @@ Production-candidate handoff актуального многостранично
 
 ## Идентификация
 
-- Verified implementation SHA: `f87bceb554b65db65e99f44f3eed3a2e142bef90`.
+- Verified implementation SHA: `0d7f2b5032b62ef373388dce62a063a43f4fb685`.
 - V2.27 baseline SHA: `5364ff160ffa9b8e9f2d0998a5eef1cf6cd3f5ed`.
 - Архив и стабильная копия проверяются через `SHA256SUMS`.
 - Полный inventory: `CHANGED_FILES-v2.29.0-rc.1.txt`; внутри архива — `CHANGED_FILES.txt`.
@@ -20,7 +20,8 @@ Production-candidate handoff актуального многостранично
 - Tuesday weekly ingestion: draft-only создание/обновление еженедельного черновика;
 - ручная проверка, редактирование, preview и публикация Саней через Telegram OIDC;
 - точные CTA: `https://t.me/oknotika`, `https://youtube.com/@oknotika`, `https://vk.ru/oknotika`, `https://t.me/FUTU_CHAT`;
-- nginx/systemd, миграции, backup/restore, rollback и weekly-ingestion HTTPS smoke scripts.
+- nginx/systemd, миграции, backup/restore, rollback и weekly-ingestion HTTPS smoke scripts;
+- обновлённые `sanitize-html` 2.17.6 и PostCSS 8.5.25; полный и production-only `npm audit` не находят известных уязвимостей.
 
 ## Критическая граница установки
 
