@@ -1,10 +1,10 @@
-# ОКНОТИКА — финальный beta-релиз сайта
+# ОКНОТИКА — production-candidate handoff сайта
 
-Версия `v2.28.0-beta.1` сохраняет утверждённую композицию V2.27 и добавляет согласованные изменения: шесть новых портретов в восьми карточках команды, роль Евгения Жалнина «Операционный директор», отдельный фасадный блок Schüco и закрытый Telegram OIDC-редактор раздела «Новости» с еженедельным «Дайджестом недели».
+Версия `v2.29.0-rc.1` включает актуальный многостраничный публичный сайт, финальную команду из девяти человек с шестью подтверждёнными августовскими портретами, продуктовые страницы, сравнение версий АР, раздел «Новости» и закрытый Telegram OIDC-редактор еженедельного «Дайджеста недели».
 
 Публичный сайт остаётся статическим. Node.js-сервис нужен только авторизованному редактору: он хранит черновики в SQLite, генерирует immutable article release и атомарно переключает symlink. Остановка админки не останавливает сайт и не скрывает уже опубликованные статьи.
 
-Beta-пакет не активирует production. Реальный Telegram login, Tuesday ingestion smoke, Linux-проверки nginx/systemd, DNS/TLS и encrypted off-host backup остаются обязательными gates из `deploy/README_ZHENYA.md`.
+RC-пакет передаётся Жене для развёртывания, но сам production не активирует. Реальный Telegram login, Tuesday ingestion smoke, Linux-проверки nginx/systemd, DNS/TLS и encrypted off-host backup остаются обязательными gates из `deploy/README_ZHENYA.md`.
 
 ## Состав проекта
 
@@ -120,7 +120,7 @@ python3 tools/team-portraits/create_final_portraits.py \
 
 ## Release и эксплуатация
 
-Зафиксированный implementation SHA, baseline SHA, количество файлов и archive SHA-256 находятся в `release/release-manifest-v2.28.0-beta.1.json`. Проверяемые checksums — в `release/SHA256SUMS`; полный список отличий release payload от V2.27 — в `release/CHANGED_FILES-v2.28.0-beta.1.txt` и внутри ZIP как `CHANGED_FILES.txt`.
+Зафиксированный implementation SHA, baseline SHA, количество файлов и archive SHA-256 находятся в `release/release-manifest-v2.29.0-rc.1.json`. Проверяемые checksums — в `release/SHA256SUMS`; полный список отличий release payload от V2.27 — в `release/CHANGED_FILES-v2.29.0-rc.1.txt` и внутри ZIP как `CHANGED_FILES.txt`.
 
 Перед распаковкой:
 

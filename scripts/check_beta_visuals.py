@@ -109,7 +109,10 @@ async function homepage(browser, origin, width, filename, teamFilename = null, r
     reducedMotion: 'reduce',
     timezoneId: 'Europe/Moscow',
   });
-  await context.addInitScript(() => localStorage.setItem('oknotika_cookie_ok', '1'));
+  await context.addInitScript(() => {
+    localStorage.setItem('oknotika_cookie_ok', '1');
+    localStorage.setItem('oknotika_yandex_embed_consent_v1', '1');
+  });
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', error => errors.push(`pageerror: ${error.message}`));
@@ -156,7 +159,7 @@ async function homepage(browser, origin, width, filename, teamFilename = null, r
     };
   });
   if (metrics.scrollWidth > metrics.clientWidth + 1) errors.push('horizontal overflow');
-  if (metrics.teamCards !== 8) errors.push('team composition is incomplete');
+  if (metrics.teamCards !== 9) errors.push('team composition is incomplete');
   if (reproductionFilename) {
     await page.screenshot({ path: reproductionFilename, fullPage: true, type: 'jpeg', quality: 82, timeout: 30000 });
   }

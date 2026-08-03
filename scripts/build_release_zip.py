@@ -16,9 +16,9 @@ from pathlib import Path
 from scan_release_zip import scan_archive
 
 
-VERSION = "v2.28.0-beta.1"
+VERSION = "v2.29.0-rc.1"
 BASELINE_COMMIT = "5364ff160ffa9b8e9f2d0998a5eef1cf6cd3f5ed"
-FIXED_TIMESTAMP = (2026, 7, 14, 0, 0, 0)
+FIXED_TIMESTAMP = (2026, 8, 4, 0, 0, 0)
 TOP_LEVEL_FILES = {
     ".gitignore", "ALUMINUM_SOURCES.md", "CLAUDE.md", "IMAGE_SOURCES.md", "README.md", "index.html", "script.js", "style.css",
 }
@@ -97,7 +97,7 @@ def ensure_clean_payload_worktree(repo: Path) -> None:
         raise RuntimeError(f"release payload worktree must be clean: {', '.join(sorted(set(dirty)))}")
 
 
-def changed_payload_inventory(repo: Path, paths: list[Path], implementation_commit: str) -> bytes:
+def changed_payload_inventory(repo: Path, paths: list[Path], implementation_commit: str, version: str) -> bytes:
     baseline_output = subprocess.run(
         ["git", "-C", str(repo), "ls-tree", "-r", "--name-only", "-z", BASELINE_COMMIT],
         check=True,
@@ -105,7 +105,7 @@ def changed_payload_inventory(repo: Path, paths: list[Path], implementation_comm
     ).stdout
     baseline_paths = {item.decode() for item in baseline_output.split(b"\0") if item}
     lines = [
-        "# OKNOTIKA v2.28.0-beta.1 release payload changes",
+        f"# OKNOTIKA {version} release payload changes",
         f"# Baseline: {BASELINE_COMMIT}",
         f"# Verified implementation: {implementation_commit}",
         "# Status: A = added to payload, M = modified from baseline",
@@ -167,7 +167,7 @@ def main() -> int:
         path.as_posix(): git_blob(repo, implementation_commit, path) for path in paths
     }
     payload["RELEASE_NOTES.md"] = notes.read_bytes()
-    inventory = changed_payload_inventory(repo, paths, implementation_commit)
+    inventory = changed_payload_inventory(repo, paths, implementation_commit, version)
     payload["CHANGED_FILES.txt"] = inventory
     (release / f"CHANGED_FILES-{version}.txt").write_bytes(inventory)
     manifest = {
@@ -175,7 +175,7 @@ def main() -> int:
         "version": version,
         "implementationCommit": implementation_commit,
         "baselineCommit": BASELINE_COMMIT,
-        "generatedAt": "2026-07-14T00:00:00Z",
+        "generatedAt": "2026-08-04T00:00:00Z",
         "files": {
             path: {
                 "sha256": sha256(data),

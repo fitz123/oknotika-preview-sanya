@@ -8,7 +8,7 @@
     "sqliteProvider": "node:sqlite",
     "sqliteVersion": "3.53.1",
     "packageLockVersion": 3,
-    "packageLockSha256": "98d4ec4e8579353fcc272920ad5fd74bfbfc9fd4cade42e82e9e4af9109339d9"
+    "packageLockSha256": "79ef43e16c4902d3fdb22e38f4e6ccee9e75c24f88451d3743272fc7b4d1f4d5"
   },
   "layout": {
     "applicationReleases": "/opt/oknotika-admin/releases/<sha>",

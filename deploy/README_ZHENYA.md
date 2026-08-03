@@ -47,7 +47,7 @@ Marketing document root получает только публичный allowli
 
 ```bash
 deploy/scripts/install-marketing.sh \
-  --source /var/tmp/oknotika-unpack/oknotika-final-v2.28.0-beta.1 \
+  --source /var/tmp/oknotika-unpack/oknotika-final-v2.29.0-rc.1 \
   --release-sha "$IMPLEMENTATION_SHA" \
   --marketing-root /srv/oknotika
 ```

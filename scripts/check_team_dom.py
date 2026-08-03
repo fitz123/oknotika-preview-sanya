@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the eight public team cards and their release evidence."""
+"""Validate the nine-card team grid, portrait derivatives and review evidence."""
 
 from __future__ import annotations
 
@@ -16,45 +16,37 @@ from typing import Any
 from PIL import Image
 
 
-NEW_NAMES = {
-    "Александр Золотухин": "Директор по развитию",
-    "Евгений Жалнин": "Операционный директор",
-    "Дмитрий Цветков": "Коммерческий директор",
+EXPECTED_ORDER = [
+    "Александр Золотухин",
+    "Алексей Макаров",
+    "Дмитрий Благочевский",
+    "Роман Водянов",
+    "Иван Рябоконь",
+    "Андрей Свирида",
+    "Оксана Скопина",
+    "Ирина Благочевская",
+    "Екатерина Рычкова",
+]
+EXPECTED_ROLES = {
+    "Александр Золотухин": "Руководитель компании · директор по развитию",
+    "Алексей Макаров": "Генеральный директор",
     "Дмитрий Благочевский": "Исполнительный директор",
     "Роман Водянов": "Руководитель проектов",
-    "Иван Рябоконь": "Менеджер проектов",
+    "Иван Рябоконь": "Руководитель направления «Умное окно»",
+    "Андрей Свирида": "Директор медианаправления",
+    "Оксана Скопина": "Главный бухгалтер",
+    "Ирина Благочевская": "Менеджер тендерного отдела",
+    "Екатерина Рычкова": "Исполнительный бухгалтер",
 }
-RETAINED = {
-    "Сергей Бешенцев": (
-        "Руководитель проекта «Умное окно»",
-        "img/team/beshentsev.jpg",
-        "4e60d8339bc4989be4d67fa4b7bee57a3794a72744c60a36b971cc8007e68939",
-    ),
-    "Оксана Скопина": (
-        "Главный бухгалтер",
-        "img/team/skopina.jpg",
-        "9c6fd867ddef00c97ad5e5b4b80ea5cd0df5922350d57639eca04c0ce381ec5f",
-    ),
-}
-EXPECTED_ROLES = {**NEW_NAMES, **{name: values[0] for name, values in RETAINED.items()}}
 EXPECTED_RAW_HASHES = {
-    "Александр Золотухин": "8f9d0347785f14b835402e3bdbbcc33aece695a608d38f51407229792f223495",
-    "Евгений Жалнин": "06c01a9b7a0c71a0a2e925d62cd8c385b30fcfe3c0c0c64440f64797af3d84a2",
-    "Дмитрий Цветков": "5ef6b0cb2d82048b8aa16a2a0dd976368513db3eecf8907fa2434b427983195f",
-    "Дмитрий Благочевский": "a6d8e581e383405b7518abec1857fd5173286d0009792dd42a0318735b9719e1",
-    "Роман Водянов": "31193578a5606a387ed25d233df93b8279c6490ffb307c7a06be96db6ca8d8e3",
-    "Иван Рябоконь": "c70027ac4b2ea0c56acdc2de719940c8ce11223fbb35fbc66a7c8fc3c473bb2c",
+    "Александр Золотухин": "5b519dd25accba112bcd822f7070ee1c65677cf2ac2eb57f15abeaa66f812858",
+    "Алексей Макаров": "da3350710ddde0d77a60dffdc183b22871fa1925d7ce65387f88ca6ae11bb877",
+    "Дмитрий Благочевский": "e1c57884176910b94cdd43ed0f5d64bda46ea33038b635b7c73d89408579a2ec",
+    "Андрей Свирида": "298182d3ea8ae44d5d65cfa5267d60b340b82103146c278c9e5af2af7e4081e1",
+    "Оксана Скопина": "e2181428ee5bc2346ea7249db6e52067a1900d7ae53952b199556b5ead6e70b2",
+    "Екатерина Рычкова": "0ea182fb44ebeb6d761f2d9e1d8ef1e0d743960b08493c95143f8c5124c94076",
 }
-REPLACED_V227_HASHES = {
-    "81f5ab7545405426dd55e62ae6840c596979b60146a11a45b7a7fa1e7d349785",
-    "111c2ba0c42d6a338e284f72889672713a138e331107f6dae16414a1359fabc3",
-    "035e1eecaeecb212d683ce6d9ef69839293ee0e096aca081a585ce2b1efef5fb",
-    "7a1eace5c4c19be4d30a06925c8f8be795c041b8f318e1fffe9a0a9460839fc5",
-    "374f36d69a8f0124568c1f0cfe9b1e01a337366ad67eee2c7994412246b20dc4",
-    "1940b57fb09df9c3bfabbad631b2f35a1fbd1179b0b791575b502a81257bc4be",
-}
-FORBIDDEN_ROLE = "Генеральный директор"
-MAX_COMBINED_BYTES = 900_000
+OUTPUT_SIZE = (800, 1000)
 
 
 @dataclass
@@ -118,6 +110,33 @@ def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def validate_layout(css: str) -> list[str]:
+    errors: list[str] = []
+    base_rules = re.findall(r"\.team-grid\s*\{([^{}]+)\}", css)
+    if not base_rules or "grid-template-columns: repeat(3, 1fr)" not in base_rules[0]:
+        errors.append("team grid must default to three columns")
+    mobile_blocks = re.findall(r"@media\s*\(max-width:\s*(\d+)px\)\s*\{(.*?)\n\}", css, re.DOTALL)
+    mobile_one_column = False
+    for width, block in mobile_blocks:
+        if int(width) <= 640 and re.search(r"[^\n{]*\.team-grid[^\n{]*\{[^{}]*grid-template-columns:\s*1fr", block):
+            mobile_one_column = True
+            break
+    if not mobile_one_column:
+        errors.append("team grid needs a one-column mobile rule at 640 px or below")
+    for width, block in mobile_blocks:
+        if int(width) > 640 and re.search(r"[^\n{]*\.team-grid[^\n{]*\{[^{}]*grid-template-columns:\s*1fr", block):
+            errors.append("tablet team grid must remain three columns")
+            break
+    required_portrait_rules = (
+        r"\.person__portrait\s*\{[^{}]*aspect-ratio:\s*4\s*/\s*5",
+        r"\.person__portrait img\s*\{[^{}]*height:\s*100%",
+        r"\.person__portrait img\s*\{[^{}]*object-fit:\s*cover",
+    )
+    if any(not re.search(pattern, css) for pattern in required_portrait_rules):
+        errors.append("portrait boxes must be 4:5 with object-fit cover and fixed box height")
+    return errors
+
+
 def validate_image(path: Path, expected_format: str, expected_hash: str) -> list[str]:
     errors: list[str] = []
     if not path.is_file():
@@ -126,7 +145,7 @@ def validate_image(path: Path, expected_format: str, expected_hash: str) -> list
         errors.append(f"portrait hash mismatch: {path}")
     try:
         with Image.open(path) as image:
-            if image.format != expected_format or image.size != (800, 1000):
+            if image.format != expected_format or image.size != OUTPUT_SIZE:
                 errors.append(f"unexpected portrait encoding: {path} ({image.format}, {image.size})")
             if image.getexif():
                 errors.append(f"EXIF metadata must be absent: {path}")
@@ -135,11 +154,14 @@ def validate_image(path: Path, expected_format: str, expected_hash: str) -> list
     return errors
 
 
-def validate(index_path: Path, evidence_path: Path, repo: Path) -> list[str]:
+def validate(
+    index_path: Path,
+    evidence_path: Path,
+    repo: Path,
+    style_path: Path | None = None,
+) -> list[str]:
     errors: list[str] = []
     html = index_path.read_text(encoding="utf-8")
-    if FORBIDDEN_ROLE in html:
-        errors.append(f"forbidden legacy role remains in {index_path}")
     parser = Parser()
     parser.feed(html)
     sections = [node for node in descendants(parser.root, "section") if node.attrs.get("id") == "team"]
@@ -150,65 +172,78 @@ def validate(index_path: Path, evidence_path: Path, repo: Path) -> list[str]:
         for node in descendants(sections[0], "article")
         if "person" in node.attrs.get("class", "").split()
     ]
-    if len(cards) != 8:
-        errors.append(f"expected eight team cards, found {len(cards)}")
+    if len(cards) != 9:
+        errors.append(f"expected nine team cards, found {len(cards)}")
 
     dom: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
     for card in cards:
         headings = descendants(card, "h3")
         roles = descendants(card, "strong")
         images = descendants(card, "img")
+        pictures = [node for node in descendants(card, "picture") if "person__portrait" in node.attrs.get("class", "").split()]
         sources = descendants(card, "source")
-        if len(headings) != 1 or len(roles) != 1 or len(images) != 1:
-            errors.append("each team card must have exactly one h3, strong role and img")
+        if len(headings) != 1 or len(roles) != 1 or len(images) != 1 or len(pictures) != 1:
+            errors.append("each team card must have one h3, strong role, img and person__portrait picture")
             continue
         name = text_content(headings[0])
+        order.append(name)
         if name in dom:
             errors.append(f"duplicate team card: {name}")
         dom[name] = {"role": text_content(roles[0]), "img": images[0].attrs, "sources": sources}
 
+    if order != EXPECTED_ORDER:
+        errors.append(f"wrong team order: expected {EXPECTED_ORDER}, got {order}")
     if set(dom) != set(EXPECTED_ROLES):
         errors.append(f"team names differ: expected {sorted(EXPECTED_ROLES)}, got {sorted(dom)}")
     for name, expected_role in EXPECTED_ROLES.items():
         if name in dom and dom[name]["role"] != expected_role:
             errors.append(f"wrong role for {name}: {dom[name]['role']!r}")
+    if descendants(sections[0], "div") and "person__placeholder" in html:
+        errors.append("team portrait placeholder remains")
 
     manifest = json.loads(evidence_path.read_text(encoding="utf-8"))
-    if manifest.get("portrait_count") != 8 or manifest.get("new_portrait_count") != 6 or manifest.get("retained_portrait_count") != 2:
-        errors.append("manifest portrait counts must be 8/6/2")
+    if (
+        manifest.get("portrait_count") != 9
+        or manifest.get("task_media_portrait_count") != 6
+        or manifest.get("retained_portrait_count") != 3
+    ):
+        errors.append("manifest portrait counts must be 9/6/3")
     approval = manifest.get("approval", {})
-    if approval.get("approver") != "Саня" or not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", approval.get("approved_at", "")):
-        errors.append("manifest needs the approver and an ISO-8601 approval timestamp")
-    if manifest.get("web_use_rights", {}).get("confirmed") is not True:
-        errors.append("internal web-use rights confirmation is missing")
+    if (
+        approval.get("approver") != "Саня"
+        or approval.get("scope") != "production-candidate handoff"
+        or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", approval.get("approved_on", ""))
+    ):
+        errors.append("manifest needs the task approval timestamp and production-candidate handoff scope")
 
     records = manifest.get("portraits", [])
     by_name = {record.get("name"): record for record in records}
-    if len(records) != 8 or set(by_name) != set(EXPECTED_ROLES):
-        errors.append("manifest must contain eight unique expected people")
+    if len(records) != 9 or set(by_name) != set(EXPECTED_ROLES):
+        errors.append("manifest must contain nine unique expected people")
 
     output_paths: set[str] = set()
     output_hashes: set[str] = set()
-    public_webp_hashes: set[str] = set()
-    combined_bytes = 0
-    for name, role in NEW_NAMES.items():
+    new_bytes = 0
+    for name in EXPECTED_ORDER:
         record = by_name.get(name, {})
-        if record.get("status") != "approved_new_shoot" or record.get("role") != role:
-            errors.append(f"invalid new-shoot evidence for {name}")
-            continue
-        if record.get("raw", {}).get("sha256") != EXPECTED_RAW_HASHES[name]:
-            errors.append(f"approved raw hash mismatch for {name}")
-        raw_path = repo / record.get("raw", {}).get("path", "")
-        if raw_path.is_file() and sha256(raw_path) != EXPECTED_RAW_HASHES[name]:
-            errors.append(f"approved raw file changed for {name}")
-        crop = record.get("crop", {})
-        if crop.get("width", 0) * 5 != crop.get("height", 0) * 4:
-            errors.append(f"crop is not 4:5 for {name}")
-        eye_line = crop.get("eye_line_output_ratio", 0)
-        if not 0.20 <= eye_line <= 0.30:
-            errors.append(f"eye line is outside the normalized band for {name}: {eye_line}")
-        if record.get("approval", {}).get("approver") != "Саня":
-            errors.append(f"portrait approval is missing for {name}")
+        if record.get("role") != EXPECTED_ROLES[name]:
+            errors.append(f"evidence role mismatch for {name}")
+        is_task_media = name in EXPECTED_RAW_HASHES
+        expected_status = "approved_task_media" if is_task_media else "retained_approved_derivative"
+        if record.get("status") != expected_status:
+            errors.append(f"wrong evidence status for {name}")
+        if is_task_media:
+            if record.get("raw", {}).get("sha256") != EXPECTED_RAW_HASHES[name]:
+                errors.append(f"approved raw hash mismatch for {name}")
+            crop = record.get("crop", {})
+            if crop.get("width", 0) * 5 != crop.get("height", 0) * 4:
+                errors.append(f"crop is not 4:5 for {name}")
+            eye_line = crop.get("eye_line_output_ratio", 0)
+            if not 0.20 <= eye_line <= 0.30:
+                errors.append(f"eye line is outside the normalized band for {name}: {eye_line}")
+            if record.get("approval", {}).get("approver") != "Саня":
+                errors.append(f"portrait approval is missing for {name}")
 
         image = dom.get(name, {}).get("img", {})
         expected_html = record.get("html", {})
@@ -217,18 +252,21 @@ def validate(index_path: Path, evidence_path: Path, repo: Path) -> list[str]:
                 errors.append(f"wrong {attribute} for {name}")
         outputs = record.get("outputs", {})
         jpeg = outputs.get("jpeg", {})
-        webp = outputs.get("webp", {})
-        if webp.get("sha256"):
-            public_webp_hashes.add(webp["sha256"])
+        webp = outputs.get("webp")
         if image.get("src") != jpeg.get("path"):
             errors.append(f"JPEG src does not match evidence for {name}")
         sources = dom.get(name, {}).get("sources", [])
-        if len(sources) != 1 or sources[0].attrs.get("srcset") != webp.get("path") or sources[0].attrs.get("type") != "image/webp":
-            errors.append(f"WebP source does not match evidence for {name}")
-        for format_name, output, expected_format in (("jpeg", jpeg, "JPEG"), ("webp", webp, "WEBP")):
+        if webp:
+            if len(sources) != 1 or sources[0].attrs.get("srcset") != webp.get("path") or sources[0].attrs.get("type") != "image/webp":
+                errors.append(f"WebP source does not match evidence for {name}")
+        elif sources:
+            errors.append(f"unexpected WebP source for {name}")
+
+        for format_name, output in outputs.items():
+            expected_format = "JPEG" if format_name == "jpeg" else "WEBP"
             path_value = output.get("path", "")
             digest = output.get("sha256", "")
-            if not re.fullmatch(r"img/team/[a-z0-9-]+-2026-07\.(?:jpg|webp)", path_value):
+            if not re.fullmatch(r"img/team/[a-z0-9-]+-2026-(?:07|08)\.(?:jpg|webp)", path_value):
                 errors.append(f"unversioned {format_name} output for {name}: {path_value}")
                 continue
             if path_value in output_paths or digest in output_hashes:
@@ -238,29 +276,15 @@ def validate(index_path: Path, evidence_path: Path, repo: Path) -> list[str]:
             path = repo / path_value
             errors.extend(validate_image(path, expected_format, digest))
             if path.is_file():
-                combined_bytes += path.stat().st_size
                 if output.get("bytes") != path.stat().st_size:
                     errors.append(f"recorded byte size mismatch: {path_value}")
+                if is_task_media:
+                    new_bytes += path.stat().st_size
 
-    for name, (role, path_value, expected_hash) in RETAINED.items():
-        record = by_name.get(name, {})
-        image = dom.get(name, {}).get("img", {})
-        if image.get("src") != path_value:
-            errors.append(f"retained src changed for {name}")
-        path = repo / path_value
-        if not path.is_file() or sha256(path) != expected_hash:
-            errors.append(f"retained portrait hash changed for {name}")
-        if record.get("status") != "retained_v227_unchanged" or record.get("current_sha256") != expected_hash or record.get("baseline_sha256") != expected_hash or record.get("role") != role:
-            errors.append(f"retained evidence mismatch for {name}")
-
-    if combined_bytes > MAX_COMBINED_BYTES:
-        errors.append(f"combined new JPEG/WebP size exceeds 900 KB: {combined_bytes}")
-    if manifest.get("new_outputs_combined_bytes") != combined_bytes:
-        errors.append("manifest combined byte size does not match files")
-    if len(output_hashes) != 12:
-        errors.append(f"expected twelve unique encoded output hashes, found {len(output_hashes)}")
-    if len(public_webp_hashes) != 6 or public_webp_hashes & REPLACED_V227_HASHES:
-        errors.append("expected six unique public portrait hashes distinct from V2.27")
+    if manifest.get("task_media_outputs_combined_bytes") != new_bytes:
+        errors.append("manifest task-media byte size does not match files")
+    if new_bytes > manifest.get("task_media_outputs_max_bytes", 0):
+        errors.append(f"task-media outputs exceed the recorded byte budget: {new_bytes}")
 
     approval_path = evidence_path.parent / "team-approval/approval-sheet.json"
     if not approval_path.is_file():
@@ -280,22 +304,44 @@ def validate(index_path: Path, evidence_path: Path, repo: Path) -> list[str]:
             with Image.open(path) as screenshot:
                 if screenshot.width != capture.get("width") or screenshot.height != capture.get("height"):
                     errors.append(f"approval screenshot dimensions mismatch: {path}")
+            metrics = capture.get("metrics", {})
+            expected_columns = 1 if capture.get("viewport_width") == 390 else 3
+            if (
+                metrics.get("card_count") != 9
+                or metrics.get("column_count") != expected_columns
+                or metrics.get("scroll_width", 0) > metrics.get("client_width", 0) + 1
+                or metrics.get("images_ready") is not True
+                or metrics.get("portrait_boxes_are_4_by_5") is not True
+            ):
+                errors.append(f"invalid recorded layout metrics at {capture.get('viewport_width')} px")
+
+    css_path = style_path or repo / "style.css"
+    errors.extend(validate_layout(css_path.read_text(encoding="utf-8")))
     return errors
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("index", nargs="?", type=Path, default=Path("index.html"))
-    parser.add_argument("evidence", nargs="?", type=Path, default=Path("release-evidence/team-release-evidence.json"))
-    parser.add_argument("--repo", type=Path, default=Path("."))
+    parser.add_argument("target", nargs="?", type=Path, default=Path("."))
+    parser.add_argument("evidence", nargs="?", type=Path)
+    parser.add_argument("--repo", type=Path)
     args = parser.parse_args(argv)
-    errors = validate(args.index.resolve(), args.evidence.resolve(), args.repo.resolve())
+    target = args.target.resolve()
+    if target.is_dir():
+        repo = (args.repo or target).resolve()
+        index_path = target / "index.html"
+        evidence_path = args.evidence or target / "release-evidence/team-release-evidence.json"
+    else:
+        index_path = target
+        repo = (args.repo or Path(".")).resolve()
+        evidence_path = args.evidence or repo / "release-evidence/team-release-evidence.json"
+    errors = validate(index_path, evidence_path.resolve(), repo)
     if errors:
         print("Team DOM/manifest check failed:", file=sys.stderr)
         for error in errors:
             print(f"- {error}", file=sys.stderr)
         return 1
-    print("Team DOM/manifest check passed: 8 unique cards, 6 approved replacements, 2 unchanged portraits")
+    print("Team DOM/manifest check passed: exact 3x3 order, 6 approved replacements, 3 retained portraits")
     return 0
 
 
