@@ -10,6 +10,18 @@ from pathlib import Path
 
 
 PUBLIC_EXCLUDES = {".git", ".ralphex", ".tmp-inputs", "admin-app", "deploy", "release-evidence", "var"}
+FORBIDDEN = {
+    r"евгений\s+жалнин.{0,180}генеральный\s+директор": "legacy Zhalnin role",
+    r"генеральный\s+директор.{0,180}евгений\s+жалнин": "legacy Zhalnin role",
+    r"schüco.{0,80}официальн\w*\s+(?:партн[её]р|дилер)": "unverified official Schüco relationship",
+    r"официальн\w*\s+(?:партн[её]р|дилер).{0,80}schüco": "unverified official Schüco relationship",
+    r"schüco.{0,120}скрыт\w*\s+дренаж\w*.{0,80}(?:во\s+всех|для\s+всех|у\s+всех|системах)": "generalised Schüco drainage",
+    r"15\s*000\s*₽": "legacy public comparison price",
+    r"саня\s*(?:и|\+)\s*антон": "personal public team naming",
+    r"быстр\w*.{0,30}безошибочн\w*": "fast and error-free promise",
+    r"\bвсе\s+различия\b": "complete-detection promise",
+    r"\bбез\s+автоматизаци\w*": "internal automation wording",
+}
 
 
 def public_html(repo: Path) -> list[Path]:
@@ -23,19 +35,12 @@ def public_html(repo: Path) -> list[Path]:
 
 def validate(repo: Path) -> list[str]:
     errors: list[str] = []
-    forbidden = {
-        r"евгений\s+жалнин.{0,180}генеральный\s+директор": "legacy Zhalnin role",
-        r"генеральный\s+директор.{0,180}евгений\s+жалнин": "legacy Zhalnin role",
-        r"schüco.{0,80}официальн\w*\s+(?:партн[её]р|дилер)": "unverified official Schüco relationship",
-        r"официальн\w*\s+(?:партн[её]р|дилер).{0,80}schüco": "unverified official Schüco relationship",
-        r"schüco.{0,120}скрыт\w*\s+дренаж\w*.{0,80}(?:во\s+всех|для\s+всех|у\s+всех|системах)": "generalised Schüco drainage",
-    }
     files = public_html(repo)
     if not files:
         return ["no public HTML files found"]
     for path in files:
         text = " ".join(path.read_text(encoding="utf-8").split()).casefold()
-        for pattern, label in forbidden.items():
+        for pattern, label in FORBIDDEN.items():
             if re.search(pattern, text):
                 errors.append(f"{path.relative_to(repo)}: {label}")
     aluminum = (repo / "aluminum/index.html").read_text(encoding="utf-8")

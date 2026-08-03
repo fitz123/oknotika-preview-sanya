@@ -261,6 +261,27 @@ class AluminumReleaseTests(unittest.TestCase):
             errors = public_claims.validate(root)
             self.assertTrue(any("relationship" in error for error in errors))
 
+    def test_rejected_comparison_copy_is_not_public(self) -> None:
+        rejected = {
+            "15 000 ₽": "legacy public comparison price",
+            "Саня и Антон": "personal public team naming",
+            "Саня + Антон": "personal public team naming",
+            "Быстро и безошибочно": "fast and error-free promise",
+            "Покажем все различия": "complete-detection promise",
+            "Выполним без автоматизации": "internal automation wording",
+        }
+        source = (REPO / "aluminum/index.html").read_text(encoding="utf-8")
+        for phrase, label in rejected.items():
+            with self.subTest(phrase=phrase), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "aluminum").mkdir()
+                (root / "aluminum/index.html").write_text(
+                    source.replace("</main>", f"<p>{phrase}</p></main>", 1),
+                    encoding="utf-8",
+                )
+                errors = public_claims.validate(root)
+                self.assertTrue(any(label in error for error in errors))
+
 
 class DocumentRevisionTests(unittest.TestCase):
     def test_current_offer_and_presentation_are_valid(self) -> None:
@@ -309,7 +330,7 @@ class DocumentRevisionTests(unittest.TestCase):
             presentation_path = Path(directory) / "presentation.html"
             presentation_path.write_text(
                 (REPO / "aluminum/document-revision-check/index.html").read_text(encoding="utf-8").replace(
-                    "только если подтверждена фактическая ошибка",
+                    "только при подтверждённой фактической ошибке",
                     "при любом несогласии",
                     1,
                 ),
@@ -331,6 +352,33 @@ class DocumentRevisionTests(unittest.TestCase):
             )
             errors = document_revision.validate(REPO / "aluminum/index.html", presentation_path)
             self.assertTrue(any("perfect detection" in error for error in errors))
+
+    def test_confirmed_tariffs_cannot_be_changed_or_repeated(self) -> None:
+        source = (REPO / "aluminum/document-revision-check/index.html").read_text(encoding="utf-8")
+        variants = (
+            source.replace("35 000 ₽", "34 000 ₽", 1),
+            source.replace("</table>", "</table><table></table>", 1),
+        )
+        for html in variants:
+            with self.subTest(), tempfile.TemporaryDirectory() as directory:
+                presentation_path = Path(directory) / "presentation.html"
+                presentation_path.write_text(html, encoding="utf-8")
+                errors = document_revision.validate(REPO / "aluminum/index.html", presentation_path)
+                self.assertTrue(any("tariff" in error for error in errors))
+
+    def test_personal_team_naming_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            presentation_path = Path(directory) / "presentation.html"
+            presentation_path.write_text(
+                (REPO / "aluminum/document-revision-check/index.html").read_text(encoding="utf-8").replace(
+                    "Команда ОКНОТИКИ",
+                    "Саня + Антон",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            errors = document_revision.validate(REPO / "aluminum/index.html", presentation_path)
+            self.assertTrue(any("personal team naming" in error for error in errors))
 
 
 class HomepageProofTests(unittest.TestCase):

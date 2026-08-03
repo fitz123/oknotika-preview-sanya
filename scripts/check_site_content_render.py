@@ -183,9 +183,13 @@ const pages = [
               safeTeaserLink: safeNewTab(teaserLink),
             };
           } else {
-            const telegramLink = document.querySelector('a[href^="https://t.me/"]');
+            const telegramLink = document.querySelector('#contact a[href^="https://t.me/"]');
             result.presentation = {
               slides: rects('.revision-slide'),
+              tariffTable: rect(document.querySelector('.revision-tariffs table')),
+              tariffRows: rects('.revision-tariffs tbody tr'),
+              refund: rect(document.querySelector('.revision-refund')),
+              ctaText: telegramLink?.textContent.replace(/\s+/g, ' ').trim() || '',
               safeTelegramLink: safeNewTab(telegramLink),
             };
           }
@@ -259,8 +263,17 @@ const pages = [
         }
 
         if (metrics.presentation) {
-          if (metrics.presentation.slides.length < 6 || metrics.presentation.slides.some(slide => slide.height < 200)) {
+          if (metrics.presentation.slides.length !== 8 || metrics.presentation.slides.some(slide => slide.height < 200)) {
             throw new Error(`${width}px document-revision presentation slides are missing or collapsed`);
+          }
+          if (!metrics.presentation.tariffTable || metrics.presentation.tariffTable.width > metrics.clientWidth || metrics.presentation.tariffRows.length !== 4 || metrics.presentation.tariffRows.some(row => row.height < 40)) {
+            throw new Error(`${width}px document-revision tariff table is missing, clipped, or unreadable`);
+          }
+          if (!metrics.presentation.refund || metrics.presentation.refund.height < 60) {
+            throw new Error(`${width}px document-revision refund boundary is missing or collapsed`);
+          }
+          if (!metrics.presentation.ctaText.startsWith('Передать материалы на первичный просмотр')) {
+            throw new Error(`${width}px document-revision intake CTA copy changed`);
           }
           if (!metrics.presentation.safeTelegramLink) {
             throw new Error(`${width}px document-revision Telegram CTA is not a safe new-tab link`);

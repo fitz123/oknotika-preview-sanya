@@ -99,15 +99,15 @@ Rendered QA at 1440 px and 390 px must cover homepage, aluminum, document-compar
 
 **Serves:** Sanya rejected public `Саня и Антон`, supplied the Russian-market copy direction, changed the trial to 10,000 ₽ and confirmed the earlier sheet-pair tariff grid.
 
-- [ ] Replace personal naming in the aluminum teaser and standalone presentation with `команда ОКНОТИКИ` or neutral company voice.
-- [ ] Rewrite the presentation using the eight-part copy structure and boundaries above; preserve human engineering authority and evidence-backed `до / после` logic.
-- [ ] Replace every active public 15,000 ₽ occurrence with the confirmed commercial model.
-- [ ] On the aluminum teaser, mention `Пробное сравнение — 10 000 ₽` once and link to the presentation in a new tab.
-- [ ] In the presentation, show the four-row pricing table once, explain comparable pairs, the 81–99 intake quote and variable 100–200 rate.
-- [ ] Keep one concise transparent refund paragraph: confirmed factual result error only; subjective disagreement is not enough.
-- [ ] Remove repeated price blocks and unsafe absolutes; keep the CTA `Передать материалы на первичный просмотр`.
-- [ ] Update focused document/public-claim assertions.
-- [ ] Validate Task 2 outcome.
+- [x] Replace personal naming in the aluminum teaser and standalone presentation with `команда ОКНОТИКИ` or neutral company voice.
+- [x] Rewrite the presentation using the eight-part copy structure and boundaries above; preserve human engineering authority and evidence-backed `до / после` logic.
+- [x] Replace every active public 15,000 ₽ occurrence with the confirmed commercial model.
+- [x] On the aluminum teaser, mention `Пробное сравнение — 10 000 ₽` once and link to the presentation in a new tab.
+- [x] In the presentation, show the four-row pricing table once, explain comparable pairs, the 81–99 intake quote and variable 100–200 rate.
+- [x] Keep one concise transparent refund paragraph: confirmed factual result error only; subjective disagreement is not enough.
+- [x] Remove repeated price blocks and unsafe absolutes; keep the CTA `Передать материалы на первичный просмотр`.
+- [x] Update focused document/public-claim assertions.
+- [x] Validate Task 2 outcome.
 
 ### Task 3: Remove visible same-page photo duplication across public product pages
 

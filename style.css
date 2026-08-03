@@ -361,10 +361,8 @@ dd { margin: 0; font-weight: 850; }
 .document-revision-teaser__copy h2 { max-width: 780px; font-size: clamp(34px, 4vw, 56px); }
 .document-revision-teaser__copy > p:not(.eyebrow) { max-width: 800px; margin-bottom: 0; color: var(--paper-2); font-size: 18px; }
 .document-revision-teaser__action { display: grid; gap: 18px; justify-items: start; }
-.document-revision-teaser__action p { margin: 0; }
-.document-revision-teaser__action span, .document-revision-teaser__action strong { display: block; }
-.document-revision-teaser__action span { margin-bottom: 4px; color: var(--muted); font-size: 12px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
-.document-revision-teaser__action strong { color: var(--paper); font-size: 34px; line-height: 1; }
+.document-revision-teaser__action p { margin: 0; color: var(--muted); font-size: 15px; font-weight: 850; }
+.document-revision-teaser__action strong { display: block; margin-top: 4px; color: var(--paper); font-size: 34px; line-height: 1; }
 
 .revision-presentation { background: radial-gradient(circle at 84% 4%, rgba(116,215,223,.15), transparent 32rem), radial-gradient(circle at 4% 46%, rgba(197,161,95,.12), transparent 34rem), var(--bg); }
 .revision-deck { counter-reset: revision-slide; }
@@ -390,7 +388,7 @@ dd { margin: 0; font-weight: 850; }
 .revision-pair article > span { display: block; margin-bottom: 70px; color: var(--cyan); font-size: 13px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
 .revision-pair article p, .revision-note { color: var(--muted); }
 .revision-note { grid-column: 1 / -1; margin: 0; padding: 20px 22px; border-left: 2px solid var(--accent); background: rgba(197,161,95,.07); }
-.revision-comparison { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 42px; }
+.revision-comparison { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 42px; }
 .revision-comparison article { min-height: 280px; padding: 28px; border: 1px solid var(--line); border-radius: var(--radius); background: rgba(0,0,0,.18); }
 .revision-comparison span { display: block; margin-bottom: 72px; color: var(--accent); font-weight: 950; }
 .revision-comparison strong { display: block; margin-bottom: 10px; font-size: 21px; }
@@ -405,13 +403,16 @@ dd { margin: 0; font-weight: 850; }
 .revision-boundary__main { color: var(--paper); font-size: clamp(24px, 3vw, 38px); font-weight: 850; line-height: 1.2; letter-spacing: -.035em; }
 .revision-boundary ul { display: grid; gap: 12px; margin-top: 34px; padding-left: 22px; color: var(--paper-2); }
 .revision-terms { overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: rgba(255,255,255,.055); box-shadow: var(--shadow); }
-.revision-terms > div { padding: 32px; }
-.revision-terms > div p { color: var(--paper-2); }
-.revision-terms > div p:last-child { margin-bottom: 0; color: var(--muted); }
-.revision-price { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin: 0; padding: 32px; border-bottom: 1px solid var(--line); background: rgba(197,161,95,.11); }
-.revision-price span, .revision-price strong { display: block; }
-.revision-price span { color: var(--muted); font-size: 13px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
-.revision-price strong { color: var(--paper); font-size: clamp(40px, 5vw, 68px); line-height: .9; }
+.revision-tariffs { padding: 32px; }
+.revision-tariffs table { width: 100%; border-collapse: collapse; }
+.revision-tariffs caption { margin-bottom: 18px; color: var(--paper); font-size: 22px; font-weight: 850; text-align: left; }
+.revision-tariffs th, .revision-tariffs td { padding: 16px 14px; border-bottom: 1px solid var(--line); color: var(--paper-2); text-align: left; vertical-align: top; }
+.revision-tariffs thead th { color: var(--muted); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; }
+.revision-tariffs tbody th { color: var(--paper); }
+.revision-tariffs td:last-child { color: var(--paper); font-weight: 850; white-space: nowrap; }
+.revision-tariff-note, .revision-refund { color: var(--paper-2); }
+.revision-tariff-note { margin: 24px 0 0; }
+.revision-refund { margin: 20px 0 0; padding: 20px 22px; border-left: 2px solid var(--accent); background: rgba(197,161,95,.07); }
 .revision-contact { max-width: 940px; }
 .revision-contact h2 { max-width: 900px; margin-right: auto; margin-left: auto; }
 .revision-contact > p:not(.eyebrow, .revision-step) { max-width: 680px; margin: 0 auto 30px; color: var(--paper-2); font-size: 20px; }
@@ -487,9 +488,15 @@ dd { margin: 0; font-weight: 850; }
   .revision-note { grid-column: auto; }
   .revision-comparison { margin-top: 30px; }
   .revision-deliverables li { grid-template-columns: 42px 1fr; padding: 22px; }
-  .revision-price { display: block; }
-  .revision-price span { margin-bottom: 12px; }
-  .revision-terms > div, .revision-price { padding: 24px; }
+  .revision-tariffs { padding: 24px; }
+  .revision-tariffs thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+  .revision-tariffs tbody, .revision-tariffs tr, .revision-tariffs th, .revision-tariffs td { display: block; }
+  .revision-tariffs tbody { display: grid; gap: 14px; }
+  .revision-tariffs tbody tr { padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: rgba(0,0,0,.14); }
+  .revision-tariffs tbody th, .revision-tariffs tbody td { padding: 8px 0; border: 0; white-space: normal; }
+  .revision-tariffs tbody th { font-size: 17px; }
+  .revision-tariffs tbody td { display: grid; grid-template-columns: 88px 1fr; gap: 12px; }
+  .revision-tariffs tbody td::before { content: attr(data-label); color: var(--muted); font-size: 11px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
   .revision-contact .btn { min-width: 0; }
 }
 
