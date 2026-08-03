@@ -135,7 +135,9 @@ const pages = [
 
           if (slug === 'homepage') {
             const glassImage = document.querySelector('a.product-link-card[href="glass/"] img');
+            const heroImage = document.querySelector('.hero__visual img');
             const casesPartner = document.querySelector('[data-rubikon-proof]');
+            const caseGrid = document.querySelector('.case-grid');
             const teamCards = rects('#team .person');
             const teamPortraits = rects('#team .person__portrait');
             const embeds = rects('[data-yandex-proof] .yandex-embed');
@@ -148,7 +150,13 @@ const pages = [
                 naturalWidth: glassImage.naturalWidth,
                 naturalHeight: glassImage.naturalHeight,
               } : null,
+              heroImage: heroImage ? {
+                src: heroImage.getAttribute('src'),
+                naturalWidth: heroImage.naturalWidth,
+                naturalHeight: heroImage.naturalHeight,
+              } : null,
               casesPartner: rect(casesPartner),
+              caseGrid: rect(caseGrid),
               casesPartnerText: casesPartner?.textContent.replace(/\s+/g, ' ').trim() || '',
               teamCards,
               teamPortraits,
@@ -196,8 +204,14 @@ const pages = [
           if (!home.glassImage || home.glassImage.src !== 'img/product-world/glass-art.jpg' || home.glassImage.naturalWidth < 1 || home.glassImage.naturalHeight < 1) {
             throw new Error(`${width}px homepage glass photograph did not render`);
           }
-          if (!home.casesPartner || home.casesPartner.height < 100 || !home.casesPartnerText.includes('Рубикон') || !home.casesPartnerText.includes('Лункаша')) {
+          if (!home.heroImage || home.heroImage.src !== 'img/cases/atrium.jpg' || home.heroImage.naturalWidth < 1 || home.heroImage.naturalHeight < 1) {
+            throw new Error(`${width}px homepage unique atrium hero did not render`);
+          }
+          if (!home.casesPartner || home.casesPartner.height < 100 || !home.casesPartnerText.includes('Рубикон') || !home.casesPartnerText.includes('Лункаша') || !home.casesPartnerText.includes('особенно ценит') || !home.casesPartnerText.includes('доверяет')) {
             throw new Error(`${width}px homepage Rubikon proof is missing or collapsed`);
+          }
+          if (!home.caseGrid || home.casesPartner.y + home.casesPartner.height > home.caseGrid.y + 1) {
+            throw new Error(`${width}px homepage Rubikon proof must render before the case grid`);
           }
           if (home.teamCards.length !== 9 || home.teamPortraits.length !== 9) {
             throw new Error(`${width}px homepage team must render nine cards and portraits`);

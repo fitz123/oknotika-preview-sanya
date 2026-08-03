@@ -382,6 +382,42 @@ class HomepageProofTests(unittest.TestCase):
             errors = homepage_proof.validate(homepage, REPO / "IMAGE_SOURCES.md")
             self.assertTrue(any("bounded to the cases" in error for error in errors))
 
+    def test_homepage_cases_require_correct_order_scope_copy_and_hero(self) -> None:
+        current = (REPO / "index.html").read_text(encoding="utf-8")
+        proof_start = current.index('        <aside class="cases-partner reveal" data-rubikon-proof>')
+        proof_end = current.index("\n        </aside>", proof_start) + len("\n        </aside>")
+        grid_start = current.index('        <div class="case-grid">', proof_end)
+        grid_end = current.index("\n        </div>", grid_start) + len("\n        </div>")
+        proof = current[proof_start:proof_end]
+        grid = current[grid_start:grid_end]
+
+        invalid_pages = {
+            "legacy hero": current.replace("img/cases/atrium.jpg", "img/cases/botanical-garden.jpg", 1),
+            "generic portfolio": current.replace(
+                "объекты ОКНОТИКИ и её партнёрской сети",
+                "объекты разных типов",
+                1,
+            ),
+            "proof after grid": current[:proof_start] + grid + "\n" + proof + current[grid_end:],
+            "defensive disclaimer": current.replace(
+                "ОКНОТИКА особенно ценит эту команду",
+                "Самостоятельные объекты «Рубикона» не приписываются ОКНОТИКЕ. ОКНОТИКА особенно ценит эту команду",
+                1,
+            ),
+            "attributed caption": current.replace(
+                "Светопрозрачная кровля сложной геометрии.",
+                "Работа компании «Рубикон».",
+                1,
+            ),
+        }
+
+        for label, source in invalid_pages.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
+                homepage = Path(directory) / "index.html"
+                homepage.write_text(source, encoding="utf-8")
+                errors = homepage_proof.validate(homepage, REPO / "IMAGE_SOURCES.md")
+                self.assertTrue(errors, f"mutation was not rejected: {label}")
+
     def test_yandex_embeds_require_lazy_loading_and_exact_organization(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             homepage = Path(directory) / "index.html"

@@ -84,14 +84,14 @@ Rendered QA at 1440 px and 390 px must cover homepage, aluminum, document-compar
 
 **Serves:** Sanya corrected that the grid includes both Oknotika and partner objects, asked to keep the prior general cases text, move «Рубикон» above the photos, and highlight the team as a favourite/trusted partner without defensive attribution language.
 
-- [ ] Keep the general headline `Реальные объекты и монтажные объёмы` and clearly describe the grid as a mixed selection from ОКНОТИКА and its partner network.
-- [ ] Move `[data-rubikon-proof]` before `.case-grid`.
-- [ ] Describe the team of company «Рубикон», led by Сергей Константинович Лункаш, as a permanent installation partner that ОКНОТИКА especially values and trusts for its experience, reliability and quality of joint work.
-- [ ] Remove the sentence about independent Rubikon objects not being attributed to Oknotika; do not replace it with another defensive disclaimer.
-- [ ] Keep individual case captions neutral and do not state that the whole grid is Rubikon work.
-- [ ] Replace the duplicated homepage hero `botanical-garden.jpg` with the existing `atrium.jpg`; keep Botanical Garden only in its case card.
-- [ ] Update focused homepage assertions and spacing.
-- [ ] Validate Task 1 outcome.
+- [x] Keep the general headline `Реальные объекты и монтажные объёмы` and clearly describe the grid as a mixed selection from ОКНОТИКА and its partner network.
+- [x] Move `[data-rubikon-proof]` before `.case-grid`.
+- [x] Describe the team of company «Рубикон», led by Сергей Константинович Лункаш, as a permanent installation partner that ОКНОТИКА especially values and trusts for its experience, reliability and quality of joint work.
+- [x] Remove the sentence about independent Rubikon objects not being attributed to Oknotika; do not replace it with another defensive disclaimer.
+- [x] Keep individual case captions neutral and do not state that the whole grid is Rubikon work.
+- [x] Replace the duplicated homepage hero `botanical-garden.jpg` with the existing `atrium.jpg`; keep Botanical Garden only in its case card.
+- [x] Update focused homepage assertions and spacing.
+- [x] Validate Task 1 outcome.
 
 ### Task 2: Rewrite the AR-comparison offer and pricing
 

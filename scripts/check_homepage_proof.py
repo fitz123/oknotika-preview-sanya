@@ -143,26 +143,63 @@ def validate(homepage_path: Path, image_sources_path: Path) -> list[str]:
     if "img/product-world/glass-art.jpg" not in image_sources or "Pexels photo 35173072" not in image_sources:
         errors.append("licensed glass photograph is missing from IMAGE_SOURCES.md")
 
+    hero_visuals = [node for node in all_nodes if "hero__visual" in node.classes()]
+    if len(hero_visuals) != 1:
+        errors.append(f"homepage must contain one hero visual, found {len(hero_visuals)}")
+    else:
+        hero_images = hero_visuals[0].descendants("img")
+        if len(hero_images) != 1 or hero_images[0].attrs.get("src") != "img/cases/atrium.jpg":
+            errors.append("homepage hero must use the unique atrium photograph")
+
     cases = [node for node in all_nodes if node.attrs.get("id") == "cases"]
     if len(cases) != 1:
         errors.append(f"homepage must contain one cases section, found {len(cases)}")
     else:
-        cases_text = cases[0].text().casefold()
+        cases_section = cases[0]
+        cases_text = cases_section.text().casefold()
         required_case_phrases = {
-            "единым центром ответственности": "single responsibility center",
+            "реальные объекты и монтажные объёмы": "general cases headline",
+            "объекты окнотики и её партнёрской сети": "mixed Oknotika/partner selection",
             "команда компании «рубикон»": "Rubikon company team",
             "сергея константиновича лункаша": "Rubikon team lead",
             "постоянный монтажный партнёр": "permanent installation partner",
             "коммерческих, социальных и частных объектах": "partner object scope",
-            "не приписываются окнотике": "third-party authorship boundary",
+            "особенно ценит эту команду": "valued partner emphasis",
+            "доверяет ей": "trusted partner emphasis",
+            "опыту, надёжности и качеству совместной работы": "partner trust reasons",
         }
         for phrase, label in required_case_phrases.items():
             if phrase not in cases_text:
                 errors.append(f"cases section misses {label}: {phrase}")
+
+        if "не приписываются окнотике" in cases_text:
+            errors.append("cases section contains the rejected defensive Rubikon disclaimer")
+
+        rubikon_proofs = [
+            node for node in cases_section.descendants()
+            if "data-rubikon-proof" in node.attrs
+        ]
+        case_grids = [node for node in cases_section.descendants() if "case-grid" in node.classes()]
+        if len(rubikon_proofs) != 1:
+            errors.append(f"cases section must contain one Rubikon proof block, found {len(rubikon_proofs)}")
+        if len(case_grids) != 1:
+            errors.append(f"cases section must contain one case grid, found {len(case_grids)}")
+        if len(rubikon_proofs) == 1 and len(case_grids) == 1:
+            ordered_nodes = cases_section.descendants()
+            proof_position = next(index for index, node in enumerate(ordered_nodes) if node is rubikon_proofs[0])
+            grid_position = next(index for index, node in enumerate(ordered_nodes) if node is case_grids[0])
+            if proof_position > grid_position:
+                errors.append("Rubikon proof block must appear before the case grid")
+            if re.search(r"рубикон|лункаш", case_grids[0].text(), flags=re.IGNORECASE):
+                errors.append("individual case captions must remain neutral about Rubikon authorship")
+            grid_sources = [image.attrs.get("src", "") for image in case_grids[0].descendants("img")]
+            if grid_sources.count("img/cases/botanical-garden.jpg") != 1:
+                errors.append("Botanical Garden photograph must appear once in its case card")
+
         outside_rubikon = [
             node for node in all_nodes
             if node.text_parts and re.search(r"рубикон|лункаш", " ".join(node.text_parts), flags=re.IGNORECASE)
-            and node is not cases[0] and not node.has_ancestor(cases[0])
+            and node is not cases_section and not node.has_ancestor(cases_section)
         ]
         if outside_rubikon:
             errors.append("Rubikon/Lunkash public copy must remain bounded to the cases section")
