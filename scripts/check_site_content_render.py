@@ -347,7 +347,7 @@ const pages = [
           if (product.cards.length !== 4 || product.cards.some(card => card.height < 200) || product.visualCards !== 0) {
             throw new Error(`${width}px Protectapeel cards are missing, collapsed, or not text-backed`);
           }
-          if (!product.mediaFeature || product.mediaFeature.height < 300 || product.poster !== '../img/products/protectapeel-application.jpg') {
+          if (!product.mediaFeature || product.mediaFeature.height < 300 || product.poster !== '../img/products/protectapeel-video-poster.jpg') {
             throw new Error(`${width}px Protectapeel video or its poster fallback is missing`);
           }
           if (width === 1440 && new Set(product.cards.map(card => Math.round(card.x))).size !== 4) {

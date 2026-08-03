@@ -75,6 +75,18 @@ class PublicMediaRepetitionTests(unittest.TestCase):
             errors = public_media.validate_page(page, root)
             self.assertTrue(any("repeated local media img/repeated.jpg" in error for error in errors))
 
+    def test_different_files_from_the_same_source_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            page = root / "index.html"
+            page.write_text(
+                '<img src="img/products/carbon-glass-real.jpg">'
+                '<img src="img/products/carbon-main.jpg">',
+                encoding="utf-8",
+            )
+            errors = public_media.validate_page(page, root)
+            self.assertTrue(any("source:carbon-glass-beach-prototype" in error for error in errors))
+
     def test_logo_and_picture_alternatives_are_excluded(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

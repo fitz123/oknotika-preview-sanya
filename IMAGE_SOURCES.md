@@ -16,11 +16,11 @@
 
 ## Материалы проектов и продуктов
 
-- `img/products/carbon-*.jpg` — полученные материалы Carbon Glass; для сайта использованы согласованные изображения реального прототипа, без ранее отклонённого потенциально AI-изображения.
+- `img/products/carbon-*.jpg` и `img/products/carbon-glass.svg` — полученные материалы Carbon Glass и существующая продуктовая схема; для сайта использованы согласованные изображения реального прототипа, без ранее отклонённого потенциально AI-изображения.
 - `img/products/stoller-*.jpg` и `img/products/stoller.svg` — полученные материалы Stoller и существующая продуктовая схема, согласованные для сайта/prototype.
-- `img/products/protectapeel-*` — полученные фото и видео нанесения/снятия Protectapeel, согласованные для сайта.
+- `img/products/protectapeel-*` — полученные фото и видео нанесения/снятия Protectapeel, согласованные для сайта; `protectapeel-video-poster.jpg` получен из кадра 00:00:08 согласованного видео и используется только как его poster/fallback.
 - `img/products/mkd-sergey.jpg` — переданная объектная фотография окон многоквартирного дома; на странице ПВХ используется как фотографический hero.
-- `img/products/oknotika-window-{hero,demo-tight}.jpg` и `img/products/oknotika-control-panel.jpg` — переданные фотографии демонстрационного окна и панели управления ОКНОТИКИ; на странице продукта каждому файлу отведена отдельная визуальная роль.
+- `img/products/oknotika-window-hero.jpg`, `img/products/oknotika-control-panel.jpg` и `img/products/oknotika-smart-window.svg` — переданные фотографии демонстрационного окна и панели управления ОКНОТИКИ, а также существующая продуктовая схема; на странице продукта каждому исходному визуалу отведена отдельная роль.
 - `img/team/*-2026-07.{jpg,webp}` — сохранённые derivatives из ранее утверждённой командной съёмки; контрольные SHA-256 записаны в `release-evidence/team-release-evidence.json`.
 - `img/team/{alexey-makarov,andrey-svirida,oksana-skopina,ekaterina-rychkova}-2026-08.{jpg,webp}` — 4:5 derivatives из четырёх реальных портретов, переданных Саней для этой review-only ревизии. Применены только crop, равномерный resize и сжатие без синтеза или изменения лиц. Raw/final SHA-256, crop и границы согласования записаны в `release-evidence/team-release-evidence.json`; raw-файлы и приватные документы не входят в Git или ZIP.
 

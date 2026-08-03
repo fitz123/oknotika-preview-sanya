@@ -24,6 +24,17 @@ PUBLIC_PAGES = (
 )
 IMAGE_SUFFIXES = {".avif", ".gif", ".jpeg", ".jpg", ".png", ".svg", ".webp"}
 LOGO_PATHS = {"img/logo-oknotika.svg"}
+MEDIA_SOURCE_IDS = {
+    "img/products/carbon-glass-real.jpg": "source:carbon-glass-beach-prototype",
+    "img/products/carbon-main.jpg": "source:carbon-glass-beach-prototype",
+    "img/products/oknotika-control-panel-close.jpg": "source:oknotika-control-panel",
+    "img/products/oknotika-control-panel.jpg": "source:oknotika-control-panel",
+    "img/products/oknotika-window-demo-tight.jpg": "source:oknotika-purple-demo-window",
+    "img/products/oknotika-window-demo.jpg": "source:oknotika-purple-demo-window",
+    "img/products/oknotika-window-hero.jpg": "source:oknotika-purple-demo-window",
+    "img/products/protectapeel-application.jpg": "source:protectapeel-application-opening-frame",
+    "img/products/protectapeel-site.jpg": "source:protectapeel-application-opening-frame",
+}
 CSS_URL = re.compile(r"url\(\s*(['\"]?)([^'\")]+)\1\s*\)", re.IGNORECASE)
 
 
@@ -85,7 +96,8 @@ class MediaParser(HTMLParser):
         if normalized is None or normalized in LOGO_PATHS:
             return
         line, column = self.getpos()
-        self.uses[normalized].setdefault(group, f"{role} at {line}:{column + 1}")
+        source_id = MEDIA_SOURCE_IDS.get(normalized, normalized)
+        self.uses[source_id].setdefault(group, f"{normalized} ({role} at {line}:{column + 1})")
 
 
 def normalize_image_reference(raw_reference: str, page: Path, repo: Path) -> str | None:
