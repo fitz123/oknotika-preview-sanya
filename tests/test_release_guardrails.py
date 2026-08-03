@@ -28,6 +28,7 @@ aluminum = load_script("check_aluminum_sources")
 public_claims = load_script("check_public_claims")
 document_revision = load_script("check_document_revision")
 homepage_proof = load_script("check_homepage_proof")
+public_media = load_script("check_public_media_repetition")
 
 
 class LocalReferenceTests(unittest.TestCase):
@@ -57,6 +58,47 @@ class LocalReferenceTests(unittest.TestCase):
             _count, errors = local_refs.validate(root)
             self.assertTrue(any("missing fragment" in error for error in errors))
             self.assertTrue(any("missing local target" in error for error in errors))
+
+
+class PublicMediaRepetitionTests(unittest.TestCase):
+    def test_current_public_pages_use_each_visible_medium_once(self) -> None:
+        self.assertEqual(public_media.validate(REPO), [])
+
+    def test_repeated_image_and_inline_background_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            page = root / "index.html"
+            page.write_text(
+                '<img src="img/repeated.jpg"><article style="background-image: url(\'img/repeated.jpg\')"></article>',
+                encoding="utf-8",
+            )
+            errors = public_media.validate_page(page, root)
+            self.assertTrue(any("repeated local media img/repeated.jpg" in error for error in errors))
+
+    def test_logo_and_picture_alternatives_are_excluded(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            page = root / "index.html"
+            page.write_text(
+                '<img class="brand__logo" src="img/logo-oknotika.svg">'
+                '<img class="brand__logo" src="img/logo-oknotika.svg">'
+                '<picture><source srcset="img/photo.webp"><img src="img/photo.webp"></picture>',
+                encoding="utf-8",
+            )
+            self.assertEqual(public_media.validate_page(page, root), [])
+
+    def test_video_only_poster_is_allowed_but_standalone_reuse_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            page = root / "index.html"
+            page.write_text('<video poster="img/poster.jpg"></video>', encoding="utf-8")
+            self.assertEqual(public_media.validate_page(page, root), [])
+            page.write_text(
+                '<video poster="img/poster.jpg"></video><img src="img/poster.jpg">',
+                encoding="utf-8",
+            )
+            errors = public_media.validate_page(page, root)
+            self.assertTrue(any("repeated local media img/poster.jpg" in error for error in errors))
 
 
 class AllowlistTests(unittest.TestCase):

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render and assert the three site-content revision pages at desktop and mobile widths."""
+"""Render and assert the nine site-content revision pages at desktop and mobile widths."""
 
 from __future__ import annotations
 
@@ -31,6 +31,12 @@ const pages = [
   { slug: 'homepage', url: '/' },
   { slug: 'aluminum', url: '/aluminum/' },
   { slug: 'document-revision', url: '/aluminum/document-revision-check/' },
+  { slug: 'glass', url: '/glass/', kind: 'product', expectedHero: '../img/product-world/glass-facade.jpg' },
+  { slug: 'pvc', url: '/pvc/', kind: 'product', expectedHero: '../img/products/mkd-sergey.jpg' },
+  { slug: 'carbon-glass', url: '/carbon-glass/', kind: 'product', expectedHero: '../img/products/carbon-glass-real.jpg' },
+  { slug: 'smart-window', url: '/oknotika-smart-window/', kind: 'smart-window' },
+  { slug: 'protectapeel', url: '/protectapeel/', kind: 'protectapeel' },
+  { slug: 'wood-stoller', url: '/wood-stoller/', kind: 'product', expectedHero: '../img/products/stoller-house.jpg' },
 ];
 
 (async () => {
@@ -109,7 +115,7 @@ const pages = [
         await page.evaluate(() => Promise.all(Array.from(document.images, image => image.decode())));
         await page.waitForTimeout(150);
 
-        const metrics = await page.evaluate(({ slug, width }) => {
+        const metrics = await page.evaluate(({ slug, width, kind, expectedHero }) => {
           const safeNewTab = link => {
             if (!link) return false;
             const rel = new Set((link.getAttribute('rel') || '').toLowerCase().split(/\s+/));
@@ -171,6 +177,10 @@ const pages = [
             const video = document.querySelector('.raluma-gallery video');
             const teaserLink = document.querySelector('[data-document-revision-teaser] a');
             result.aluminum = {
+              pageHeroImage: document.querySelector('.page-hero__bg img')?.getAttribute('src') || '',
+              focusImage: document.querySelector('.schueco-hero__visual img')?.getAttribute('src') || '',
+              designImage: document.querySelector('.design-path__feature img')?.getAttribute('src') || '',
+              visualTaxonomyCards: document.querySelectorAll('.aluminum-systems .system-card--image').length,
               designFeature: rect(document.querySelector('.design-path__feature')),
               ralumaItems: rects('.raluma-gallery__item'),
               video: video ? {
@@ -182,7 +192,7 @@ const pages = [
               } : null,
               safeTeaserLink: safeNewTab(teaserLink),
             };
-          } else {
+          } else if (slug === 'document-revision') {
             const telegramLink = document.querySelector('#contact a[href^="https://t.me/"]');
             result.presentation = {
               slides: rects('.revision-slide'),
@@ -192,9 +202,38 @@ const pages = [
               ctaText: telegramLink?.textContent.replace(/\s+/g, ' ').trim() || '',
               safeTelegramLink: safeNewTab(telegramLink),
             };
+          } else if (kind === 'product') {
+            const heroImage = document.querySelector('.page-hero__bg img');
+            const galleryImages = Array.from(document.querySelectorAll('.product-mosaic img'));
+            result.product = {
+              expectedHero,
+              hero: rect(document.querySelector('.page-hero')),
+              heroImage: heroImage?.getAttribute('src') || '',
+              cards: rects('.page-card'),
+              visualCards: document.querySelectorAll('.page-card--visual').length,
+              gallery: rects('.product-mosaic figure'),
+              galleryImages: galleryImages.map(image => image.getAttribute('src')),
+            };
+          } else if (kind === 'protectapeel') {
+            const video = document.querySelector('.media-feature video');
+            result.protectapeel = {
+              hero: rect(document.querySelector('.page-hero')),
+              heroImage: document.querySelector('.page-hero__bg img')?.getAttribute('src') || '',
+              cards: rects('.page-card'),
+              visualCards: document.querySelectorAll('.page-card--visual').length,
+              mediaFeature: rect(document.querySelector('.media-feature')),
+              poster: video?.getAttribute('poster') || '',
+            };
+          } else if (kind === 'smart-window') {
+            result.smartWindow = {
+              heroVisual: rect(document.querySelector('.smart-window-visual')),
+              heroImage: document.querySelector('.smart-window-visual img')?.getAttribute('src') || '',
+              controlFigures: rects('.control-visual figure'),
+              controlImages: Array.from(document.querySelectorAll('.control-visual img'), image => image.getAttribute('src')),
+            };
           }
           return result;
-        }, { slug: item.slug, width });
+        }, { ...item, width });
 
         if (metrics.scrollWidth > metrics.clientWidth + 1 || metrics.bodyWidth > metrics.clientWidth + 1) {
           throw new Error(`${item.slug} ${width}px overflows horizontally: ${metrics.scrollWidth}/${metrics.clientWidth}`);
@@ -251,6 +290,13 @@ const pages = [
 
         if (metrics.aluminum) {
           const aluminum = metrics.aluminum;
+          const photographicRoles = [aluminum.pageHeroImage, aluminum.focusImage, aluminum.designImage];
+          if (photographicRoles.some(source => !source) || new Set(photographicRoles).size !== photographicRoles.length || aluminum.visualTaxonomyCards !== 0) {
+            throw new Error(`${width}px aluminum media roles are duplicated or taxonomy cards are not text-backed`);
+          }
+          if (aluminum.focusImage !== '../img/product-world/glass-facade.jpg' || aluminum.designImage !== '../img/product-world/glass-art.jpg') {
+            throw new Error(`${width}px aluminum focus/design photography changed`);
+          }
           if (!aluminum.designFeature || aluminum.designFeature.height < 300 || aluminum.ralumaItems.length !== 3) {
             throw new Error(`${width}px aluminum photographic composition is incomplete`);
           }
@@ -259,6 +305,71 @@ const pages = [
           }
           if (!aluminum.safeTeaserLink) {
             throw new Error(`${width}px aluminum presentation teaser is not a safe new-tab CTA`);
+          }
+        }
+
+        if (metrics.product) {
+          const product = metrics.product;
+          const media = [product.heroImage, ...product.galleryImages];
+          if (!product.hero || product.hero.height < 300 || product.heroImage !== product.expectedHero) {
+            throw new Error(`${item.slug} ${width}px photographic hero is missing or changed`);
+          }
+          if (product.cards.length !== 4 || product.cards.some(card => card.height < 200) || product.visualCards !== 0) {
+            throw new Error(`${item.slug} ${width}px scenario cards are missing, collapsed, or not text-backed`);
+          }
+          if (product.gallery.length !== 3 || product.gallery.some(item => item.height < 300) || product.galleryImages.length !== 3) {
+            throw new Error(`${item.slug} ${width}px unique gallery is missing or collapsed`);
+          }
+          if (media.some(source => !source) || new Set(media).size !== media.length) {
+            throw new Error(`${item.slug} ${width}px repeats a hero/gallery medium`);
+          }
+          if (width === 1440) {
+            if (new Set(product.cards.map(card => Math.round(card.x))).size !== 4 || new Set(product.gallery.map(item => Math.round(item.x))).size !== 3) {
+              throw new Error(`${item.slug} desktop cards or gallery do not render in columns`);
+            }
+          } else {
+            if (product.cards.some((card, index) => index > 0 && (Math.abs(card.x - product.cards[0].x) > 2 || card.y <= product.cards[index - 1].y))) {
+              throw new Error(`${item.slug} mobile cards are not a single-column stack`);
+            }
+            if (product.gallery.some((item, index) => index > 0 && (Math.abs(item.x - product.gallery[0].x) > 2 || item.y <= product.gallery[index - 1].y))) {
+              throw new Error(`${item.slug} mobile gallery is not a single-column stack`);
+            }
+          }
+        }
+
+        if (metrics.protectapeel) {
+          const product = metrics.protectapeel;
+          if (!product.hero || product.hero.height < 300 || product.heroImage !== '../img/products/protectapeel-site.jpg') {
+            throw new Error(`${width}px Protectapeel photographic hero is missing or changed`);
+          }
+          if (product.cards.length !== 4 || product.cards.some(card => card.height < 200) || product.visualCards !== 0) {
+            throw new Error(`${width}px Protectapeel cards are missing, collapsed, or not text-backed`);
+          }
+          if (!product.mediaFeature || product.mediaFeature.height < 300 || product.poster !== '../img/products/protectapeel-application.jpg') {
+            throw new Error(`${width}px Protectapeel video or its poster fallback is missing`);
+          }
+          if (width === 1440 && new Set(product.cards.map(card => Math.round(card.x))).size !== 4) {
+            throw new Error('Protectapeel desktop cards do not render in columns');
+          }
+          if (width === 390 && product.cards.some((card, index) => index > 0 && (Math.abs(card.x - product.cards[0].x) > 2 || card.y <= product.cards[index - 1].y))) {
+            throw new Error('Protectapeel mobile cards are not a single-column stack');
+          }
+        }
+
+        if (metrics.smartWindow) {
+          const smart = metrics.smartWindow;
+          const media = [smart.heroImage, ...smart.controlImages];
+          if (!smart.heroVisual || smart.heroVisual.height < 260 || smart.heroImage !== '../img/products/oknotika-window-hero.jpg') {
+            throw new Error(`${width}px smart-window hero uses the wrong product photo`);
+          }
+          if (smart.controlFigures.length !== 2 || smart.controlFigures.some(figure => figure.height < 200) || media.some(source => !source) || new Set(media).size !== media.length) {
+            throw new Error(`${width}px smart-window control media is missing, collapsed, or duplicated`);
+          }
+          if (width === 1440 && new Set(smart.controlFigures.map(figure => Math.round(figure.x))).size !== 2) {
+            throw new Error('smart-window desktop control media is not side by side');
+          }
+          if (width === 390 && (Math.abs(smart.controlFigures[0].x - smart.controlFigures[1].x) > 2 || smart.controlFigures[1].y <= smart.controlFigures[0].y)) {
+            throw new Error('smart-window mobile control media is not stacked');
           }
         }
 
@@ -358,7 +469,7 @@ def main() -> int:
         json.dumps(metadata, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
-    print("Site content render check passed: homepage, aluminum, and document revision at 1440 px and 390 px")
+    print("Site content render check passed: 9 public pages at 1440 px and 390 px")
     return 0
 
 

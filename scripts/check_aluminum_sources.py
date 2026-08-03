@@ -246,6 +246,7 @@ def validate_materials(
 
     expected_material_paths = {
         "licensed-facade-mood": "img/product-world/glass-facade.jpg",
+        "licensed-design-path-mood": "img/product-world/glass-art.jpg",
         "raluma-portal-interior": "img/aluminum/raluma-portal-interior.webp",
         "raluma-portal-video": "img/aluminum/raluma-portal-loop.mp4",
         "raluma-portal-poster": "img/aluminum/raluma-portal-poster.webp",
@@ -326,8 +327,8 @@ def validate_page(page: PageParser, homepage: PageParser) -> list[str]:
         errors.append("design path must contain one photographic feature")
     else:
         feature_images = design_features[0].descendants("img")
-        if len(feature_images) != 1 or feature_images[0].attrs.get("src") != "../img/product-world/glass-facade.jpg":
-            errors.append("design path does not use the licensed facade photograph")
+        if len(feature_images) != 1 or feature_images[0].attrs.get("src") != "../img/product-world/glass-art.jpg":
+            errors.append("design path does not use its distinct licensed architectural photograph")
 
     raluma = find_class(page.root, "raluma-feature")
     if len(raluma) != 1:
@@ -492,7 +493,7 @@ def main(argv: list[str] | None = None) -> int:
         for error in errors:
             print(f"- {error}", file=sys.stderr)
         return 1
-    print("Aluminum source check passed: 4 scenarios, 5 claim records, and 5 approved media records")
+    print("Aluminum source check passed: 4 scenarios, 5 claim records, and 6 approved media records")
     return 0
 
 

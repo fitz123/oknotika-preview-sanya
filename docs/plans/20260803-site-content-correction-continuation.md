@@ -115,14 +115,14 @@ Rendered QA at 1440 px and 390 px must cover homepage, aluminum, document-compar
 
 **Serves:** Sanya noticed the repeated facade and then asked to avoid duplicates across the site wherever practical.
 
-- [ ] On `aluminum/index.html`, keep each facade photo in one role only: use a unique licensed facade photo for the Schüco focus, a different existing photo for the design path, and convert duplicated taxonomy-card imagery to text-backed styling where necessary. Preserve safe Schüco provenance and all approved RALUMA media.
-- [ ] On `glass/index.html`, `pvc/index.html`, `carbon-glass/index.html`, `protectapeel/index.html` and `wood-stoller/index.html`, make scenario cards text-backed where needed and reserve each approved photograph for one hero/gallery role only.
-- [ ] On `oknotika-smart-window/index.html`, replace the repeated tight demo image with another existing unique Oknotika product photo or approved diagram already in the repository.
-- [ ] Keep real photographic heroes where possible; use an existing product SVG only when it is an approved product diagram and no truthful unique photo remains for that role.
-- [ ] Treat the Protectapeel video poster as part of that video, not a separate duplicate; do not show the same poster frame again as a standalone tile.
-- [ ] Add a deterministic checker that rejects visible same-page local-media repetition on the affected pages while excluding logo, `<picture>` alternatives and video-only poster fallback.
-- [ ] Update image/aluminum provenance only for changed published uses.
-- [ ] Validate all eight affected pages at desktop and mobile widths.
+- [x] On `aluminum/index.html`, keep each facade photo in one role only: use a unique licensed facade photo for the Schüco focus, a different existing photo for the design path, and convert duplicated taxonomy-card imagery to text-backed styling where necessary. Preserve safe Schüco provenance and all approved RALUMA media.
+- [x] On `glass/index.html`, `pvc/index.html`, `carbon-glass/index.html`, `protectapeel/index.html` and `wood-stoller/index.html`, make scenario cards text-backed where needed and reserve each approved photograph for one hero/gallery role only.
+- [x] On `oknotika-smart-window/index.html`, replace the repeated tight demo image with another existing unique Oknotika product photo or approved diagram already in the repository.
+- [x] Keep real photographic heroes where possible; use an existing product SVG only when it is an approved product diagram and no truthful unique photo remains for that role.
+- [x] Treat the Protectapeel video poster as part of that video, not a separate duplicate; do not show the same poster frame again as a standalone tile.
+- [x] Add a deterministic checker that rejects visible same-page local-media repetition on the affected pages while excluding logo, `<picture>` alternatives and video-only poster fallback.
+- [x] Update image/aluminum provenance only for changed published uses.
+- [x] Validate all eight affected pages at desktop and mobile widths.
 
 ### Task 4: Refresh guardrails, review evidence and existing PR
 

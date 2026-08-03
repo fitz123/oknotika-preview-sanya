@@ -17,14 +17,17 @@
 ## Материалы проектов и продуктов
 
 - `img/products/carbon-*.jpg` — полученные материалы Carbon Glass; для сайта использованы согласованные изображения реального прототипа, без ранее отклонённого потенциально AI-изображения.
-- `img/products/stoller-*.jpg` — полученные материалы Stoller, согласованные для сайта/prototype.
+- `img/products/stoller-*.jpg` и `img/products/stoller.svg` — полученные материалы Stoller и существующая продуктовая схема, согласованные для сайта/prototype.
 - `img/products/protectapeel-*` — полученные фото и видео нанесения/снятия Protectapeel, согласованные для сайта.
+- `img/products/mkd-sergey.jpg` — переданная объектная фотография окон многоквартирного дома; на странице ПВХ используется как фотографический hero.
+- `img/products/oknotika-window-{hero,demo-tight}.jpg` и `img/products/oknotika-control-panel.jpg` — переданные фотографии демонстрационного окна и панели управления ОКНОТИКИ; на странице продукта каждому файлу отведена отдельная визуальная роль.
 - `img/team/*-2026-07.{jpg,webp}` — сохранённые derivatives из ранее утверждённой командной съёмки; контрольные SHA-256 записаны в `release-evidence/team-release-evidence.json`.
 - `img/team/{alexey-makarov,andrey-svirida,oksana-skopina,ekaterina-rychkova}-2026-08.{jpg,webp}` — 4:5 derivatives из четырёх реальных портретов, переданных Саней для этой review-only ревизии. Применены только crop, равномерный resize и сжатие без синтеза или изменения лиц. Raw/final SHA-256, crop и границы согласования записаны в `release-evidence/team-release-evidence.json`; raw-файлы и приватные документы не входят в Git или ZIP.
 
 ## Фасадный mood-визуал и материалы RALUMA
 
-- `img/product-world/glass-facade.jpg` — Pexels photo 33959681 используется на главной и странице алюминия только как атмосферная архитектурная фотография. Показанный объект не обозначается как объект или продукция Schüco.
+- `img/product-world/glass-facade.jpg` — Pexels photo 33959681 используется на главной и в фасадном фокусе страницы алюминия только как атмосферная архитектурная фотография. Показанный объект не обозначается как объект или продукция Schüco.
+- `img/product-world/glass-art.jpg` — Pexels photo 35173072 используется в пути проектирования на странице алюминия как отдельный атмосферный архитектурный интерьер. Показанный объект не обозначается как объект или продукция Schüco.
 - `img/aluminum/raluma-portal-interior.webp` — web-derivative первой фотографии RALUMA, переданной Саней и одобренной для этой review-only ревизии.
 - `img/aluminum/raluma-portal-loop.mp4` — переданное и одобренное видео RALUMA; web-версия без аудиодорожки, 480×848, H.264, fast-start.
 - `img/aluminum/raluma-portal-poster.webp` — poster/fallback, полученный из одобренного видео RALUMA.
