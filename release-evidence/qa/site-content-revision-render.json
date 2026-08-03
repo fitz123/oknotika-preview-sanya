@@ -9,7 +9,7 @@
       "metrics": {
         "clientWidth": 1440,
         "scrollWidth": 1440,
-        "scrollHeight": 9594,
+        "scrollHeight": 9566,
         "bodyWidth": 1440,
         "homepage": {
           "glassImage": {
@@ -17,65 +17,76 @@
             "naturalWidth": 1012,
             "naturalHeight": 1800
           },
+          "heroImage": {
+            "src": "img/cases/atrium.jpg",
+            "naturalWidth": 1400,
+            "naturalHeight": 930
+          },
           "casesPartner": {
             "x": 100,
-            "y": 4025.3125,
+            "y": 3622.53125,
             "width": 1240,
             "height": 232.875
           },
-          "casesPartnerText": "Монтажный контур Постоянная команда на объектах Команда компании «Рубикон» под руководством Сергея Константиновича Лункаша — постоянный монтажный партнёр ОКНОТИКИ на коммерческих, социальных и частных объектах. ОКНОТИКА остаётся единым центром ответственности по своему маршруту реализации; самостоятельные объекты «Рубикона» не приписываются ОКНОТИКЕ.",
+          "caseGrid": {
+            "x": 100,
+            "y": 3877.40625,
+            "width": 1240,
+            "height": 352.890625
+          },
+          "casesPartnerText": "Постоянный монтажный партнёр Партнёр, которого особенно ценим Команда компании «Рубикон» под руководством Сергея Константиновича Лункаша — постоянный монтажный партнёр ОКНОТИКИ на коммерческих, социальных и частных объектах. ОКНОТИКА особенно ценит эту команду и доверяет ей благодаря её опыту, надёжности и качеству совместной работы.",
           "teamCards": [
             {
               "x": 100,
-              "y": 4787.515625,
+              "y": 4759.625,
               "width": 402.65625,
               "height": 673.859375
             },
             {
               "x": 518.65625,
-              "y": 4787.515625,
+              "y": 4759.625,
               "width": 402.671875,
               "height": 673.859375
             },
             {
               "x": 937.328125,
-              "y": 4787.515625,
+              "y": 4759.625,
               "width": 402.65625,
               "height": 673.859375
             },
             {
               "x": 100,
-              "y": 5477.375,
+              "y": 5449.484375,
               "width": 402.65625,
               "height": 633.734375
             },
             {
               "x": 518.65625,
-              "y": 5477.375,
+              "y": 5449.484375,
               "width": 402.671875,
               "height": 633.734375
             },
             {
               "x": 937.328125,
-              "y": 5477.375,
+              "y": 5449.484375,
               "width": 402.65625,
               "height": 633.734375
             },
             {
               "x": 100,
-              "y": 6127.109375,
+              "y": 6099.21875,
               "width": 402.65625,
               "height": 633.734375
             },
             {
               "x": 518.65625,
-              "y": 6127.109375,
+              "y": 6099.21875,
               "width": 402.671875,
               "height": 633.734375
             },
             {
               "x": 937.328125,
-              "y": 6127.109375,
+              "y": 6099.21875,
               "width": 402.65625,
               "height": 633.734375
             }
@@ -83,55 +94,55 @@
           "teamPortraits": [
             {
               "x": 101,
-              "y": 4788.515625,
+              "y": 4760.625,
               "width": 400.65625,
               "height": 500.8125
             },
             {
               "x": 519.65625,
-              "y": 4788.515625,
+              "y": 4760.625,
               "width": 400.671875,
               "height": 500.828125
             },
             {
               "x": 938.328125,
-              "y": 4788.515625,
+              "y": 4760.625,
               "width": 400.65625,
               "height": 500.8125
             },
             {
               "x": 101,
-              "y": 5478.375,
+              "y": 5450.484375,
               "width": 400.65625,
               "height": 500.8125
             },
             {
               "x": 519.65625,
-              "y": 5478.375,
+              "y": 5450.484375,
               "width": 400.671875,
               "height": 500.828125
             },
             {
               "x": 938.328125,
-              "y": 5478.375,
+              "y": 5450.484375,
               "width": 400.65625,
               "height": 500.8125
             },
             {
               "x": 101,
-              "y": 6128.109375,
+              "y": 6100.21875,
               "width": 400.65625,
               "height": 500.8125
             },
             {
               "x": 519.65625,
-              "y": 6128.109375,
+              "y": 6100.21875,
               "width": 400.671875,
               "height": 500.828125
             },
             {
               "x": 938.328125,
-              "y": 6128.109375,
+              "y": 6100.21875,
               "width": 400.65625,
               "height": 500.8125
             }
@@ -139,13 +150,13 @@
           "embeds": [
             {
               "x": 100,
-              "y": 7885.21875,
+              "y": 7857.328125,
               "width": 659.875,
               "height": 688
             },
             {
               "x": 777.875,
-              "y": 7885.21875,
+              "y": 7857.328125,
               "width": 562.125,
               "height": 688
             }
@@ -153,13 +164,13 @@
           "iframes": [
             {
               "x": 101,
-              "y": 8012.21875,
+              "y": 7984.328125,
               "width": 657.875,
               "height": 560
             },
             {
               "x": 778.875,
-              "y": 8012.21875,
+              "y": 7984.328125,
               "width": 560.125,
               "height": 560
             }
@@ -184,7 +195,7 @@
       "metrics": {
         "clientWidth": 390,
         "scrollWidth": 390,
-        "scrollHeight": 17827,
+        "scrollHeight": 17775,
         "bodyWidth": 390,
         "homepage": {
           "glassImage": {
@@ -192,65 +203,76 @@
             "naturalWidth": 1012,
             "naturalHeight": 1800
           },
+          "heroImage": {
+            "src": "img/cases/atrium.jpg",
+            "naturalWidth": 1400,
+            "naturalHeight": 930
+          },
           "casesPartner": {
             "x": 14,
-            "y": 7239.296875,
+            "y": 5788.640625,
             "width": 362,
-            "height": 439.34375
+            "height": 414.546875
           },
-          "casesPartnerText": "Монтажный контур Постоянная команда на объектах Команда компании «Рубикон» под руководством Сергея Константиновича Лункаша — постоянный монтажный партнёр ОКНОТИКИ на коммерческих, социальных и частных объектах. ОКНОТИКА остаётся единым центром ответственности по своему маршруту реализации; самостоятельные объекты «Рубикона» не приписываются ОКНОТИКЕ.",
+          "caseGrid": {
+            "x": 14,
+            "y": 6225.1875,
+            "width": 362,
+            "height": 1400.765625
+          },
+          "casesPartnerText": "Постоянный монтажный партнёр Партнёр, которого особенно ценим Команда компании «Рубикон» под руководством Сергея Константиновича Лункаша — постоянный монтажный партнёр ОКНОТИКИ на коммерческих, социальных и частных объектах. ОКНОТИКА особенно ценит эту команду и доверяет ей благодаря её опыту, надёжности и качеству совместной работы.",
           "teamCards": [
             {
               "x": 14,
-              "y": 8141.5625,
+              "y": 8088.875,
               "width": 362,
               "height": 666.421875
             },
             {
               "x": 14,
-              "y": 8823.984375,
+              "y": 8771.296875,
               "width": 362,
               "height": 604.59375
             },
             {
               "x": 14,
-              "y": 9444.578125,
+              "y": 9391.890625,
               "width": 362,
               "height": 582.90625
             },
             {
               "x": 14,
-              "y": 10043.484375,
+              "y": 9990.796875,
               "width": 362,
               "height": 604.59375
             },
             {
               "x": 14,
-              "y": 10664.078125,
+              "y": 10611.390625,
               "width": 362,
               "height": 582.90625
             },
             {
               "x": 14,
-              "y": 11262.984375,
+              "y": 11210.296875,
               "width": 362,
               "height": 582.90625
             },
             {
               "x": 14,
-              "y": 11861.890625,
+              "y": 11809.203125,
               "width": 362,
               "height": 582.90625
             },
             {
               "x": 14,
-              "y": 12460.796875,
+              "y": 12408.109375,
               "width": 362,
               "height": 604.59375
             },
             {
               "x": 14,
-              "y": 13081.390625,
+              "y": 13028.703125,
               "width": 362,
               "height": 582.90625
             }
@@ -258,55 +280,55 @@
           "teamPortraits": [
             {
               "x": 15,
-              "y": 8142.5625,
+              "y": 8089.875,
               "width": 360,
               "height": 450
             },
             {
               "x": 15,
-              "y": 8824.984375,
+              "y": 8772.296875,
               "width": 360,
               "height": 450
             },
             {
               "x": 15,
-              "y": 9445.578125,
+              "y": 9392.890625,
               "width": 360,
               "height": 450
             },
             {
               "x": 15,
-              "y": 10044.484375,
+              "y": 9991.796875,
               "width": 360,
               "height": 450
             },
             {
               "x": 15,
-              "y": 10665.078125,
+              "y": 10612.390625,
               "width": 360,
               "height": 450
             },
             {
               "x": 15,
-              "y": 11263.984375,
+              "y": 11211.296875,
               "width": 360,
               "height": 450
             },
             {
               "x": 15,
-              "y": 11862.890625,
+              "y": 11810.203125,
               "width": 360,
               "height": 450
             },
             {
               "x": 15,
-              "y": 12461.796875,
+              "y": 12409.109375,
               "width": 360,
               "height": 450
             },
             {
               "x": 15,
-              "y": 13082.390625,
+              "y": 13029.703125,
               "width": 360,
               "height": 450
             }
@@ -314,13 +336,13 @@
           "embeds": [
             {
               "x": 14,
-              "y": 15244.28125,
+              "y": 15191.59375,
               "width": 362,
               "height": 591.1875
             },
             {
               "x": 14,
-              "y": 15853.46875,
+              "y": 15800.78125,
               "width": 362,
               "height": 591.1875
             }
@@ -328,13 +350,13 @@
           "iframes": [
             {
               "x": 15,
-              "y": 15354.46875,
+              "y": 15301.78125,
               "width": 360,
               "height": 480
             },
             {
               "x": 15,
-              "y": 15963.65625,
+              "y": 15910.96875,
               "width": 360,
               "height": 480
             }
@@ -362,6 +384,10 @@
         "scrollHeight": 9142,
         "bodyWidth": 1440,
         "aluminum": {
+          "pageHeroImage": "../img/aluminum-world/facades.jpg",
+          "focusImage": "../img/product-world/glass-facade.jpg",
+          "designImage": "../img/product-world/glass-art.jpg",
+          "visualTaxonomyCards": 0,
           "designFeature": {
             "x": 100,
             "y": 5166.484375,
@@ -406,9 +432,13 @@
       "metrics": {
         "clientWidth": 390,
         "scrollWidth": 390,
-        "scrollHeight": 13580,
+        "scrollHeight": 13640,
         "bodyWidth": 390,
         "aluminum": {
+          "pageHeroImage": "../img/aluminum-world/facades.jpg",
+          "focusImage": "../img/product-world/glass-facade.jpg",
+          "designImage": "../img/product-world/glass-art.jpg",
+          "visualTaxonomyCards": 0,
           "designFeature": {
             "x": 14,
             "y": 7364.203125,
@@ -453,7 +483,7 @@
       "metrics": {
         "clientWidth": 1440,
         "scrollWidth": 1440,
-        "scrollHeight": 7160,
+        "scrollHeight": 8257,
         "bodyWidth": 1440,
         "presentation": {
           "slides": [
@@ -473,33 +503,78 @@
               "x": 0,
               "y": 2000,
               "width": 1440,
-              "height": 1000
+              "height": 1011.96875
             },
             {
               "x": 0,
-              "y": 3000,
+              "y": 3011.96875,
               "width": 1440,
               "height": 1000
             },
             {
               "x": 0,
-              "y": 4000,
+              "y": 4011.96875,
               "width": 1440,
               "height": 1000
             },
             {
               "x": 0,
-              "y": 5000,
+              "y": 5011.96875,
               "width": 1440,
               "height": 1000
             },
             {
               "x": 0,
-              "y": 6000,
+              "y": 6011.96875,
+              "width": 1440,
+              "height": 1085.4375
+            },
+            {
+              "x": 0,
+              "y": 7097.40625,
               "width": 1440,
               "height": 1000
             }
           ],
+          "tariffTable": {
+            "x": 718.625,
+            "y": 6234.96875,
+            "width": 588.375,
+            "height": 434.0625
+          },
+          "tariffRows": [
+            {
+              "x": 718.625,
+              "y": 6338.15625,
+              "width": 588.375,
+              "height": 82.59375
+            },
+            {
+              "x": 718.625,
+              "y": 6420.75,
+              "width": 588.375,
+              "height": 82.59375
+            },
+            {
+              "x": 718.625,
+              "y": 6503.34375,
+              "width": 588.375,
+              "height": 82.59375
+            },
+            {
+              "x": 718.625,
+              "y": 6585.9375,
+              "width": 588.375,
+              "height": 82.59375
+            }
+          ],
+          "refund": {
+            "x": 718.625,
+            "y": 6812.21875,
+            "width": 588.375,
+            "height": 139.1875
+          },
+          "ctaText": "Передать материалы на первичный просмотр ↗",
           "safeTelegramLink": true
         }
       }
@@ -511,7 +586,7 @@
       "metrics": {
         "clientWidth": 390,
         "scrollWidth": 390,
-        "scrollHeight": 7489,
+        "scrollHeight": 10088,
         "bodyWidth": 390,
         "presentation": {
           "slides": [
@@ -519,46 +594,859 @@
               "x": 0,
               "y": 0,
               "width": 390,
-              "height": 1356.9375
+              "height": 1402.625
             },
             {
               "x": 0,
-              "y": 1356.9375,
+              "y": 1402.625,
               "width": 390,
-              "height": 1155.0625
+              "height": 1050.3125
             },
             {
               "x": 0,
-              "y": 2512,
+              "y": 2452.9375,
               "width": 390,
-              "height": 1244.125
+              "height": 1578.4375
             },
             {
               "x": 0,
-              "y": 3756.125,
+              "y": 4031.375,
               "width": 390,
               "height": 1027.890625
             },
             {
               "x": 0,
-              "y": 4784.015625,
+              "y": 5059.265625,
               "width": 390,
-              "height": 924.75
+              "height": 1179.859375
             },
             {
               "x": 0,
-              "y": 5708.765625,
+              "y": 6239.125,
               "width": 390,
-              "height": 918.640625
+              "height": 1009.78125
             },
             {
               "x": 0,
-              "y": 6627.40625,
+              "y": 7248.90625,
+              "width": 390,
+              "height": 1977.828125
+            },
+            {
+              "x": 0,
+              "y": 9226.734375,
               "width": 390,
               "height": 640.25
             }
           ],
+          "tariffTable": {
+            "x": 39,
+            "y": 7760.0625,
+            "width": 312,
+            "height": 883.921875
+          },
+          "tariffRows": [
+            {
+              "x": 39,
+              "y": 7846.25,
+              "width": 312,
+              "height": 182.734375
+            },
+            {
+              "x": 39,
+              "y": 8042.984375,
+              "width": 312,
+              "height": 182.734375
+            },
+            {
+              "x": 39,
+              "y": 8239.71875,
+              "width": 312,
+              "height": 182.734375
+            },
+            {
+              "x": 39,
+              "y": 8436.453125,
+              "width": 312,
+              "height": 207.53125
+            }
+          ],
+          "refund": {
+            "x": 39,
+            "y": 8886.359375,
+            "width": 312,
+            "height": 238.375
+          },
+          "ctaText": "Передать материалы на первичный просмотр ↗",
           "safeTelegramLink": true
+        }
+      }
+    },
+    {
+      "page": "glass",
+      "width": 1440,
+      "filename": "site-content-glass-desktop-1440.jpg",
+      "metrics": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "scrollHeight": 2444,
+        "bodyWidth": 1440,
+        "product": {
+          "expectedHero": "../img/product-world/glass-facade.jpg",
+          "hero": {
+            "x": 0,
+            "y": 0,
+            "width": 1440,
+            "height": 720
+          },
+          "heroImage": "../img/product-world/glass-facade.jpg",
+          "cards": [
+            {
+              "x": 100,
+              "y": 832,
+              "width": 296.5,
+              "height": 310
+            },
+            {
+              "x": 414.5,
+              "y": 832,
+              "width": 296.5,
+              "height": 310
+            },
+            {
+              "x": 729,
+              "y": 832,
+              "width": 296.5,
+              "height": 310
+            },
+            {
+              "x": 1043.5,
+              "y": 832,
+              "width": 296.5,
+              "height": 310
+            }
+          ],
+          "visualCards": 0,
+          "gallery": [
+            {
+              "x": 100,
+              "y": 1274,
+              "width": 485.8125,
+              "height": 862.53125
+            },
+            {
+              "x": 603.8125,
+              "y": 1274,
+              "width": 359.09375,
+              "height": 862.53125
+            },
+            {
+              "x": 980.90625,
+              "y": 1274,
+              "width": 359.09375,
+              "height": 862.53125
+            }
+          ],
+          "galleryImages": [
+            "../img/product-world/glass-art.jpg",
+            "../img/product-world/glass-thermo.jpg",
+            "../img/product-world/glass-smart.jpg"
+          ]
+        }
+      }
+    },
+    {
+      "page": "glass",
+      "width": 390,
+      "filename": "site-content-glass-mobile-390.jpg",
+      "metrics": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "scrollHeight": 3985,
+        "bodyWidth": 390,
+        "product": {
+          "expectedHero": "../img/product-world/glass-facade.jpg",
+          "hero": {
+            "x": 0,
+            "y": 0,
+            "width": 390,
+            "height": 676.796875
+          },
+          "heroImage": "../img/product-world/glass-facade.jpg",
+          "cards": [
+            {
+              "x": 14,
+              "y": 754.796875,
+              "width": 362,
+              "height": 310
+            },
+            {
+              "x": 14,
+              "y": 1082.796875,
+              "width": 362,
+              "height": 310
+            },
+            {
+              "x": 14,
+              "y": 1410.796875,
+              "width": 362,
+              "height": 310
+            },
+            {
+              "x": 14,
+              "y": 1738.796875,
+              "width": 362,
+              "height": 310
+            }
+          ],
+          "visualCards": 0,
+          "gallery": [
+            {
+              "x": 14,
+              "y": 2146.796875,
+              "width": 362,
+              "height": 642.3125
+            },
+            {
+              "x": 14,
+              "y": 2807.109375,
+              "width": 362,
+              "height": 402
+            },
+            {
+              "x": 14,
+              "y": 3227.109375,
+              "width": 362,
+              "height": 402
+            }
+          ],
+          "galleryImages": [
+            "../img/product-world/glass-art.jpg",
+            "../img/product-world/glass-thermo.jpg",
+            "../img/product-world/glass-smart.jpg"
+          ]
+        }
+      }
+    },
+    {
+      "page": "pvc",
+      "width": 1440,
+      "filename": "site-content-pvc-desktop-1440.jpg",
+      "metrics": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "scrollHeight": 2201,
+        "bodyWidth": 1440,
+        "product": {
+          "expectedHero": "../img/products/mkd-sergey.jpg",
+          "hero": {
+            "x": 0,
+            "y": 0,
+            "width": 1440,
+            "height": 720
+          },
+          "heroImage": "../img/products/mkd-sergey.jpg",
+          "cards": [
+            {
+              "x": 100,
+              "y": 832,
+              "width": 296.5,
+              "height": 310
+            },
+            {
+              "x": 414.5,
+              "y": 832,
+              "width": 296.5,
+              "height": 310
+            },
+            {
+              "x": 729,
+              "y": 832,
+              "width": 296.5,
+              "height": 310
+            },
+            {
+              "x": 1043.5,
+              "y": 832,
+              "width": 296.5,
+              "height": 310
+            }
+          ],
+          "visualCards": 0,
+          "gallery": [
+            {
+              "x": 100,
+              "y": 1274,
+              "width": 485.8125,
+              "height": 618.859375
+            },
+            {
+              "x": 603.8125,
+              "y": 1274,
+              "width": 359.09375,
+              "height": 618.859375
+            },
+            {
+              "x": 980.90625,
+              "y": 1274,
+              "width": 359.09375,
+              "height": 618.859375
+            }
+          ],
+          "galleryImages": [
+            "../img/product-world/pvc-apartment.jpg",
+            "../img/product-world/pvc-windows.jpg",
+            "../img/product-world/pvc-house.jpg"
+          ]
+        }
+      }
+    },
+    {
+      "page": "pvc",
+      "width": 390,
+      "filename": "site-content-pvc-mobile-390.jpg",
+      "metrics": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "scrollHeight": 3924,
+        "bodyWidth": 390,
+        "product": {
+          "expectedHero": "../img/products/mkd-sergey.jpg",
+          "hero": {
+            "x": 0,
+            "y": 0,
+            "width": 390,
+            "height": 633.96875
+          },
+          "heroImage": "../img/products/mkd-sergey.jpg",
+          "cards": [
+            {
+              "x": 14,
+              "y": 711.96875,
+              "width": 362,
+              "height": 310
+            },
+            {
+              "x": 14,
+              "y": 1039.96875,
+              "width": 362,
+              "height": 310
+            },
+            {
+              "x": 14,
+              "y": 1367.96875,
+              "width": 362,
+              "height": 310
+            },
+            {
+              "x": 14,
+              "y": 1695.96875,
+              "width": 362,
+              "height": 310
+            }
+          ],
+          "visualCards": 0,
+          "gallery": [
+            {
+              "x": 14,
+              "y": 2103.96875,
+              "width": 362,
+              "height": 402
+            },
+            {
+              "x": 14,
+              "y": 2523.96875,
+              "width": 362,
+              "height": 623.875
+            },
+            {
+              "x": 14,
+              "y": 3165.84375,
+              "width": 362,
+              "height": 402
+            }
+          ],
+          "galleryImages": [
+            "../img/product-world/pvc-apartment.jpg",
+            "../img/product-world/pvc-windows.jpg",
+            "../img/product-world/pvc-house.jpg"
+          ]
+        }
+      }
+    },
+    {
+      "page": "carbon-glass",
+      "width": 1440,
+      "filename": "site-content-carbon-glass-desktop-1440.jpg",
+      "metrics": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "scrollHeight": 2274,
+        "bodyWidth": 1440,
+        "product": {
+          "expectedHero": "../img/products/carbon-glass-real.jpg",
+          "hero": {
+            "x": 0,
+            "y": 0,
+            "width": 1440,
+            "height": 720
+          },
+          "heroImage": "../img/products/carbon-glass-real.jpg",
+          "cards": [
+            {
+              "x": 100,
+              "y": 832,
+              "width": 296.5,
+              "height": 310
+            },
+            {
+              "x": 414.5,
+              "y": 832,
+              "width": 296.5,
+              "height": 310
+            },
+            {
+              "x": 729,
+              "y": 832,
+              "width": 296.5,
+              "height": 310
+            },
+            {
+              "x": 1043.5,
+              "y": 832,
+              "width": 296.5,
+              "height": 310
+            }
+          ],
+          "visualCards": 0,
+          "gallery": [
+            {
+              "x": 100,
+              "y": 1274,
+              "width": 485.8125,
+              "height": 727.71875
+            },
+            {
+              "x": 603.8125,
+              "y": 1274,
+              "width": 359.09375,
+              "height": 727.71875
+            },
+            {
+              "x": 980.90625,
+              "y": 1274,
+              "width": 359.09375,
+              "height": 727.71875
+            }
+          ],
+          "galleryImages": [
+            "../img/products/carbon-bath.jpg",
+            "../img/products/carbon-main.jpg",
+            "../img/products/carbon-interior.jpg"
+          ]
+        }
+      }
+    },
+    {
+      "page": "carbon-glass",
+      "width": 390,
+      "filename": "site-content-carbon-glass-mobile-390.jpg",
+      "metrics": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "scrollHeight": 3845,
+        "bodyWidth": 390,
+        "product": {
+          "expectedHero": "../img/products/carbon-glass-real.jpg",
+          "hero": {
+            "x": 0,
+            "y": 0,
+            "width": 390,
+            "height": 693.28125
+          },
+          "heroImage": "../img/products/carbon-glass-real.jpg",
+          "cards": [
+            {
+              "x": 14,
+              "y": 771.28125,
+              "width": 362,
+              "height": 310
+            },
+            {
+              "x": 14,
+              "y": 1099.28125,
+              "width": 362,
+              "height": 310
+            },
+            {
+              "x": 14,
+              "y": 1427.28125,
+              "width": 362,
+              "height": 310
+            },
+            {
+              "x": 14,
+              "y": 1755.28125,
+              "width": 362,
+              "height": 310
+            }
+          ],
+          "visualCards": 0,
+          "gallery": [
+            {
+              "x": 14,
+              "y": 2163.28125,
+              "width": 362,
+              "height": 542
+            },
+            {
+              "x": 14,
+              "y": 2723.28125,
+              "width": 362,
+              "height": 402
+            },
+            {
+              "x": 14,
+              "y": 3143.28125,
+              "width": 362,
+              "height": 402
+            }
+          ],
+          "galleryImages": [
+            "../img/products/carbon-bath.jpg",
+            "../img/products/carbon-main.jpg",
+            "../img/products/carbon-interior.jpg"
+          ]
+        }
+      }
+    },
+    {
+      "page": "smart-window",
+      "width": 1440,
+      "filename": "site-content-smart-window-desktop-1440.jpg",
+      "metrics": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "scrollHeight": 7808,
+        "bodyWidth": 1440,
+        "smartWindow": {
+          "heroVisual": {
+            "x": 808.34375,
+            "y": 346.46875,
+            "width": 531.65625,
+            "height": 520
+          },
+          "heroImage": "../img/products/oknotika-window-hero.jpg",
+          "controlFigures": [
+            {
+              "x": 100,
+              "y": 3624.5625,
+              "width": 702.640625,
+              "height": 405.375
+            },
+            {
+              "x": 820.640625,
+              "y": 3624.5625,
+              "width": 519.359375,
+              "height": 405.375
+            }
+          ],
+          "controlImages": [
+            "../img/products/oknotika-window-demo-tight.jpg",
+            "../img/products/oknotika-control-panel.jpg"
+          ]
+        }
+      }
+    },
+    {
+      "page": "smart-window",
+      "width": 390,
+      "filename": "site-content-smart-window-mobile-390.jpg",
+      "metrics": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "scrollHeight": 13603,
+        "bodyWidth": 390,
+        "smartWindow": {
+          "heroVisual": {
+            "x": 14,
+            "y": 1019.3125,
+            "width": 362,
+            "height": 437.78125
+          },
+          "heroImage": "../img/products/oknotika-window-hero.jpg",
+          "controlFigures": [
+            {
+              "x": 14,
+              "y": 6010.09375,
+              "width": 362,
+              "height": 305.375
+            },
+            {
+              "x": 14,
+              "y": 6333.46875,
+              "width": 362,
+              "height": 305.375
+            }
+          ],
+          "controlImages": [
+            "../img/products/oknotika-window-demo-tight.jpg",
+            "../img/products/oknotika-control-panel.jpg"
+          ]
+        }
+      }
+    },
+    {
+      "page": "protectapeel",
+      "width": 1440,
+      "filename": "site-content-protectapeel-desktop-1440.jpg",
+      "metrics": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "scrollHeight": 2068,
+        "bodyWidth": 1440,
+        "protectapeel": {
+          "hero": {
+            "x": 0,
+            "y": 0,
+            "width": 1440,
+            "height": 720
+          },
+          "heroImage": "../img/products/protectapeel-site.jpg",
+          "cards": [
+            {
+              "x": 100,
+              "y": 832,
+              "width": 296.5,
+              "height": 310
+            },
+            {
+              "x": 414.5,
+              "y": 832,
+              "width": 296.5,
+              "height": 310
+            },
+            {
+              "x": 729,
+              "y": 832,
+              "width": 296.5,
+              "height": 310
+            },
+            {
+              "x": 1043.5,
+              "y": 832,
+              "width": 296.5,
+              "height": 310
+            }
+          ],
+          "visualCards": 0,
+          "mediaFeature": {
+            "x": 100,
+            "y": 1274,
+            "width": 1240,
+            "height": 522
+          },
+          "poster": "../img/products/protectapeel-application.jpg"
+        }
+      }
+    },
+    {
+      "page": "protectapeel",
+      "width": 390,
+      "filename": "site-content-protectapeel-mobile-390.jpg",
+      "metrics": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "scrollHeight": 3177,
+        "bodyWidth": 390,
+        "protectapeel": {
+          "hero": {
+            "x": 0,
+            "y": 0,
+            "width": 390,
+            "height": 676.796875
+          },
+          "heroImage": "../img/products/protectapeel-site.jpg",
+          "cards": [
+            {
+              "x": 14,
+              "y": 754.796875,
+              "width": 362,
+              "height": 310
+            },
+            {
+              "x": 14,
+              "y": 1082.796875,
+              "width": 362,
+              "height": 310
+            },
+            {
+              "x": 14,
+              "y": 1410.796875,
+              "width": 362,
+              "height": 310
+            },
+            {
+              "x": 14,
+              "y": 1738.796875,
+              "width": 362,
+              "height": 310
+            }
+          ],
+          "visualCards": 0,
+          "mediaFeature": {
+            "x": 14,
+            "y": 2146.796875,
+            "width": 362,
+            "height": 730.828125
+          },
+          "poster": "../img/products/protectapeel-application.jpg"
+        }
+      }
+    },
+    {
+      "page": "wood-stoller",
+      "width": 1440,
+      "filename": "site-content-wood-stoller-desktop-1440.jpg",
+      "metrics": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "scrollHeight": 2183,
+        "bodyWidth": 1440,
+        "product": {
+          "expectedHero": "../img/products/stoller-house.jpg",
+          "hero": {
+            "x": 0,
+            "y": 0,
+            "width": 1440,
+            "height": 720
+          },
+          "heroImage": "../img/products/stoller-house.jpg",
+          "cards": [
+            {
+              "x": 100,
+              "y": 832,
+              "width": 296.5,
+              "height": 310
+            },
+            {
+              "x": 414.5,
+              "y": 832,
+              "width": 296.5,
+              "height": 310
+            },
+            {
+              "x": 729,
+              "y": 832,
+              "width": 296.5,
+              "height": 310
+            },
+            {
+              "x": 1043.5,
+              "y": 832,
+              "width": 296.5,
+              "height": 310
+            }
+          ],
+          "visualCards": 0,
+          "gallery": [
+            {
+              "x": 100,
+              "y": 1274,
+              "width": 485.8125,
+              "height": 637.140625
+            },
+            {
+              "x": 603.8125,
+              "y": 1274,
+              "width": 359.09375,
+              "height": 637.140625
+            },
+            {
+              "x": 980.90625,
+              "y": 1274,
+              "width": 359.09375,
+              "height": 637.140625
+            }
+          ],
+          "galleryImages": [
+            "../img/products/stoller.svg",
+            "../img/products/stoller-distant-for-slide2.jpg",
+            "../img/products/stoller-facade-green.jpg"
+          ]
+        }
+      }
+    },
+    {
+      "page": "wood-stoller",
+      "width": 390,
+      "filename": "site-content-wood-stoller-mobile-390.jpg",
+      "metrics": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "scrollHeight": 3886,
+        "bodyWidth": 390,
+        "product": {
+          "expectedHero": "../img/products/stoller-house.jpg",
+          "hero": {
+            "x": 0,
+            "y": 0,
+            "width": 390,
+            "height": 633.96875
+          },
+          "heroImage": "../img/products/stoller-house.jpg",
+          "cards": [
+            {
+              "x": 14,
+              "y": 711.96875,
+              "width": 362,
+              "height": 310
+            },
+            {
+              "x": 14,
+              "y": 1039.96875,
+              "width": 362,
+              "height": 310
+            },
+            {
+              "x": 14,
+              "y": 1367.96875,
+              "width": 362,
+              "height": 310
+            },
+            {
+              "x": 14,
+              "y": 1695.96875,
+              "width": 362,
+              "height": 310
+            }
+          ],
+          "visualCards": 0,
+          "gallery": [
+            {
+              "x": 14,
+              "y": 2103.96875,
+              "width": 362,
+              "height": 402
+            },
+            {
+              "x": 14,
+              "y": 2523.96875,
+              "width": 362,
+              "height": 402
+            },
+            {
+              "x": 14,
+              "y": 2943.96875,
+              "width": 362,
+              "height": 642.3125
+            }
+          ],
+          "galleryImages": [
+            "../img/products/stoller.svg",
+            "../img/products/stoller-distant-for-slide2.jpg",
+            "../img/products/stoller-facade-green.jpg"
+          ]
         }
       }
     }

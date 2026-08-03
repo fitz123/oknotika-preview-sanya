@@ -97,6 +97,8 @@ const pages = [
         await page.addStyleTag({ content: `
           *, *::before, *::after { animation: none !important; transition: none !important; }
           .reveal { opacity: 1 !important; transform: none !important; }
+          /* Keep full-page evidence anchored instead of pinning the header at the last scroll position. */
+          .site-header { position: absolute !important; }
         ` });
         await page.evaluate(async () => {
           document.querySelectorAll('img').forEach(image => { image.loading = 'eager'; });
@@ -392,6 +394,13 @@ const pages = [
         }
 
         const filename = `site-content-${item.slug}-${width === 1440 ? 'desktop-1440' : 'mobile-390'}.jpg`;
+        if (item.slug === 'aluminum' && width === 1440) {
+          // Chromium may evict this offscreen raster on the tallest desktop page.
+          const focusImage = page.locator('.schueco-hero__visual img');
+          await focusImage.screenshot({ type: 'jpeg', quality: 80, timeout: 30000 });
+          await page.evaluate(() => window.scrollTo(0, 0));
+          await page.waitForTimeout(100);
+        }
         process.stderr.write(`capturing ${filename}\n`);
         await page.screenshot({ path: path.join(output, filename), fullPage: true, type: 'jpeg', quality: 80, timeout: 30000 });
         results.push({ page: item.slug, width, filename, metrics });

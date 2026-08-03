@@ -130,10 +130,10 @@ Rendered QA at 1440 px and 390 px must cover homepage, aluminum, document-compar
 
 **Serves:** Sanya asked to rebuild the existing preview after completing the correction batch, not to deploy it.
 
-- [ ] Update only focused scripts/tests that currently enforce rejected price, identity, partner order or duplicated media.
-- [ ] Run all validation commands and rendered QA for the nine affected pages at 1440 px and 390 px.
-- [ ] Confirm no active public `15 000`, `Саня и Антон`, `Саня + Антон`, unsafe absolute promise, or old defensive Rubikon sentence remains.
-- [ ] Confirm no changed path under `admin-app/**`, `deploy/**`, `release/**` or `articles/**`.
-- [ ] Review the final diff as a cut pass for unnecessary mechanisms and visual regressions.
-- [ ] Refresh only affected QA evidence and prepare the existing PR #4 for parent-owned push/review; do not merge or deploy.
-- [ ] Validate Task 4 outcome.
+- [x] Update only focused scripts/tests that currently enforce rejected price, identity, partner order or duplicated media.
+- [x] Run all validation commands and rendered QA for the nine affected pages at 1440 px and 390 px.
+- [x] Confirm no active public `15 000`, `Саня и Антон`, `Саня + Антон`, unsafe absolute promise, or old defensive Rubikon sentence remains.
+- [x] Confirm no changed path under `admin-app/**`, `deploy/**`, `release/**` or `articles/**`.
+- [x] Review the final diff as a cut pass for unnecessary mechanisms and visual regressions.
+- [x] Refresh only affected QA evidence and prepare the existing PR #4 for parent-owned push/review; do not merge or deploy.
+- [x] Validate Task 4 outcome.
