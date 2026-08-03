@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the four approved August 2026 team portrait derivatives and evidence.
+"""Build the six approved August 2026 team portrait derivatives and evidence.
 
 Source media stays outside Git. Exact hashes freeze the task-supplied frames.
 Processing is limited to a 4:5 crop, uniform resize, and metadata-free encoding;
@@ -25,7 +25,7 @@ from PIL import Image, ImageOps, __version__ as PILLOW_VERSION
 
 
 RELEASE = "2026-08"
-APPROVED_ON = "2026-08-02"
+APPROVED_ON = "2026-08-04"
 APPROVER = "Саня"
 REQUIRED_PILLOW = "12.2.0"
 PINNED_PLAYWRIGHT = "1.58.2"
@@ -46,6 +46,8 @@ class Portrait:
     crop: tuple[int, int, int, int]
     eye_line_y: int
     alt: str
+    approved_on: str = "2026-08-02"
+    approval_method: str = "supplied by Sanya for the 2026-08-02 review-preview revision"
 
 
 PORTRAITS = (
@@ -97,29 +99,37 @@ PORTRAITS = (
         400,
         "Екатерина Рычкова, исполнительный бухгалтер ОКНОТИКИ",
     ),
+    Portrait(
+        "Александр Золотухин",
+        "alexander-zolotukhin",
+        "Руководитель компании · директор по развитию",
+        "alexander-zolotukhin.jpg",
+        "5b519dd25accba112bcd822f7070ee1c65677cf2ac2eb57f15abeaa66f812858",
+        "JPEG",
+        (853, 1280),
+        (1, 50, 852, 1065),
+        314,
+        "Александр Золотухин, руководитель компании и директор по развитию ОКНОТИКИ",
+        approved_on="2026-08-04",
+        approval_method="supplied by Sanya for the final Zhenya handoff on 2026-08-04",
+    ),
+    Portrait(
+        "Дмитрий Благочевский",
+        "dmitry-blagochevsky",
+        "Исполнительный директор",
+        "dmitry-blagochevsky.png",
+        "e1c57884176910b94cdd43ed0f5d64bda46ea33038b635b7c73d89408579a2ec",
+        "PNG",
+        (1086, 1448),
+        (1, 40, 1084, 1355),
+        409,
+        "Дмитрий Благочевский, исполнительный директор ОКНОТИКИ",
+        approved_on="2026-08-04",
+        approval_method="supplied by Sanya for the final Zhenya handoff on 2026-08-04",
+    ),
 )
 
 RETAINED = (
-    {
-        "name": "Александр Золотухин",
-        "role": "Руководитель компании · директор по развитию",
-        "alt": "Александр Золотухин, руководитель компании и директор по развитию ОКНОТИКИ",
-        "source_release": "2026-07 approved team shoot",
-        "outputs": {
-            "jpeg": ("img/team/alexander-zolotukhin-2026-07.jpg", "febcd632470711592c4acb697b7eedecc4eba6f1880b4dc743296192f164d907"),
-            "webp": ("img/team/alexander-zolotukhin-2026-07.webp", "10d61eab6a3d6c07c9d5cacb1325dfcd9a0a718bf701f092b3344b63cfe009d3"),
-        },
-    },
-    {
-        "name": "Дмитрий Благочевский",
-        "role": "Исполнительный директор",
-        "alt": "Дмитрий Благочевский, исполнительный директор ОКНОТИКИ",
-        "source_release": "2026-07 approved team shoot",
-        "outputs": {
-            "jpeg": ("img/team/dmitry-blagochevsky-2026-07.jpg", "c878866c0b3ee23f7cb9a0d4583e240904888e7cb9313d453d0abbd6fdbeac5e"),
-            "webp": ("img/team/dmitry-blagochevsky-2026-07.webp", "6136a8add08b2698048f44660e7fd3639c521589a83f6f14e6ea5c5268360a38"),
-        },
-    },
     {
         "name": "Роман Водянов",
         "role": "Руководитель проектов",
@@ -206,8 +216,8 @@ def render_portrait(raw: Path, portrait: Portrait, output_dir: Path) -> dict[str
         "status": "approved_task_media",
         "approval": {
             "approver": APPROVER,
-            "approved_on": APPROVED_ON,
-            "method": "supplied by Sanya for the 2026-08-02 review-preview revision",
+            "approved_on": portrait.approved_on,
+            "method": portrait.approval_method,
         },
         "raw": {
             "path_env": f"${{OKNOTIKA_TASK_MEDIA_DIR}}/{portrait.raw_name}",
@@ -459,9 +469,9 @@ def main() -> int:
                 "approval_record": {
                     "approver": APPROVER,
                     "approved_on": APPROVED_ON,
-                    "source": "task media supplied by Sanya for the review-preview revision",
+                    "source": "task media supplied by Sanya for the reviewed site and final Zhenya handoff",
                     "raw_selection": "frozen by exact SHA-256 in team-release-evidence.json",
-                    "scope": "review-only preview; production publication is not authorized by this record",
+                    "scope": "production-candidate handoff; deployment remains separately gated",
                 },
                 "capture": {
                     "playwright": PINNED_PLAYWRIGHT,
@@ -475,16 +485,16 @@ def main() -> int:
         (approval_output / "README.md").write_text(
             "# Team review evidence\n\n"
             "The two contact sheets render all nine public cards at 1440 px and 390 px. "
-            "The four replacement frames supplied by Саня are frozen by their SHA-256 values "
-            "in `team-release-evidence.json`; the other five approved derivatives are verified "
+            "The six replacement frames supplied by Саня are frozen by their SHA-256 values "
+            "in `team-release-evidence.json`; the other three approved derivatives are verified "
             "byte-for-byte.\n\n"
             "Processing is limited to 4:5 crop, uniform resize and metadata-free JPEG/WebP "
             "encoding. Faces, expressions and identity are unchanged. Raw media and private "
             "supporting records stay outside Git and the deployment package.\n\n"
             "Captured layout metrics verify nine decoded 800×1000 images, three desktop "
             "columns, one mobile column, 4:5 boxes and no horizontal overflow.\n\n"
-            "This evidence covers the review-only preview. Production publication requires "
-            "the release owner's separate rights confirmation.\n",
+            "This evidence covers the production-candidate handoff to Женя. Deployment remains "
+            "separately gated by package validation, credentials, DNS/TLS and live smoke checks.\n",
             encoding="utf-8",
         )
 
@@ -499,8 +509,8 @@ def main() -> int:
         "approval": {
             "approver": APPROVER,
             "approved_on": APPROVED_ON,
-            "basis": "four replacement frames supplied for this task",
-            "scope": "review-only preview",
+            "basis": "six replacement frames supplied by Sanya across the reviewed site and final handoff",
+            "scope": "production-candidate handoff",
             "evidence": "release-evidence/team-approval/",
         },
         "portrait_count": len(records),

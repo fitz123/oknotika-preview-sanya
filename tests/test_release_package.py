@@ -136,7 +136,7 @@ class FinalDocumentationTests(unittest.TestCase):
 
     def test_stale_preview_markers_are_rejected(self) -> None:
         errors = docs_checker.validate_readme_text(
-            "# ОКНОТИКА — финальный beta-релиз сайта\nV2.18\nV2.25\n"
+            "# ОКНОТИКА — production-candidate handoff сайта\nV2.18\nV2.25\n"
         )
         self.assertTrue(any("V2.18" in error for error in errors))
         self.assertTrue(any("V2.25" in error for error in errors))

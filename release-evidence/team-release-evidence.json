@@ -8,15 +8,15 @@
   },
   "approval": {
     "approver": "Саня",
-    "approved_on": "2026-08-02",
-    "basis": "four replacement frames supplied for this task",
-    "scope": "review-only preview",
+    "approved_on": "2026-08-04",
+    "basis": "six replacement frames supplied by Sanya across the reviewed site and final handoff",
+    "scope": "production-candidate handoff",
     "evidence": "release-evidence/team-approval/"
   },
   "portrait_count": 9,
-  "task_media_portrait_count": 4,
-  "retained_portrait_count": 5,
-  "task_media_outputs_combined_bytes": 430865,
+  "task_media_portrait_count": 6,
+  "retained_portrait_count": 3,
+  "task_media_outputs_combined_bytes": 624924,
   "task_media_outputs_max_bytes": 800000,
   "portraits": [
     {
@@ -234,8 +234,28 @@
     {
       "name": "Александр Золотухин",
       "role": "Руководитель компании · директор по развитию",
-      "status": "retained_approved_derivative",
-      "provenance": "2026-07 approved team shoot",
+      "status": "approved_task_media",
+      "approval": {
+        "approver": "Саня",
+        "approved_on": "2026-08-04",
+        "method": "supplied by Sanya for the final Zhenya handoff on 2026-08-04"
+      },
+      "raw": {
+        "path_env": "${OKNOTIKA_TASK_MEDIA_DIR}/alexander-zolotukhin.jpg",
+        "sha256": "5b519dd25accba112bcd822f7070ee1c65677cf2ac2eb57f15abeaa66f812858",
+        "format": "JPEG",
+        "width": 853,
+        "height": 1280
+      },
+      "crop": {
+        "x": 1,
+        "y": 50,
+        "width": 852,
+        "height": 1065,
+        "eye_line_source_y": 314,
+        "eye_line_output_ratio": 0.2479,
+        "normalization": "crop and uniform resize only; identity and expression unchanged"
+      },
       "html": {
         "alt": "Александр Золотухин, руководитель компании и директор по развитию ОКНОТИКИ",
         "width": 800,
@@ -245,19 +265,19 @@
       },
       "outputs": {
         "jpeg": {
-          "path": "img/team/alexander-zolotukhin-2026-07.jpg",
+          "path": "img/team/alexander-zolotukhin-2026-08.jpg",
           "format": "JPEG",
-          "sha256": "febcd632470711592c4acb697b7eedecc4eba6f1880b4dc743296192f164d907",
-          "bytes": 41974,
+          "sha256": "10ae8ee0669bea0e9bb99e21cd974329f5857bd69972674743d33ff4e1a293f9",
+          "bytes": 59191,
           "width": 800,
           "height": 1000,
           "exif": "absent"
         },
         "webp": {
-          "path": "img/team/alexander-zolotukhin-2026-07.webp",
+          "path": "img/team/alexander-zolotukhin-2026-08.webp",
           "format": "WEBP",
-          "sha256": "10d61eab6a3d6c07c9d5cacb1325dfcd9a0a718bf701f092b3344b63cfe009d3",
-          "bytes": 16408,
+          "sha256": "2a0762d73ae54fab862365271610f5485a12dae4bb20d0804e6929127e70cc75",
+          "bytes": 22742,
           "width": 800,
           "height": 1000,
           "exif": "absent"
@@ -267,8 +287,28 @@
     {
       "name": "Дмитрий Благочевский",
       "role": "Исполнительный директор",
-      "status": "retained_approved_derivative",
-      "provenance": "2026-07 approved team shoot",
+      "status": "approved_task_media",
+      "approval": {
+        "approver": "Саня",
+        "approved_on": "2026-08-04",
+        "method": "supplied by Sanya for the final Zhenya handoff on 2026-08-04"
+      },
+      "raw": {
+        "path_env": "${OKNOTIKA_TASK_MEDIA_DIR}/dmitry-blagochevsky.png",
+        "sha256": "e1c57884176910b94cdd43ed0f5d64bda46ea33038b635b7c73d89408579a2ec",
+        "format": "PNG",
+        "width": 1086,
+        "height": 1448
+      },
+      "crop": {
+        "x": 1,
+        "y": 40,
+        "width": 1084,
+        "height": 1355,
+        "eye_line_source_y": 409,
+        "eye_line_output_ratio": 0.2723,
+        "normalization": "crop and uniform resize only; identity and expression unchanged"
+      },
       "html": {
         "alt": "Дмитрий Благочевский, исполнительный директор ОКНОТИКИ",
         "width": 800,
@@ -278,19 +318,19 @@
       },
       "outputs": {
         "jpeg": {
-          "path": "img/team/dmitry-blagochevsky-2026-07.jpg",
+          "path": "img/team/dmitry-blagochevsky-2026-08.jpg",
           "format": "JPEG",
-          "sha256": "c878866c0b3ee23f7cb9a0d4583e240904888e7cb9313d453d0abbd6fdbeac5e",
-          "bytes": 68404,
+          "sha256": "2bfc3d5e832057caf991d34f916ebed53b3ca70f4bf8427ef8160a268fabb9a5",
+          "bytes": 70572,
           "width": 800,
           "height": 1000,
           "exif": "absent"
         },
         "webp": {
-          "path": "img/team/dmitry-blagochevsky-2026-07.webp",
+          "path": "img/team/dmitry-blagochevsky-2026-08.webp",
           "format": "WEBP",
-          "sha256": "6136a8add08b2698048f44660e7fd3639c521589a83f6f14e6ea5c5268360a38",
-          "bytes": 33160,
+          "sha256": "def3e228476b6ba3fa9a4ec4294c52ca6b4d1c945661d9c75f99edc6458e36d4",
+          "bytes": 41554,
           "width": 800,
           "height": 1000,
           "exif": "absent"

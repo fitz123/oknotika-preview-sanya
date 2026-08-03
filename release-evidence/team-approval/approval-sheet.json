@@ -2,10 +2,10 @@
   "schema_version": 2,
   "approval_record": {
     "approver": "Саня",
-    "approved_on": "2026-08-02",
-    "source": "task media supplied by Sanya for the review-preview revision",
+    "approved_on": "2026-08-04",
+    "source": "task media supplied by Sanya for the reviewed site and final Zhenya handoff",
     "raw_selection": "frozen by exact SHA-256 in team-release-evidence.json",
-    "scope": "review-only preview; production publication is not authorized by this record"
+    "scope": "production-candidate handoff; deployment remains separately gated"
   },
   "capture": {
     "playwright": "1.58.2",
@@ -26,8 +26,8 @@
         },
         "width": 1440,
         "height": 2503,
-        "sha256": "f8fd7b074fe37db7bf82fa61eee4abc17139b6cff1778fffd635a4d9f181d894",
-        "bytes": 392453
+        "sha256": "d961b453a4dd2c1cf0dff3271d26ccac403120a27bbe1b01d2ecee01f5c2c4d3",
+        "bytes": 394296
       },
       {
         "filename": "team-mobile-390.jpg",
@@ -41,9 +41,9 @@
           "portrait_boxes_are_4_by_5": true
         },
         "width": 390,
-        "height": 5986,
-        "sha256": "3c4c70ccbdded28df1a09cc695eda87366a17cf7aaa1851976379a78aa8bab81",
-        "bytes": 312254
+        "height": 5987,
+        "sha256": "7df13d2303c3a9cbd87228ba05645540db1ac296f852850d63b242360d95a5f2",
+        "bytes": 311602
       }
     ]
   }

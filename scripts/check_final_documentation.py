@@ -14,7 +14,7 @@ from pathlib import Path
 from scan_release_zip import scan_archive
 
 
-VERSION = "v2.28.0-beta.1"
+VERSION = "v2.29.0-rc.1"
 BASELINE = "5364ff160ffa9b8e9f2d0998a5eef1cf6cd3f5ed"
 STALE_MARKERS = ("V2.18", "V2.25")
 
@@ -32,7 +32,7 @@ def require(text: str, path: str, needles: tuple[str, ...], errors: list[str]) -
 def validate_readme_text(text: str) -> list[str]:
     errors = [f"README.md retains stale marker {marker}" for marker in STALE_MARKERS if marker in text]
     require(text, "README.md", (
-        "# ОКНОТИКА — финальный beta-релиз сайта",
+        "# ОКНОТИКА — production-candidate handoff сайта",
         "## Content model «Новости» / «Дайджест недели»",
         "## Telegram enrollment и доступ",
         "## Editor flow",
@@ -46,7 +46,7 @@ def validate_readme_text(text: str) -> list[str]:
         "https://vk.ru/oknotika",
         "https://t.me/FUTU_CHAT",
         "npm run rollback-release",
-        "release/CHANGED_FILES-v2.28.0-beta.1.txt",
+        "release/CHANGED_FILES-v2.29.0-rc.1.txt",
         "Архитектурный ADR намеренно не создан",
     ), errors)
     return errors

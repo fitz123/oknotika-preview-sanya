@@ -39,7 +39,9 @@ EXPECTED_ROLES = {
     "Екатерина Рычкова": "Исполнительный бухгалтер",
 }
 EXPECTED_RAW_HASHES = {
+    "Александр Золотухин": "5b519dd25accba112bcd822f7070ee1c65677cf2ac2eb57f15abeaa66f812858",
     "Алексей Макаров": "da3350710ddde0d77a60dffdc183b22871fa1925d7ce65387f88ca6ae11bb877",
+    "Дмитрий Благочевский": "e1c57884176910b94cdd43ed0f5d64bda46ea33038b635b7c73d89408579a2ec",
     "Андрей Свирида": "298182d3ea8ae44d5d65cfa5267d60b340b82103146c278c9e5af2af7e4081e1",
     "Оксана Скопина": "e2181428ee5bc2346ea7249db6e52067a1900d7ae53952b199556b5ead6e70b2",
     "Екатерина Рычкова": "0ea182fb44ebeb6d761f2d9e1d8ef1e0d743960b08493c95143f8c5124c94076",
@@ -203,17 +205,17 @@ def validate(
     manifest = json.loads(evidence_path.read_text(encoding="utf-8"))
     if (
         manifest.get("portrait_count") != 9
-        or manifest.get("task_media_portrait_count") != 4
-        or manifest.get("retained_portrait_count") != 5
+        or manifest.get("task_media_portrait_count") != 6
+        or manifest.get("retained_portrait_count") != 3
     ):
-        errors.append("manifest portrait counts must be 9/4/5")
+        errors.append("manifest portrait counts must be 9/6/3")
     approval = manifest.get("approval", {})
     if (
         approval.get("approver") != "Саня"
-        or approval.get("scope") != "review-only preview"
+        or approval.get("scope") != "production-candidate handoff"
         or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", approval.get("approved_on", ""))
     ):
-        errors.append("manifest needs the task approval timestamp and review-only scope")
+        errors.append("manifest needs the task approval timestamp and production-candidate handoff scope")
 
     records = manifest.get("portraits", [])
     by_name = {record.get("name"): record for record in records}
@@ -339,7 +341,7 @@ def main(argv: list[str] | None = None) -> int:
         for error in errors:
             print(f"- {error}", file=sys.stderr)
         return 1
-    print("Team DOM/manifest check passed: exact 3x3 order, 4 approved replacements, 5 retained portraits")
+    print("Team DOM/manifest check passed: exact 3x3 order, 6 approved replacements, 3 retained portraits")
     return 0
 
 
