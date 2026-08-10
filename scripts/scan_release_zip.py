@@ -47,6 +47,8 @@ SECRET_PATTERNS = {
     "assigned restic password": re.compile(rb"RESTIC_PASSWORD\s*=\s*[^\s<#${][^\r\n]*"),
 }
 REQUIRED_PATHS = {
+    ".github/workflows/ci.yml",
+    ".github/workflows/deploy-production.yml",
     "CHANGED_FILES.txt",
     "README.md",
     "RELEASE_NOTES.md",
@@ -57,8 +59,13 @@ REQUIRED_PATHS = {
     "admin-app/scripts/rollback-release.js",
     "docs/WEEKLY_INGESTION.md",
     "deploy/README_ZHENYA.md",
+    "deploy/cicd/oknotika-deploy",
+    "deploy/cicd/upload-and-deploy.sh",
     "deploy/scripts/smoke-weekly-ingestion.mjs",
     "deploy/systemd/oknotika-admin.service",
+    "scripts/build_ci_bundle.py",
+    "scripts/check_ci_bundle.py",
+    "scripts/check_cicd_package.py",
 }
 
 

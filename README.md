@@ -120,7 +120,7 @@ python3 tools/team-portraits/create_final_portraits.py \
 
 ## Release и эксплуатация
 
-Зафиксированный implementation SHA, baseline SHA, количество файлов и archive SHA-256 находятся в `release/release-manifest-v2.29.0-rc.1.json`. Проверяемые checksums — в `release/SHA256SUMS`; полный список отличий release payload от V2.27 — в `release/CHANGED_FILES-v2.29.0-rc.1.txt` и внутри ZIP как `CHANGED_FILES.txt`.
+Текущий secret-free candidate — `v2.29.0-rc.2`: зафиксированный implementation SHA, baseline SHA, количество файлов и archive SHA-256 находятся в `release/release-manifest-v2.29.0-rc.2.json`. Проверяемые checksums — в `release/SHA256SUMS`; полный список отличий release payload от V2.27 — в `release/CHANGED_FILES-v2.29.0-rc.2.txt` и внутри ZIP как `CHANGED_FILES.txt`. `v2.29.0-rc.1` сохранён без изменений как исторический handoff Жене и не является источником нового CI/CD deploy.
 
 Перед распаковкой:
 
@@ -129,6 +129,6 @@ cd release
 sha256sum -c SHA256SUMS
 ```
 
-Установка, runtime layout, secrets rotation, миграции, backup/restore, first-editor enrollment, emergency disable и отдельные content/marketing/application rollback описаны в `deploy/README_ZHENYA.md`. Реальный OIDC rehearsal — в `release-evidence/qa/PRODUCTION_OIDC_REHEARSAL.md`; результаты локальной проверки — в остальных файлах `release-evidence/qa/`.
+Установка, activation будущего protected `main` и GitHub Environment `production`, exact deploy secret names, runtime layout, routine deploy/evidence, secrets rotation, миграции, backup/restore, first manual bootstrap, emergency rollback и отдельные content/marketing/application rollback описаны в `deploy/README_ZHENYA.md`. Реальный OIDC rehearsal — в `release-evidence/qa/PRODUCTION_OIDC_REHEARSAL.md`; результаты локальной проверки — в остальных файлах `release-evidence/qa/`.
 
 Архитектурный ADR намеренно не создан: план требует отдельного подтверждения пользователя до фиксации решения в `docs/adr/`.

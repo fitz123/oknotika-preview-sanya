@@ -9,6 +9,13 @@ from pathlib import Path
 
 
 PINNED_NODE_VERSION = "24.18.0"
+ALLOWED_DEPLOY_SECRETS = {
+    "OKNOTIKA_DEPLOY_HOST",
+    "OKNOTIKA_DEPLOY_PORT",
+    "OKNOTIKA_DEPLOY_USER",
+    "OKNOTIKA_DEPLOY_SSH_PRIVATE_KEY",
+    "OKNOTIKA_DEPLOY_SSH_KNOWN_HOSTS",
+}
 REQUIRED_CI_COMMANDS = (
     "npm ci",
     "npm audit --audit-level=high",
@@ -35,6 +42,21 @@ def top_level_block(text: str, key: str) -> list[str]:
             block: list[str] = []
             for candidate in lines[index + 1:]:
                 if candidate and not candidate[0].isspace():
+                    break
+                block.append(candidate)
+            return block
+    return []
+
+
+def mapping_block(text: str, key: str, indent: int) -> list[str]:
+    """Return lines nested below a YAML mapping key at a fixed indentation."""
+    lines = text.splitlines()
+    marker = f"{' ' * indent}{key}:"
+    for index, line in enumerate(lines):
+        if line == marker:
+            block: list[str] = []
+            for candidate in lines[index + 1:]:
+                if candidate and len(candidate) - len(candidate.lstrip()) <= indent:
                     break
                 block.append(candidate)
             return block
@@ -104,14 +126,126 @@ def validate_ci_text(text: str) -> list[str]:
     return errors
 
 
+def action_references(text: str) -> list[str]:
+    return re.findall(r"(?m)^[ \t]*-?[ \t]*uses[ \t]*:[ \t]*([^\s#]+)", text)
+
+
+def validate_deploy_workflow_text(text: str) -> list[str]:
+    errors: list[str] = []
+    event_lines = [line.strip() for line in top_level_block(text, "on") if line.strip()]
+    if event_lines != ["push:", "branches:", "- main"]:
+        errors.append("production workflow trigger must be exactly push to main")
+    if re.search(r"(?m)^[ \t]*(?:pull_request(?:_target)?|workflow_dispatch|schedule|tags)[ \t]*:", text):
+        errors.append("production workflow must not allow alternate deployment triggers")
+
+    permission_lines = [line.strip() for line in top_level_block(text, "permissions") if line.strip()]
+    if permission_lines != ["contents: read"]:
+        errors.append("production permissions must be exactly contents: read")
+    permission_declarations = re.findall(r"(?m)^([ \t]*)permissions[ \t]*:", text)
+    if permission_declarations != [""]:
+        errors.append("production workflow must not add job-level permissions")
+
+    concurrency_lines = [line.strip() for line in top_level_block(text, "concurrency") if line.strip()]
+    if concurrency_lines != ["group: oknotika-production", "cancel-in-progress: false"]:
+        errors.append("production workflow must serialize deployments without cancellation")
+
+    references = action_references(text)
+    for reference in references:
+        if reference.startswith("./"):
+            continue
+        if "@" not in reference or not re.fullmatch(r"[0-9a-f]{40}", reference.rsplit("@", 1)[1]):
+            errors.append(f"production action reference must use a full commit SHA: {reference}")
+    for required in (
+        "./.github/workflows/ci.yml",
+        "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+        "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+        "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
+    ):
+        if required not in references:
+            errors.append(f"production workflow is missing pinned dependency: {required}")
+
+    deploy_block = "\n".join(mapping_block(text, "deploy", 2))
+    if not deploy_block or len(re.findall(
+        r"(?m)^[ \t]+environment[ \t]*:[ \t]*production[ \t]*$", deploy_block
+    )) != 1:
+        errors.append("the deployment job must select the production Environment exactly once")
+    if len(re.findall(r"(?m)^[ \t]+environment[ \t]*:[ \t]*production[ \t]*$", text)) != 1:
+        errors.append("only the deployment job may select the production Environment")
+    if "needs: ci" not in text or "needs: build" not in text:
+        errors.append("production build and deploy jobs must preserve the CI dependency chain")
+    if "secrets: inherit" in text:
+        errors.append("production workflow must not inherit secrets into reusable CI")
+
+    secret_names = set(re.findall(r"\$\{\{\s*secrets\.([A-Za-z0-9_]+)\s*\}\}", text))
+    secret_names.update(re.findall(r"\$\{\{\s*secrets\[['\"]([A-Za-z0-9_]+)['\"]\]\s*\}\}", text))
+    if secret_names != ALLOWED_DEPLOY_SECRETS:
+        errors.append(
+            "production workflow secret access must be exactly: "
+            + ", ".join(sorted(ALLOWED_DEPLOY_SECRETS))
+        )
+    if re.search(r"TELEGRAM|WEEKLY_INGEST|RESTIC|OIDC", text, re.IGNORECASE):
+        errors.append("production application credentials must not enter GitHub Actions")
+
+    required_fragments = (
+        'RELEASE_SHA: ${{ github.sha }}',
+        '--commit "$RELEASE_SHA"',
+        '--expected-commit "$RELEASE_SHA"',
+        'sha256sum -c "$RELEASE_SHA.zip.sha256"',
+        'name: oknotika-ci-${{ github.sha }}',
+        "deploy/cicd/upload-and-deploy.sh",
+        "--known-hosts \"$known_hosts_path\"",
+        "--remote-incoming /var/lib/oknotika-deploy/incoming",
+    )
+    for fragment in required_fragments:
+        if fragment not in text:
+            errors.append(f"production workflow is missing required gate: {fragment}")
+    if re.search(r"(?m)^[ \t]*continue-on-error[ \t]*:[ \t]*true", text):
+        errors.append("production deployment gates must not continue on error")
+    return errors
+
+
+def validate_upload_helper_text(text: str) -> list[str]:
+    errors: list[str] = []
+    for fragment in (
+        "StrictHostKeyChecking=yes",
+        "UserKnownHostsFile=",
+        "IdentitiesOnly=yes",
+        "BatchMode=yes",
+        "ssh-keygen -F",
+        "sha256sum --",
+        "scp",
+        "sudo -n /usr/local/sbin/oknotika-deploy",
+        'remote_incoming" == "/var/lib/oknotika-deploy/incoming"',
+    ):
+        if fragment not in text:
+            errors.append(f"upload helper is missing required boundary: {fragment}")
+    for forbidden in ("ssh-keyscan", "StrictHostKeyChecking=no", "eval "):
+        if forbidden in text:
+            errors.append(f"upload helper contains forbidden operation: {forbidden}")
+    return errors
+
+
 def validate(root: Path) -> list[str]:
-    workflow = root / ".github/workflows/ci.yml"
-    if not workflow.is_file():
-        return [f"missing workflow: {workflow.relative_to(root)}"]
+    ci_workflow = root / ".github/workflows/ci.yml"
+    deploy_workflow = root / ".github/workflows/deploy-production.yml"
+    upload_helper = root / "deploy/cicd/upload-and-deploy.sh"
+    errors: list[str] = []
     try:
-        return validate_ci_text(workflow.read_text(encoding="utf-8"))
+        if not ci_workflow.is_file():
+            errors.append(f"missing workflow: {ci_workflow.relative_to(root)}")
+        else:
+            errors.extend(validate_ci_text(ci_workflow.read_text(encoding="utf-8")))
+        if not deploy_workflow.is_file():
+            errors.append(f"missing workflow: {deploy_workflow.relative_to(root)}")
+        else:
+            errors.extend(validate_deploy_workflow_text(deploy_workflow.read_text(encoding="utf-8")))
+        if not upload_helper.is_file():
+            errors.append(f"missing helper: {upload_helper.relative_to(root)}")
+        else:
+            errors.extend(validate_upload_helper_text(upload_helper.read_text(encoding="utf-8")))
+        return errors
     except OSError as exc:
-        return [f"unable to read CI workflow: {exc}"]
+        return [f"unable to read CI/CD package: {exc}"]
 
 
 def main() -> int:
@@ -122,7 +256,7 @@ def main() -> int:
         for error in errors:
             print(f"- {error}", file=sys.stderr)
         return 1
-    print(f"CI/CD package check passed: secret-free CI uses Node {PINNED_NODE_VERSION}")
+    print(f"CI/CD package check passed: secret-free CI/CD uses Node {PINNED_NODE_VERSION}")
     return 0
 
 

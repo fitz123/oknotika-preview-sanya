@@ -273,6 +273,24 @@ def main() -> None:
     if not stat.S_IMODE(cicd_deploy.stat().st_mode) & stat.S_IXUSR:
         fail(f"deployment primitive is not executable: {cicd_deploy}")
 
+    upload_helper = deploy / "cicd/upload-and-deploy.sh"
+    require_text(
+        upload_helper,
+        "StrictHostKeyChecking=yes",
+        "UserKnownHostsFile=",
+        "ssh-keygen -F",
+        "sha256sum --",
+        "sudo -n /usr/local/sbin/oknotika-deploy",
+        "/var/lib/oknotika-deploy/incoming",
+    )
+    helper_syntax = subprocess.run(
+        ["bash", "-n", upload_helper], capture_output=True, text=True, check=False
+    )
+    if helper_syntax.returncode:
+        fail(f"bash syntax error in {upload_helper}: {helper_syntax.stderr.strip()}")
+    if not stat.S_IMODE(upload_helper.stat().st_mode) & stat.S_IXUSR:
+        fail(f"upload helper is not executable: {upload_helper}")
+
     scripts = sorted((deploy / "scripts").glob("*.sh"))
     if not scripts:
         fail("no deployment shell scripts found")
@@ -316,6 +334,13 @@ def main() -> None:
         "отсутствует в editor HTTP API",
         "--token-file",
         "database-only состояние не считается применённым",
+        "Активация production CI/CD",
+        "required reviewer — Женя",
+        "protected `main`",
+        "OKNOTIKA_DEPLOY_SSH_PRIVATE_KEY",
+        "OKNOTIKA_DEPLOY_SSH_KNOWN_HOSTS",
+        "Первый bootstrap, routine deploy и evidence",
+        "автоматически возвращает ровно captured application/marketing targets",
     )
     print(f"deploy package check passed: {len(scripts)} shell scripts, Node {runtime['nodeVersion']}")
 

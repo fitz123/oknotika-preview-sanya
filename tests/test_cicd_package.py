@@ -66,6 +66,54 @@ class CiWorkflowPolicyTests(unittest.TestCase):
                 self.assert_rejected(changed, "Node version must be exactly 24.18.0")
 
 
+class ProductionWorkflowPolicyTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.workflow = (REPO / ".github/workflows/deploy-production.yml").read_text(encoding="utf-8")
+        cls.helper = (REPO / "deploy/cicd/upload-and-deploy.sh").read_text(encoding="utf-8")
+
+    def assert_workflow_rejected(self, workflow: str, expected: str) -> None:
+        errors = checker.validate_deploy_workflow_text(workflow)
+        self.assertTrue(any(expected in error for error in errors), errors)
+
+    def test_current_production_workflow_and_helper_pass(self) -> None:
+        self.assertEqual(checker.validate_deploy_workflow_text(self.workflow), [])
+        self.assertEqual(checker.validate_upload_helper_text(self.helper), [])
+
+    def test_non_main_trigger_and_missing_approval_are_rejected(self) -> None:
+        branch = self.workflow.replace("      - main", "      - feature/demo", 1)
+        self.assert_workflow_rejected(branch, "exactly push to main")
+        no_environment = self.workflow.replace("    environment: production\n", "", 1)
+        self.assert_workflow_rejected(no_environment, "production Environment")
+
+    def test_floating_deploy_action_and_missing_ci_dependency_are_rejected(self) -> None:
+        floating = replace_action_pin(self.workflow, "actions/upload-artifact", "v4")
+        self.assert_workflow_rejected(floating, "full commit SHA")
+        no_ci = self.workflow.replace("    needs: ci\n", "", 1)
+        self.assert_workflow_rejected(no_ci, "CI dependency chain")
+
+    def test_artifact_checksum_gate_is_required(self) -> None:
+        no_checksum = self.workflow.replace(
+            '          sha256sum -c "$RELEASE_SHA.zip.sha256"',
+            "          true # checksum removed",
+            1,
+        )
+        self.assert_workflow_rejected(no_checksum, "sha256sum -c")
+
+    def test_unapproved_secret_and_host_key_bypass_are_rejected(self) -> None:
+        application_secret = self.workflow.replace(
+            "          DEPLOY_HOST:",
+            "          OIDC_SECRET: ${{ secrets.TELEGRAM_OIDC_CLIENT_SECRET }}\n"
+            "          DEPLOY_HOST:",
+            1,
+        )
+        self.assert_workflow_rejected(application_secret, "must be exactly")
+        self.assert_workflow_rejected(application_secret, "application credentials")
+        bypass = self.helper.replace("StrictHostKeyChecking=yes", "StrictHostKeyChecking=no", 1)
+        errors = checker.validate_upload_helper_text(bypass)
+        self.assertTrue(any("forbidden operation" in error for error in errors), errors)
+
+
 def replace_action_pin(workflow: str, action: str, replacement: str) -> str:
     prefix = f"uses: {action}@"
     start = workflow.index(prefix) + len(prefix)

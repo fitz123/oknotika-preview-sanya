@@ -16,14 +16,15 @@ from pathlib import Path
 from scan_release_zip import scan_archive
 
 
-VERSION = "v2.29.0-rc.1"
+VERSION = "v2.29.0-rc.2"
 BASELINE_COMMIT = "5364ff160ffa9b8e9f2d0998a5eef1cf6cd3f5ed"
-FIXED_TIMESTAMP = (2026, 8, 4, 0, 0, 0)
+HISTORICAL_VERSION = "v2.29.0-rc.1"
+FIXED_TIMESTAMP = (2026, 8, 11, 0, 0, 0)
 TOP_LEVEL_FILES = {
     ".gitignore", "ALUMINUM_SOURCES.md", "CLAUDE.md", "IMAGE_SOURCES.md", "README.md", "index.html", "script.js", "style.css",
 }
 TOP_LEVEL_DIRECTORIES = {
-    "admin-app", "aluminum", "articles", "carbon-glass", "deploy", "docs", "glass", "img", "js",
+    ".github", "admin-app", "aluminum", "articles", "carbon-glass", "deploy", "docs", "glass", "img", "js",
     "oknotika-smart-window", "protectapeel", "pvc", "release-evidence", "scripts", "tests", "tools", "wood-stoller",
 }
 EXCLUDED_COMPONENTS = {
@@ -175,7 +176,7 @@ def main() -> int:
         "version": version,
         "implementationCommit": implementation_commit,
         "baselineCommit": BASELINE_COMMIT,
-        "generatedAt": "2026-08-04T00:00:00Z",
+        "generatedAt": "2026-08-11T00:00:00Z",
         "files": {
             path: {
                 "sha256": sha256(data),
@@ -199,10 +200,14 @@ def main() -> int:
             print(f"release ZIP scan failed: {error}", file=sys.stderr)
         return 1
     archive_hash = sha256(versioned.read_bytes())
-    (release / "SHA256SUMS").write_text(
-        f"{archive_hash}  {versioned.name}\n{archive_hash}  {stable.name}\n",
-        encoding="utf-8",
-    )
+    checksum_lines = [
+        f"{archive_hash}  {versioned.name}",
+        f"{archive_hash}  {stable.name}",
+    ]
+    historical = release / f"oknotika-final-{HISTORICAL_VERSION}.zip"
+    if historical.is_file() and historical != versioned:
+        checksum_lines.append(f"{sha256(historical.read_bytes())}  {historical.name}")
+    (release / "SHA256SUMS").write_text("\n".join(checksum_lines) + "\n", encoding="utf-8")
     external_manifest = {
         "schemaVersion": 1,
         "version": version,

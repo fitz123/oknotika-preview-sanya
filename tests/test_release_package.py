@@ -39,6 +39,8 @@ def archive_with(extra: dict[str, bytes] | None = None) -> Path:
     filename = directory / "release.zip"
     root = "oknotika-final-test"
     files = {
+        ".github/workflows/ci.yml": b"name: CI\n",
+        ".github/workflows/deploy-production.yml": b"name: Production deployment\n",
         "CHANGED_FILES.txt": b"A\tCHANGED_FILES.txt\n",
         "README.md": b"readme",
         "RELEASE_NOTES.md": b"notes",
@@ -48,8 +50,13 @@ def archive_with(extra: dict[str, bytes] | None = None) -> Path:
         "admin-app/scripts/rollback-release.js": b"operator rollback",
         "docs/WEEKLY_INGESTION.md": b"weekly ingestion",
         "deploy/README_ZHENYA.md": b"deploy",
+        "deploy/cicd/oknotika-deploy": b"#!/usr/bin/env bash\n",
+        "deploy/cicd/upload-and-deploy.sh": b"#!/usr/bin/env bash\n",
         "deploy/scripts/smoke-weekly-ingestion.mjs": b"#!/usr/bin/env node\n",
         "deploy/systemd/oknotika-admin.service": b"[Service]",
+        "scripts/build_ci_bundle.py": b"# bundle builder\n",
+        "scripts/check_ci_bundle.py": b"# bundle checker\n",
+        "scripts/check_cicd_package.py": b"# policy checker\n",
         **(extra or {}),
     }
     manifest = {
@@ -144,6 +151,20 @@ class FinalDocumentationTests(unittest.TestCase):
             '<footer><p>V2.25 multipage preview</p></footer>'
         )
         self.assertTrue(any("index.html" in error and "V2.25" in error for error in homepage_errors))
+
+    def test_production_approval_and_rollback_runbook_are_required(self) -> None:
+        runbook = (REPO / "deploy/README_ZHENYA.md").read_text(encoding="utf-8")
+        for marker in (
+            "required reviewer — Женя",
+            "protected `main`",
+            "OKNOTIKA_DEPLOY_SSH_KNOWN_HOSTS",
+            "Первый bootstrap, routine deploy и evidence",
+            "article/content symlink не меняется",
+        ):
+            with self.subTest(marker=marker):
+                changed = runbook.replace(marker, "removed requirement")
+                errors = docs_checker.validate_deploy_text(changed)
+                self.assertTrue(any(marker in error for error in errors), errors)
 
     def test_non_payload_followup_is_allowed_but_later_source_change_is_stale(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

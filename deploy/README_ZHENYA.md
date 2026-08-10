@@ -30,6 +30,62 @@
 
 Создать непривилегированного пользователя без shell и home. В unit задано `User=oknotika-admin`, `Group=www-data`: private paths остаются `0700/0600`, а published article releases создаются с group read. Node после bind выставляет socket `0660`. Не добавлять nginx к группе, имеющей доступ к `db`, `uploads` или `previews`.
 
+## Активация production CI/CD
+
+Контур в `.github/workflows/deploy-production.yml` намеренно не активен на текущем `master`: он реагирует только на push будущего защищённого `main`, повторно запускает secret-free CI, строит один bundle по exact `github.sha`, проверяет его checksum и ждёт ручного допуска GitHub Environment `production`. Pull request, feature branch, tag и ручной запуск не могут вызвать deploy. Environment approval не заменяет server bootstrap и production gates ниже.
+
+### Root-controlled server primitive и deploy account
+
+Женя выполняет этот раздел один раз из root-сессии, сверяя каждый файл с reviewed commit. Repository workflow не устанавливает и не обновляет root-owned файлы:
+
+```bash
+sudo useradd --system --create-home \
+  --home-dir /var/lib/oknotika-deploy \
+  --shell /bin/bash oknotika-deploy
+sudo install -d -o oknotika-deploy -g oknotika-deploy -m 0750 \
+  /var/lib/oknotika-deploy/incoming
+sudo install -d -o root -g root -m 0755 /usr/local/sbin
+sudo install -o root -g root -m 0755 \
+  deploy/cicd/oknotika-deploy /usr/local/sbin/oknotika-deploy
+```
+
+В `/var/lib/oknotika-deploy/.ssh/authorized_keys` установить только отдельный public key GitHub deploy credential с OpenSSH option `restrict`; каталог должен быть `0700`, файл `0600`, владелец `oknotika-deploy`. Не использовать личный ключ, agent forwarding или ключ от backup/runtime account. Restricted account получает запись только в `/var/lib/oknotika-deploy/incoming` и следующий root-owned sudoers rule:
+
+```sudoers
+oknotika-deploy ALL=(root) NOPASSWD: /usr/local/sbin/oknotika-deploy *
+```
+
+Проверить rule через `visudo -cf`, затем из отдельной сессии подтвердить, что `sudo -n -l` не разрешает других root-команд. Wildcard передаёт аргументы только этому root-owned parser: primitive принимает ровно bundle/checksum/release SHA, требует файлы непосредственно в fixed incoming directory, проверяет SHA, archive boundary и internal manifest. Не давать deploy account право менять `/usr/local/sbin/oknotika-deploy`, application/marketing roots, systemd units или credentials.
+
+### GitHub Environment, secrets и protected main
+
+Создать Environment с точным именем `production`: required reviewer — Женя, self-approval отключён, deployment branches ограничены только `main`. В Environment создать только пять значений:
+
+- `OKNOTIKA_DEPLOY_HOST` — DNS name или IPv4 production SSH endpoint;
+- `OKNOTIKA_DEPLOY_PORT` — numeric SSH port;
+- `OKNOTIKA_DEPLOY_USER` — ровно выделенный account `oknotika-deploy`;
+- `OKNOTIKA_DEPLOY_SSH_PRIVATE_KEY` — private half отдельного restricted deploy key;
+- `OKNOTIKA_DEPLOY_SSH_KNOWN_HOSTS` — заранее независимо сверенная exact host-key line; `ssh-keyscan` в workflow запрещён.
+
+Telegram OIDC, `weekly-ingest-token`, restic credentials, editor identity и runtime data в GitHub не переносятся: они остаются encrypted systemd credentials на сервере. Secret values не вставлять в repository variables, Actions logs, workflow inputs или release evidence.
+
+Миграция с текущего `master` выполняется оператором только после merge утверждённых feature PR и не входит в этот пакет:
+
+1. Создать `main` из exact approved commit, проверить SHA и сделать его default branch; старый `master` не удалять до проверки ссылок и automation.
+2. Защитить `main`: changes only through pull requests, минимум один независимый approval, dismiss stale approvals, require conversation resolution, запрет force-push/deletion и required check `CI / Secret-free validation`.
+3. Ограничить изменение `.github/workflows/**`, `deploy/cicd/**` и этого runbook обязательным review Жени через repository ownership policy.
+4. Настроить `production` Environment как выше. До этого шага не добавлять deploy secrets; после настройки выполнить только reviewed no-op connection rehearsal, не production activation.
+
+### Первый bootstrap, routine deploy и evidence
+
+`oknotika-deploy` fail-closed отклоняет сервер без обоих existing `current` symlink. Первый application/marketing release устанавливает Женя вручную по разделам ниже из проверенного `v2.29.0-rc.2`, затем настраивает systemd credentials, nginx, enrollment, backup/restore и smoke gates. Только после работающих `/opt/oknotika-admin/current` и `/srv/oknotika/current` разрешать первый workflow run.
+
+Routine deploy: reviewed PR проходит CI → PR merges в protected `main` → workflow повторяет CI и строит artifact `oknotika-ci-<commit SHA>` → Женя сверяет commit/run и одобряет `production` → helper проверяет local checksum и pinned host identity, передаёт только `<sha>.zip` и `<sha>.zip.sha256` → root primitive проверяет и активирует application/marketing → public/admin smoke подтверждает результат. Никогда не одобрять run для SHA, которого нет в protected `main`.
+
+Для каждого run сохранить вне release ZIP: GitHub run URL/ID, exact commit SHA, artifact SHA-256, reviewer/timestamp, pre/post application и marketing symlink targets, primitive exit status, smoke result и rollback result. Не сохранять key material, host credentials, private payload, editor identity, response bodies, DB/uploads/previews или environment dump.
+
+При ошибке после switch primitive автоматически возвращает ровно captured application/marketing targets, перезапускает service и повторяет smoke; article/content symlink не меняется. Если проблема обнаружена после успешного workflow, Женя под deploy lock вручную проверяет предыдущие immutable application/marketing directories, атомарно возвращает оба relative `current` symlink, перезапускает `oknotika-admin.service` и выполняет `smoke-test.sh`. Если rollback smoke не проходит, остановить admin write surface, сохранить evidence и перейти к Emergency disable; не пытаться менять content release как часть application/marketing rollback.
+
 ## Установка application release
 
 1. Проверить checksum secret-free ZIP и release SHA из release notes.
@@ -47,7 +103,7 @@ Marketing document root получает только публичный allowli
 
 ```bash
 deploy/scripts/install-marketing.sh \
-  --source /var/tmp/oknotika-unpack/oknotika-final-v2.29.0-rc.1 \
+  --source /var/tmp/oknotika-unpack/oknotika-final-v2.29.0-rc.2 \
   --release-sha "$IMPLEMENTATION_SHA" \
   --marketing-root /srv/oknotika
 ```

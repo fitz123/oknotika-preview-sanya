@@ -14,9 +14,37 @@ from pathlib import Path
 from scan_release_zip import scan_archive
 
 
-VERSION = "v2.29.0-rc.1"
+VERSION = "v2.29.0-rc.2"
+HISTORICAL_VERSION = "v2.29.0-rc.1"
 BASELINE = "5364ff160ffa9b8e9f2d0998a5eef1cf6cd3f5ed"
 STALE_MARKERS = ("V2.18", "V2.25")
+DEPLOY_REQUIRED = (
+    "## Backup и restore",
+    "## Emergency disable",
+    "Content rollback",
+    "Marketing rollback",
+    "Application rollback",
+    "## Первичное подключение редактора",
+    "## Tuesday ingestion и draft-only smoke",
+    "smoke-weekly-ingestion.mjs",
+    "Pinned runtime",
+    "Enrollment Сани",
+    "Restore:",
+    "run register-weekly-cover",
+    "run rollback-release",
+    "--application-schema 3",
+    "https://vk.ru/oknotika",
+    "https://t.me/FUTU_CHAT",
+    "--token-file",
+    "database-only состояние не считается применённым",
+    "## Активация production CI/CD",
+    "required reviewer — Женя",
+    "OKNOTIKA_DEPLOY_SSH_PRIVATE_KEY",
+    "OKNOTIKA_DEPLOY_SSH_KNOWN_HOSTS",
+    "protected `main`",
+    "Первый bootstrap, routine deploy и evidence",
+    "article/content symlink не меняется",
+)
 
 
 def sha256(path: Path) -> str:
@@ -46,7 +74,8 @@ def validate_readme_text(text: str) -> list[str]:
         "https://vk.ru/oknotika",
         "https://t.me/FUTU_CHAT",
         "npm run rollback-release",
-        "release/CHANGED_FILES-v2.29.0-rc.1.txt",
+        "release/CHANGED_FILES-v2.29.0-rc.2.txt",
+        "v2.29.0-rc.1` сохранён без изменений как исторический handoff",
         "Архитектурный ADR намеренно не создан",
     ), errors)
     return errors
@@ -54,6 +83,12 @@ def validate_readme_text(text: str) -> list[str]:
 
 def validate_public_html_text(text: str, path: str = "index.html") -> list[str]:
     return [f"{path} retains stale marker {marker}" for marker in STALE_MARKERS if marker in text]
+
+
+def validate_deploy_text(text: str) -> list[str]:
+    errors: list[str] = []
+    require(text, "deploy/README_ZHENYA.md", DEPLOY_REQUIRED, errors)
+    return errors
 
 
 def parse_checksums(path: Path) -> dict[str, str]:
@@ -128,26 +163,7 @@ def validate(root: Path) -> list[str]:
     ), errors)
 
     deploy = (root / "deploy/README_ZHENYA.md").read_text(encoding="utf-8")
-    require(deploy, "deploy/README_ZHENYA.md", (
-        "## Backup и restore",
-        "## Emergency disable",
-        "Content rollback",
-        "Marketing rollback",
-        "Application rollback",
-        "## Первичное подключение редактора",
-        "## Tuesday ingestion и draft-only smoke",
-        "smoke-weekly-ingestion.mjs",
-        "Pinned runtime",
-        "Enrollment Сани",
-        "Restore:",
-        "run register-weekly-cover",
-        "run rollback-release",
-        "--application-schema 3",
-        "https://vk.ru/oknotika",
-        "https://t.me/FUTU_CHAT",
-        "--token-file",
-        "database-only состояние не считается применённым",
-    ), errors)
+    errors.extend(validate_deploy_text(deploy))
 
     ingestion = (root / "docs/WEEKLY_INGESTION.md").read_text(encoding="utf-8")
     require(ingestion, "docs/WEEKLY_INGESTION.md", (
@@ -202,6 +218,9 @@ def validate(root: Path) -> list[str]:
         "https://youtube.com/@oknotika",
         "https://vk.ru/oknotika",
         "https://t.me/FUTU_CHAT",
+        "protected `main`",
+        "GitHub Environment `production`",
+        "v2.29.0-rc.1",
     ), errors)
 
     versioned_name = f"oknotika-final-{VERSION}.zip"
@@ -214,8 +233,15 @@ def validate(root: Path) -> list[str]:
         checksums = {}
     versioned_hash = sha256(versioned)
     stable_hash = sha256(stable)
-    if checksums != {versioned_name: versioned_hash, stable.name: stable_hash}:
-        errors.append("SHA256SUMS does not match both release archives")
+    historical_name = f"oknotika-final-{HISTORICAL_VERSION}.zip"
+    historical = release / historical_name
+    historical_hash = sha256(historical)
+    if checksums != {
+        versioned_name: versioned_hash,
+        stable.name: stable_hash,
+        historical_name: historical_hash,
+    }:
+        errors.append("SHA256SUMS does not match current, stable and historical release archives")
     if versioned_hash != stable_hash or versioned.read_bytes() != stable.read_bytes():
         errors.append("stable and versioned release archives differ")
     if manifest.get("archiveSha256") != versioned_hash or manifest.get("archiveBytes") != versioned.stat().st_size:
@@ -225,6 +251,14 @@ def validate(root: Path) -> list[str]:
     errors.extend(f"release scan: {error}" for error in scan["errors"])
     if manifest.get("files") != scan["files"] or manifest.get("uncompressedBytes") != scan["uncompressedBytes"]:
         errors.append("external release manifest file/byte counts are stale")
+
+    historical_manifest_path = release / f"release-manifest-{HISTORICAL_VERSION}.json"
+    historical_manifest = json.loads(historical_manifest_path.read_text(encoding="utf-8"))
+    if historical_manifest.get("version") != HISTORICAL_VERSION:
+        errors.append("historical rc.1 manifest version is wrong")
+    if historical_manifest.get("archiveSha256") != historical_hash \
+            or historical_manifest.get("archiveBytes") != historical.stat().st_size:
+        errors.append("historical rc.1 archive no longer matches its manifest")
 
     inventory_path = release / f"CHANGED_FILES-{VERSION}.txt"
     inventory = inventory_path.read_bytes()
@@ -244,6 +278,8 @@ def validate(root: Path) -> list[str]:
         "A\tALUMINUM_SOURCES.md",
         "A\tadmin-app/package.json",
         "A\tdeploy/README_ZHENYA.md",
+        "A\t.github/workflows/deploy-production.yml",
+        "A\tdeploy/cicd/upload-and-deploy.sh",
         "A\tCHANGED_FILES.txt",
         "A\tRELEASE_NOTES.md",
     ), errors)
