@@ -95,9 +95,9 @@ python3 scripts/scan_release_zip.py release/oknotika-final-v2.29.0-rc.2.zip
 
 **Serves:** Sanya’s approved requirements “защищённый main”, “подтверждение Жени для production” and “он сам всё заливал”.
 
-- [ ] Add `.github/workflows/deploy-production.yml`: `main` only, reusable CI dependency, SHA bundle/checksum artifact, `production` Environment, single deployment concurrency, pinned SSH host identity and restricted remote invocation without production application credentials.
-- [ ] Add a small upload/invoke helper that keeps private key material out of argv/logs, validates remote destination inputs and sends only the reviewed bundle/checksum.
-- [ ] Document server account/root-script installation, exact GitHub secret names, required reviewer/environment settings, protected-main migration from current `master`, first manual bootstrap, evidence, routine deploy and emergency rollback.
-- [ ] Extend deployment/final-documentation checks and tests so missing approval, branch restriction, host-key pinning, artifact checksum, rollback/runbook or no-secret boundaries fail CI.
-- [ ] Build a new deterministic secret-free `v2.29.0-rc.2` candidate containing the reviewed CI/CD deploy sources; preserve rc.1 as the historical Zhenya handoff and update current release documentation consistently.
-- [ ] Run the full suite and review the final diff against approved outcome and Non-goals.
+- [x] Add `.github/workflows/deploy-production.yml`: `main` only, reusable CI dependency, SHA bundle/checksum artifact, `production` Environment, single deployment concurrency, pinned SSH host identity and restricted remote invocation without production application credentials.
+- [x] Add a small upload/invoke helper that keeps private key material out of argv/logs, validates remote destination inputs and sends only the reviewed bundle/checksum.
+- [x] Document server account/root-script installation, exact GitHub secret names, required reviewer/environment settings, protected-main migration from current `master`, first manual bootstrap, evidence, routine deploy and emergency rollback.
+- [x] Extend deployment/final-documentation checks and tests so missing approval, branch restriction, host-key pinning, artifact checksum, rollback/runbook or no-secret boundaries fail CI.
+- [x] Build a new deterministic secret-free `v2.29.0-rc.2` candidate containing the reviewed CI/CD deploy sources; preserve rc.1 as the historical Zhenya handoff and update current release documentation consistently.
+- [x] Run the full suite and review the final diff against approved outcome and Non-goals.
