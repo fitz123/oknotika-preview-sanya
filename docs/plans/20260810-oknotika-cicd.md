@@ -62,10 +62,10 @@ python3 scripts/scan_release_zip.py release/oknotika-final-v2.29.0-rc.2.zip
 
 **Serves:** Sanya’s approved requirement “PR → тесты, сборка, проверка секретов”.
 
-- [ ] Add `.github/workflows/ci.yml` with read-only permissions, concurrency, exact Node `24.18.0`, pinned third-party actions and no production environment/secrets on PRs.
-- [ ] Run the existing admin suite, repository/release tests, generated-article checks, deploy/final-documentation checks and dependency audit using pinned inputs.
-- [ ] Add minimum static checks/tests that fail if CI gains write permissions, secret access on PR, floating action tags or unsupported runtime versions.
-- [ ] Validate Task 1 with focused workflow-policy tests.
+- [x] Add `.github/workflows/ci.yml` with read-only permissions, concurrency, exact Node `24.18.0`, pinned third-party actions and no production environment/secrets on PRs.
+- [x] Run the existing admin suite, repository/release tests, generated-article checks, deploy/final-documentation checks and dependency audit using pinned inputs.
+- [x] Add minimum static checks/tests that fail if CI gains write permissions, secret access on PR, floating action tags or unsupported runtime versions.
+- [x] Validate Task 1 with focused workflow-policy tests.
 
 ### Task 2: Immutable SHA-addressed deployment bundle
 

@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Secret-free validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out the committed tree
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Use the pinned Node.js runtime
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: '24.18.0'
+          cache: npm
+          cache-dependency-path: admin-app/package-lock.json
+
+      - name: Install and audit locked dependencies
+        working-directory: admin-app
+        run: |
+          npm ci
+          npm audit --audit-level=high
+          npm audit --omit=dev --audit-level=high
+
+      - name: Validate and build the admin application
+        working-directory: admin-app
+        run: |
+          npm run lint
+          npm test
+          npm run test:security
+          npm run build
+          npm run render:fixture
+
+      - name: Run repository and release policy tests
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Validate generated articles and deployment documentation
+        run: |
+          python3 scripts/check_generated_articles.py var/test-release
+          python3 scripts/check_deploy_package.py .
+          python3 scripts/check_final_documentation.py .
+          python3 scripts/check_cicd_package.py .
