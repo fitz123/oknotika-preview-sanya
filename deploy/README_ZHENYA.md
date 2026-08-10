@@ -36,7 +36,7 @@
 
 ### Root-controlled server primitive и deploy account
 
-Женя выполняет этот раздел один раз из root-сессии, сверяя каждый файл с reviewed commit. Repository workflow не устанавливает и не обновляет root-owned файлы:
+Женя выполняет этот раздел из root-сессии при первом bootstrap и повторяет установку обоих helper из exact reviewed commit перед одобрением любого run, который меняет один из них. Repository workflow не устанавливает и не обновляет root-owned файлы:
 
 ```bash
 sudo useradd --system --create-home \
@@ -57,7 +57,7 @@ sudo install -o root -g root -m 0755 \
 oknotika-deploy ALL=(root) NOPASSWD: /usr/local/sbin/oknotika-deploy *
 ```
 
-Проверить rule через `visudo -cf`, затем из отдельной сессии подтвердить, что `sudo -n -l` не разрешает других root-команд. Wildcard передаёт аргументы только этому root-owned parser: primitive принимает ровно bundle/checksum/release SHA, требует файлы непосредственно в fixed incoming directory, проверяет SHA, archive boundary и internal manifest. Primitive запускает bundle `preflight.sh` и `smoke-test.sh` только от `oknotika-admin`, а public allowlist устанавливает через отдельно сверенный root-owned `/usr/local/sbin/oknotika-install-marketing`; artifact-controlled shell не исполняется с root privileges. Не давать deploy account право менять оба `/usr/local/sbin/oknotika-*` helper, application/marketing roots, systemd units или credentials.
+Проверить rule через `visudo -cf`, затем из отдельной сессии подтвердить, что `sudo -n -l` не разрешает других root-команд. Wildcard передаёт аргументы только этому root-owned parser: primitive принимает ровно bundle/checksum/release SHA, требует файлы непосредственно в fixed incoming directory, проверяет SHA, archive boundary и internal manifest. До staging primitive сравнивает SHA-256 обоих установленных root-owned helper с их reviewed copies внутри bundle и fail-closed требует ручную переустановку из exact commit при расхождении. Primitive запускает bundle `preflight.sh` и `smoke-test.sh` только от `oknotika-admin`, а public allowlist устанавливает через отдельно сверенный root-owned `/usr/local/sbin/oknotika-install-marketing`; artifact-controlled shell не исполняется с root privileges. Не давать deploy account право менять оба `/usr/local/sbin/oknotika-*` helper, application/marketing roots, systemd units или credentials.
 
 ### GitHub Environment, secrets и protected main
 
@@ -86,7 +86,7 @@ Routine deploy: reviewed PR проходит CI → PR merges в protected `main
 
 Для каждого run сохранить вне release ZIP: GitHub run URL/ID, exact commit SHA, artifact SHA-256, reviewer/timestamp, pre/post application и marketing symlink targets, primitive exit status, smoke result и rollback result. Не сохранять key material, host credentials, private payload, editor identity, response bodies, DB/uploads/previews или environment dump.
 
-При ошибке после switch primitive автоматически возвращает ровно captured application/marketing targets, перезапускает service и повторяет smoke; article/content symlink не меняется. После подтверждённого rollback он удаляет только два failed `<sha>` target, сохраняя incoming bundle/checksum и logs как evidence, поэтому exact reviewed SHA можно повторить без ручной очистки. При неуспешном rollback failed targets сохраняются для расследования. Если проблема обнаружена после успешного workflow, Женя под deploy lock вручную проверяет предыдущие immutable application/marketing directories, атомарно возвращает оба relative `current` symlink, перезапускает `oknotika-admin.service` и выполняет `smoke-test.sh`. Если rollback smoke не проходит, остановить admin write surface, сохранить evidence и перейти к Emergency disable; не пытаться менять content release как часть application/marketing rollback.
+При ошибке или `SIGHUP`/`SIGINT`/`SIGTERM` после switch primitive автоматически возвращает ровно captured application/marketing targets, перезапускает service и повторяет smoke; article/content symlink не меняется. После подтверждённого rollback он удаляет только два failed `<sha>` target, сохраняя incoming bundle/checksum и logs как evidence, поэтому exact reviewed SHA можно повторить без ручной очистки. При неуспешном rollback failed targets сохраняются для расследования. Если проблема обнаружена после успешного workflow, Женя под deploy lock вручную проверяет предыдущие immutable application/marketing directories, атомарно возвращает оба relative `current` symlink, перезапускает `oknotika-admin.service` и выполняет `smoke-test.sh`. Если rollback smoke не проходит, остановить admin write surface, сохранить evidence и перейти к Emergency disable; не пытаться менять content release как часть application/marketing rollback.
 
 ## Установка application release
 

@@ -172,8 +172,15 @@ marketing_target="$marketing_root/releases/$release_sha"
 [[ ! -e "$application_target" && ! -L "$application_target" ]] || { fail "immutable application release already exists: $application_target"; exit 1; }
 [[ ! -e "$marketing_target" && ! -L "$marketing_target" ]] || { fail "immutable marketing release already exists: $marketing_target"; exit 1; }
 
-work_parent="$incoming_root/.work"
+work_parent="$application_root/.deploy-work"
+if [[ -e "$work_parent" || -L "$work_parent" ]]; then
+  [[ -d "$work_parent" && ! -L "$work_parent" ]] || {
+    fail "deployment workspace parent must be a non-symlink directory"
+    exit 1
+  }
+fi
 "$install_bin" -d -o "$release_owner" -g "$release_group" -m 0700 "$work_parent"
+work_parent="$(canonical_directory "deployment workspace parent" "$work_parent")"
 work_root="$(mktemp -d "$work_parent/$release_sha.XXXXXXXX")"
 extract_root="$work_root/extracted"
 application_stage="$application_root/releases/.$release_sha.stage.$$"
@@ -238,7 +245,12 @@ rollback_activation() {
 
 on_error() {
   local status=$?
-  trap - ERR
+  handle_failure "$status"
+}
+
+handle_failure() {
+  local status="$1"
+  trap - ERR HUP INT TERM
   set +e
   if $activation_started; then
     if ! rollback_activation; then
@@ -250,7 +262,16 @@ on_error() {
   exit "$status"
 }
 
+on_signal() {
+  local signal="$1" status="$2"
+  echo "Deployment received $signal; applying transactional rollback if activation started." >&2
+  handle_failure "$status"
+}
+
 trap on_error ERR
+trap 'on_signal HUP 129' HUP
+trap 'on_signal INT 130' INT
+trap 'on_signal TERM 143' TERM
 trap cleanup EXIT
 
 "$python_bin" - "$bundle" "$release_sha" "$extract_root" <<'PY'
@@ -424,6 +445,26 @@ PY
 payload_root="$extract_root/oknotika-ci-$release_sha"
 [[ -d "$payload_root" && ! -L "$payload_root" ]] || fail "validated payload root is missing"
 [[ "$($node_bin --version)" == "v24.18.0" ]] || fail "Node v24.18.0 is required"
+
+verify_installed_helper() {
+  local label="$1" installed="$2" reviewed="$3"
+  local installed_checksum reviewed_checksum
+  read -r installed_checksum _ < <("$sha256sum_bin" -- "$installed")
+  read -r reviewed_checksum _ < <("$sha256sum_bin" -- "$reviewed")
+  [[ "$installed_checksum" == "$reviewed_checksum" ]] || {
+    fail "$label does not match the reviewed helper in release $release_sha; reinstall root-owned helpers from that commit"
+    return 1
+  }
+}
+
+verify_installed_helper \
+  "installed deploy primitive" \
+  "$0" \
+  "$payload_root/deploy/cicd/oknotika-deploy"
+verify_installed_helper \
+  "installed marketing helper" \
+  "$marketing_installer_bin" \
+  "$payload_root/deploy/scripts/install-marketing.sh"
 
 "$install_bin" -d -o "$release_owner" -g "$release_group" -m 0755 "$application_root/releases"
 "$install_bin" -d -o "$service_user" -g "$service_group" -m 0755 "$application_stage"

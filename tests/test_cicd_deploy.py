@@ -339,7 +339,69 @@ printf 'sleep:%s\n' "$*" >> "$OKNOTIKA_TEST_LOG"
         self.assertEqual(os.readlink(self.application_root / "current"), f"releases/{SHA}")
         self.assertEqual(os.readlink(self.marketing_root / "current"), f"releases/{SHA}")
 
-    def test_artifact_cannot_replace_the_root_installed_marketing_helper(self) -> None:
+    def test_termination_between_symlink_switches_rolls_back(self) -> None:
+        signal_installer = self.bin_root / "signal-marketing-installer"
+        signal_installer_source = "#!/usr/bin/env bash\nkill -TERM \"$PPID\"\nexit 0\n"
+        self.write_executable(
+            signal_installer,
+            signal_installer_source,
+        )
+        self.build_bundle(
+            overrides={
+                "deploy/scripts/install-marketing.sh": (
+                    signal_installer_source.encode(),
+                    0o755,
+                )
+            }
+        )
+        result = self.run_deploy(
+            {**self.env, "OKNOTIKA_MARKETING_INSTALLER_BIN": str(signal_installer)}
+        )
+        self.assertEqual(result.returncode, 143, result.stderr)
+        self.assertIn("Deployment received TERM", result.stderr)
+        self.assertIn("Rollback health verified", result.stderr)
+        self.assertEqual(
+            os.readlink(self.application_root / "current"),
+            f"releases/{PREVIOUS_APPLICATION_SHA}",
+        )
+        self.assertEqual(
+            os.readlink(self.marketing_root / "current"),
+            f"releases/{PREVIOUS_MARKETING_SHA}",
+        )
+        self.assertFalse((self.application_root / "releases" / SHA).exists())
+
+    def test_termination_during_smoke_rolls_back(self) -> None:
+        terminating_smoke = (
+            b"#!/usr/bin/env bash\n"
+            b"kill -TERM \"$PPID\"\n"
+            b"exit 0\n"
+        )
+        self.build_bundle(
+            overrides={"deploy/scripts/smoke-test.sh": (terminating_smoke, 0o755)}
+        )
+        result = self.run_deploy()
+        self.assertEqual(result.returncode, 143, result.stderr)
+        self.assertIn("Deployment received TERM", result.stderr)
+        self.assertIn("Rollback health verified", result.stderr)
+        self.assertEqual(
+            os.readlink(self.application_root / "current"),
+            f"releases/{PREVIOUS_APPLICATION_SHA}",
+        )
+        self.assertEqual(
+            os.readlink(self.marketing_root / "current"),
+            f"releases/{PREVIOUS_MARKETING_SHA}",
+        )
+
+    def test_deploy_workspace_ignores_incoming_symlinks(self) -> None:
+        protected = self.root / "protected"
+        protected.mkdir(mode=0o755)
+        (self.incoming_root / ".work").symlink_to(protected)
+        result = self.run_deploy()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(stat.S_IMODE(protected.stat().st_mode), 0o755)
+        self.assertTrue((self.application_root / ".deploy-work").is_dir())
+
+    def test_artifact_helper_divergence_fails_closed(self) -> None:
         marker = self.root / "artifact-installer-ran"
         artifact_installer = (
             b"#!/usr/bin/env bash\n"
@@ -352,8 +414,17 @@ printf 'sleep:%s\n' "$*" >> "$OKNOTIKA_TEST_LOG"
         result = self.run_deploy(
             {**self.env, "OKNOTIKA_ARTIFACT_INSTALLER_MARKER": str(marker)}
         )
-        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("installed marketing helper does not match", result.stderr)
         self.assertFalse(marker.exists())
+
+        artifact_primitive = b"#!/usr/bin/env bash\nexit 99\n"
+        self.build_bundle(
+            overrides={"deploy/cicd/oknotika-deploy": (artifact_primitive, 0o755)}
+        )
+        primitive = self.run_deploy()
+        self.assertNotEqual(primitive.returncode, 0)
+        self.assertIn("installed deploy primitive does not match", primitive.stderr)
 
     def test_initial_bootstrap_and_checksum_fail_closed_before_staging(self) -> None:
         (self.marketing_root / "current").unlink()

@@ -65,6 +65,15 @@ class CiWorkflowPolicyTests(unittest.TestCase):
                 )
                 self.assert_rejected(changed, "Node version must be exactly 24.18.0")
 
+    def test_exact_deployment_bundle_build_and_validation_are_required(self) -> None:
+        for command in (
+            'python3 scripts/build_ci_bundle.py --repo . --commit "$CI_SHA" --output var/ci-bundle.zip',
+            'python3 scripts/check_ci_bundle.py var/ci-bundle.zip --expected-commit "$CI_SHA"',
+        ):
+            with self.subTest(command=command):
+                changed = self.workflow.replace(command, "true # deployment bundle gate removed", 1)
+                self.assert_rejected(changed, f"CI command is missing: {command}")
+
 
 class ProductionWorkflowPolicyTests(unittest.TestCase):
     @classmethod

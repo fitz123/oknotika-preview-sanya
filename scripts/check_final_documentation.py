@@ -42,6 +42,7 @@ DEPLOY_REQUIRED = (
     "OKNOTIKA_DEPLOY_SSH_PRIVATE_KEY",
     "OKNOTIKA_DEPLOY_SSH_KNOWN_HOSTS",
     "protected `main`",
+    "сравнивает SHA-256 обоих установленных root-owned helper",
     "Первый bootstrap, routine deploy и evidence",
     "article/content symlink не меняется",
 )

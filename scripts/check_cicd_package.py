@@ -30,6 +30,8 @@ REQUIRED_CI_COMMANDS = (
     "python3 scripts/check_deploy_package.py .",
     "python3 scripts/check_final_documentation.py .",
     "python3 scripts/check_cicd_package.py .",
+    'python3 scripts/build_ci_bundle.py --repo . --commit "$CI_SHA" --output var/ci-bundle.zip',
+    'python3 scripts/check_ci_bundle.py var/ci-bundle.zip --expected-commit "$CI_SHA"',
 )
 
 

@@ -158,6 +158,7 @@ class FinalDocumentationTests(unittest.TestCase):
             "required reviewer — Женя",
             "protected `main`",
             "OKNOTIKA_DEPLOY_SSH_KNOWN_HOSTS",
+            "сравнивает SHA-256 обоих установленных root-owned helper",
             "Первый bootstrap, routine deploy и evidence",
             "article/content symlink не меняется",
         ):
