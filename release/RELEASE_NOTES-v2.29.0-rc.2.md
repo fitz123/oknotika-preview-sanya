@@ -4,7 +4,7 @@
 
 ## Идентификация
 
-- Verified implementation SHA: `d967a0db5face336c4abbb072720ccbee9d04fee`.
+- Verified implementation SHA: `f0480c5f5bada2280cc318aa18842fa0b48b278f`.
 - V2.27 baseline SHA: `5364ff160ffa9b8e9f2d0998a5eef1cf6cd3f5ed`.
 - Архив, stable copy и historical rc.1 проверяются через `SHA256SUMS`.
 - Полный inventory: `CHANGED_FILES-v2.29.0-rc.2.txt`; внутри архива — `CHANGED_FILES.txt`.
@@ -13,7 +13,7 @@
 
 - secret-free pull request CI и reusable gate с exact Node.js `24.18.0` и pinned GitHub Actions;
 - deterministic SHA-addressed deploy bundle с internal file/checksum manifest и secret/runtime boundary;
-- root-controlled server primitive для immutable application/marketing releases, post-switch healthcheck и automatic rollback обоих symlink без content rollback;
+- root-controlled server primitive для immutable application/marketing releases, unprivileged preflight/smoke, bounded readiness healthcheck и retry-safe automatic rollback обоих symlink без content rollback;
 - production workflow только для будущего protected `main`, с ручным допуском GitHub Environment `production`;
 - restricted SSH upload helper с local artifact checksum, pinned known-host identity и fixed remote primitive;
 - activation runbook для deploy account/root script, protected-main migration, first bootstrap, routine evidence и emergency rollback.
@@ -28,7 +28,7 @@
 
 - создать protected `main` только из утверждённого commit и оставить feature branch/tag/manual deploy запрещёнными;
 - создать GitHub Environment `production`, назначить Женю required reviewer и ограничить deployment branch до `main`;
-- вручную установить root-owned `/usr/local/sbin/oknotika-deploy`, restricted deploy account/key и независимо сверенный SSH host key;
+- вручную установить root-owned `/usr/local/sbin/oknotika-deploy` и `/usr/local/sbin/oknotika-install-marketing`, restricted deploy account/key и независимо сверенный SSH host key;
 - выполнить первый application/marketing bootstrap до включения workflow, потому что primitive fail-closed требует оба previous symlink;
 - завершить DNS/TLS, encrypted credentials, verified enrollment, live auth/public/weekly smoke и encrypted off-host restore drill.
 
