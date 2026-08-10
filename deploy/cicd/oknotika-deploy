@@ -37,6 +37,7 @@ incoming_root="${OKNOTIKA_INCOMING_ROOT:-/var/lib/oknotika-deploy/incoming}"
 deploy_lock="${OKNOTIKA_DEPLOY_LOCK:-/run/lock/oknotika-deploy.lock}"
 node_bin="${OKNOTIKA_NODE_BIN:-/opt/node-v24.18.0/bin/node}"
 npm_bin="${OKNOTIKA_NPM_BIN:-/opt/node-v24.18.0/bin/npm}"
+marketing_installer_bin="${OKNOTIKA_MARKETING_INSTALLER_BIN:-/usr/local/sbin/oknotika-install-marketing}"
 systemctl_bin="${OKNOTIKA_SYSTEMCTL_BIN:-/usr/bin/systemctl}"
 runuser_bin="${OKNOTIKA_RUNUSER_BIN:-/usr/sbin/runuser}"
 python_bin="${OKNOTIKA_PYTHON_BIN:-python3}"
@@ -45,6 +46,7 @@ realpath_bin="${OKNOTIKA_REALPATH_BIN:-realpath}"
 sha256sum_bin="${OKNOTIKA_SHA256SUM_BIN:-sha256sum}"
 install_bin="${OKNOTIKA_INSTALL_BIN:-install}"
 mv_bin="${OKNOTIKA_MV_BIN:-mv}"
+sleep_bin="${OKNOTIKA_SLEEP_BIN:-sleep}"
 service_name="${OKNOTIKA_SERVICE_NAME:-oknotika-admin.service}"
 service_user="${OKNOTIKA_SERVICE_USER:-oknotika-admin}"
 service_group="${OKNOTIKA_SERVICE_GROUP:-www-data}"
@@ -52,20 +54,21 @@ release_owner="${OKNOTIKA_RELEASE_OWNER:-root}"
 release_group="${OKNOTIKA_RELEASE_GROUP:-root}"
 public_origin="https://oknotika.ru"
 admin_origin="https://admin.oknotika.ru"
+runtime_path="$(dirname -- "$node_bin"):/usr/bin:/bin"
 
 if [[ "$EUID" -ne 0 && "${OKNOTIKA_ALLOW_UNPRIVILEGED_TEST:-}" != "1" ]]; then
   fail "root privileges are required"
   exit 1
 fi
 
-for executable in "$node_bin" "$npm_bin" "$systemctl_bin"; do
+for executable in "$node_bin" "$npm_bin" "$marketing_installer_bin" "$systemctl_bin"; do
   [[ -x "$executable" ]] || { fail "required executable is missing: $executable"; exit 1; }
 done
 if [[ "$EUID" -eq 0 && "$service_user" != "root" && ! -x "$runuser_bin" ]]; then
   fail "required executable is missing: $runuser_bin"
   exit 1
 fi
-for command in "$python_bin" "$flock_bin" "$realpath_bin" "$sha256sum_bin" "$install_bin" "$mv_bin"; do
+for command in "$python_bin" "$flock_bin" "$realpath_bin" "$sha256sum_bin" "$install_bin" "$mv_bin" "$sleep_bin"; do
   command -v "$command" >/dev/null || { fail "required command is missing: $command"; exit 1; }
 done
 
@@ -199,9 +202,20 @@ run_service_restart() {
 }
 
 run_smoke() {
-  "$application_current/deploy/scripts/smoke-test.sh" \
-    --base-url "$public_origin" \
-    --admin-url "$admin_origin"
+  local attempt
+  for attempt in {1..5}; do
+    if run_as_service env PATH="$runtime_path" \
+      "$application_current/deploy/scripts/smoke-test.sh" \
+        --base-url "$public_origin" \
+        --admin-url "$admin_origin"; then
+      return 0
+    fi
+    if [[ "$attempt" -lt 5 ]]; then
+      echo "Smoke attempt $attempt failed; waiting for service readiness." >&2
+      "$sleep_bin" 2
+    fi
+  done
+  return 1
 }
 
 rollback_activation() {
@@ -215,7 +229,11 @@ rollback_activation() {
     echo "Rollback health verification failed; bundle and immutable release evidence were preserved." >&2
     return 1
   fi
-  echo "Rollback health verified; bundle and failed immutable release evidence were preserved." >&2
+  rm -rf -- "$application_target" "$marketing_target" || {
+    echo "Rollback health verified, but failed immutable release cleanup failed; manual recovery is required." >&2
+    return 1
+  }
+  echo "Rollback health verified; incoming bundle evidence was preserved and the failed release targets were removed for retry." >&2
 }
 
 on_error() {
@@ -426,12 +444,16 @@ run_as_service() {
   cd "$application_stage/admin-app"
   npm_cache="$application_stage/.npm-cache"
   "$install_bin" -d -o "$service_user" -g "$service_group" -m 0700 "$npm_cache"
-  HOME="$application_stage" NPM_CONFIG_CACHE="$npm_cache" \
-    run_as_service "$npm_bin" ci --omit=dev --no-audit --no-fund
+  run_as_service env \
+    HOME="$application_stage" \
+    NPM_CONFIG_CACHE="$npm_cache" \
+    PATH="$runtime_path" \
+    "$npm_bin" ci --omit=dev --no-audit --no-fund
   rm -rf -- "$npm_cache"
 )
 chown -R "$release_owner:$release_group" "$application_stage"
-PATH="$(dirname -- "$node_bin"):/usr/bin:/bin" \
+run_as_service env \
+  PATH="$runtime_path" \
   OKNOTIKA_APP_ROOT="$application_stage" \
   "$application_stage/deploy/scripts/preflight.sh"
 "$mv_bin" -- "$application_stage" "$application_target"
@@ -441,7 +463,7 @@ activation_started=true
 atomic_link "releases/$release_sha" "$application_current"
 OKNOTIKA_RELEASE_OWNER="$release_owner" \
   OKNOTIKA_RELEASE_GROUP="$release_group" \
-  "$application_target/deploy/scripts/install-marketing.sh" \
+  "$marketing_installer_bin" \
     --source "$payload_root" \
     --release-sha "$release_sha" \
     --marketing-root "$marketing_root"

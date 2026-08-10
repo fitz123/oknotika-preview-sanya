@@ -5,6 +5,12 @@ umask 0077
 script_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 state_root="${OKNOTIKA_STATE_ROOT:-/var/lib/oknotika-admin}"
 database="${OKNOTIKA_DATABASE_PATH:-$state_root/db/admin.sqlite}"
+installed_release="$(basename -- "$(cd "$script_root/../.." && pwd -P)")"
+if [[ "$installed_release" =~ ^[a-f0-9]{40,64}$ ]]; then
+  release="$installed_release"
+else
+  release="${OKNOTIKA_RELEASE_SHA:-unknown}"
+fi
 snapshot="$state_root/backups/online/admin.sqlite"
 lock="$state_root/backups/backup.lock"
 
@@ -32,7 +38,7 @@ paths=(backups/online/admin.sqlite uploads article-releases/releases)
 cd "$state_root"
 restic --repository-file "$RESTIC_REPOSITORY_FILE" backup \
   --tag oknotika-admin \
-  --tag "release-${OKNOTIKA_RELEASE_SHA:-unknown}" \
+  --tag "release-$release" \
   "${paths[@]}"
 restic --repository-file "$RESTIC_REPOSITORY_FILE" forget \
   --tag oknotika-admin \

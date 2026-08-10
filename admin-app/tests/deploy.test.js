@@ -65,7 +65,31 @@ test('pre-migration backup runs once per pending schema and skips current databa
   }
   openDatabase(databasePath, migrations).close();
 
-  const script = resolve(REPO_ROOT, 'deploy/scripts/pre-migrate-backup.sh');
+  const releaseSha = 'd'.repeat(40);
+  const releaseRoot = resolve(root, 'application/releases', releaseSha);
+  const releaseScriptRoot = resolve(releaseRoot, 'deploy/scripts');
+  const releaseMigrations = resolve(releaseRoot, 'admin-app/migrations');
+  mkdirSync(releaseScriptRoot, { recursive: true });
+  mkdirSync(releaseMigrations, { recursive: true });
+  for (const name of [
+    'pre-migrate-backup.sh',
+    'pending-migrations.mjs',
+    'sqlite-online-backup.mjs',
+  ]) {
+    copyFileSync(
+      resolve(REPO_ROOT, 'deploy/scripts', name),
+      resolve(releaseScriptRoot, name),
+    );
+  }
+  for (const name of readdirSync(resolve(REPO_ROOT, 'admin-app/migrations'))) {
+    if (name.endsWith('.sql')) {
+      copyFileSync(
+        resolve(REPO_ROOT, 'admin-app/migrations', name),
+        resolve(releaseMigrations, name),
+      );
+    }
+  }
+  const script = resolve(releaseScriptRoot, 'pre-migrate-backup.sh');
   const env = {
     ...process.env,
     OKNOTIKA_STATE_ROOT: root,
@@ -75,7 +99,9 @@ test('pre-migration backup runs once per pending schema and skips current databa
   execFileSync('bash', [script], { env });
   execFileSync('bash', [script], { env });
   const backupRoot = resolve(root, 'db/migration-backups');
-  assert.equal(readdirSync(backupRoot).filter(name => name.endsWith('.sqlite')).length, 1);
+  const migrationBackups = readdirSync(backupRoot).filter(name => name.endsWith('.sqlite'));
+  assert.equal(migrationBackups.length, 1);
+  assert.match(migrationBackups[0], new RegExp(`${releaseSha.slice(0, 16)}\\.sqlite$`));
 
   openDatabase(databasePath).close();
   execFileSync('bash', [script], { env });
@@ -590,6 +616,7 @@ test('backup reconciliation repairs public pointers while holding the publisher 
 
   const backupScript = readFileSync(resolve(REPO_ROOT, 'deploy/scripts/backup.sh'), 'utf8');
   assert.ok(backupScript.indexOf('reconcile-public-state.mjs') < backupScript.indexOf('sqlite-online-backup.mjs'));
+  assert.match(backupScript, /installed_release=.*pwd -P/);
 });
 
 test('backup reconciliation refuses a missing active symlink with nonempty public DB state', async (t) => {

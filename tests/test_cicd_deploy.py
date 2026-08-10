@@ -39,12 +39,14 @@ class ServerDeployPrimitiveTests(unittest.TestCase):
         self.incoming_root = self.root / "incoming"
         self.lock_root = self.root / "lock"
         self.bin_root = self.root / "bin"
+        self.runtime_root = self.root / "runtime-bin"
         for path in (
             self.application_root / "releases",
             self.marketing_root / "releases",
             self.incoming_root,
             self.lock_root,
             self.bin_root,
+            self.runtime_root,
         ):
             path.mkdir(parents=True)
 
@@ -89,13 +91,17 @@ class ServerDeployPrimitiveTests(unittest.TestCase):
             "OKNOTIKA_MARKETING_ROOT": str(self.marketing_root),
             "OKNOTIKA_INCOMING_ROOT": str(self.incoming_root),
             "OKNOTIKA_DEPLOY_LOCK": str(self.lock_root / "deploy.lock"),
-            "OKNOTIKA_NODE_BIN": str(self.bin_root / "node"),
-            "OKNOTIKA_NPM_BIN": str(self.bin_root / "npm"),
+            "OKNOTIKA_NODE_BIN": str(self.runtime_root / "node"),
+            "OKNOTIKA_NPM_BIN": str(self.runtime_root / "npm"),
+            "OKNOTIKA_MARKETING_INSTALLER_BIN": str(
+                self.bin_root / "oknotika-install-marketing"
+            ),
             "OKNOTIKA_SYSTEMCTL_BIN": str(self.bin_root / "systemctl"),
             "OKNOTIKA_FLOCK_BIN": str(self.bin_root / "flock"),
             "OKNOTIKA_REALPATH_BIN": gnu_realpath,
             "OKNOTIKA_SHA256SUM_BIN": gnu_sha256sum,
             "OKNOTIKA_MV_BIN": gnu_mv,
+            "OKNOTIKA_SLEEP_BIN": str(self.bin_root / "sleep"),
             "OKNOTIKA_SERVICE_USER": user,
             "OKNOTIKA_SERVICE_GROUP": group,
             "OKNOTIKA_RELEASE_OWNER": user,
@@ -115,8 +121,9 @@ count=0
 [[ ! -f "$OKNOTIKA_SMOKE_COUNT" ]] || count="$(< "$OKNOTIKA_SMOKE_COUNT")"
 count=$((count + 1))
 printf '%s\n' "$count" > "$OKNOTIKA_SMOKE_COUNT"
+[[ "$(node --version)" == "v24.18.0" ]]
 printf 'smoke:%s:%s\n' "$(readlink "$OKNOTIKA_APPLICATION_ROOT/current")" "$(readlink "$OKNOTIKA_MARKETING_ROOT/current")" >> "$OKNOTIKA_TEST_LOG"
-if [[ "${OKNOTIKA_FAIL_FIRST_SMOKE:-}" == "1" && "$count" -eq 1 ]]; then
+if (( count <= ${OKNOTIKA_SMOKE_FAILURES:-0} )); then
   echo "injected post-switch smoke failure" >&2
   exit 42
 fi
@@ -129,15 +136,16 @@ fi
 
     def make_command_stubs(self) -> None:
         self.write_executable(
-            self.bin_root / "node",
+            self.runtime_root / "node",
             """#!/usr/bin/env bash
 [[ "${1:-}" == "--version" ]] || exit 2
 echo v24.18.0
 """,
         )
         self.write_executable(
-            self.bin_root / "npm",
+            self.runtime_root / "npm",
             """#!/usr/bin/env bash
+[[ "$(node --version)" == "v24.18.0" ]]
 printf 'npm:%s\n' "$*" >> "$OKNOTIKA_TEST_LOG"
 mkdir node_modules
 printf 'locked runtime\n' > node_modules/runtime.txt
@@ -155,6 +163,16 @@ printf 'systemctl:%s:app=%s:marketing=%s\n' "$*" "$(readlink "$OKNOTIKA_APPLICAT
 [[ "$1" == "-n" && "$2" == "9" ]]
 """,
         )
+        self.write_executable(
+            self.bin_root / "sleep",
+            """#!/usr/bin/env bash
+printf 'sleep:%s\n' "$*" >> "$OKNOTIKA_TEST_LOG"
+""",
+        )
+        self.write_executable(
+            self.bin_root / "oknotika-install-marketing",
+            (REPO / "deploy/scripts/install-marketing.sh").read_text(encoding="utf-8"),
+        )
         gnu_mv = shutil.which("gmv") or shutil.which("mv")
         gnu_ln = shutil.which("gln") or shutil.which("ln")
         assert gnu_mv and gnu_ln
@@ -165,7 +183,11 @@ printf 'systemctl:%s:app=%s:marketing=%s\n' "$*" "$(readlink "$OKNOTIKA_APPLICAT
             self.bin_root / "ln", f'#!/usr/bin/env bash\nexec "{gnu_ln}" "$@"\n'
         )
 
-    def build_bundle(self, additions: list[tuple[zipfile.ZipInfo, bytes]] | None = None) -> None:
+    def build_bundle(
+        self,
+        additions: list[tuple[zipfile.ZipInfo, bytes]] | None = None,
+        overrides: dict[str, tuple[bytes, int]] | None = None,
+    ) -> None:
         package_lock = b'{"lockfileVersion":3,"packages":{}}\n'
         release_manifest = json.dumps(
             {
@@ -195,12 +217,13 @@ printf 'systemctl:%s:app=%s:marketing=%s\n' "$*" "$(readlink "$OKNOTIKA_APPLICAT
                 0o755,
             ),
             "deploy/scripts/preflight.sh": (
-                b"#!/usr/bin/env bash\nset -euo pipefail\nprintf 'preflight:%s\\n' \"$OKNOTIKA_APP_ROOT\" >> \"$OKNOTIKA_TEST_LOG\"\n",
+                b"#!/usr/bin/env bash\nset -euo pipefail\n[[ \"$(node --version)\" == \"v24.18.0\" ]]\nprintf 'preflight:%s\\n' \"$OKNOTIKA_APP_ROOT\" >> \"$OKNOTIKA_TEST_LOG\"\n",
                 0o755,
             ),
             "deploy/scripts/smoke-test.sh": (self.smoke_script().encode(), 0o755),
             "deploy/systemd/oknotika-admin.service": (b"[Service]\n", 0o644),
         }
+        files.update(overrides or {})
         manifest = {
             "schemaVersion": 1,
             "format": "oknotika-ci-bundle",
@@ -278,8 +301,16 @@ printf 'systemctl:%s:app=%s:marketing=%s\n' "$*" "$(readlink "$OKNOTIKA_APPLICAT
         self.assertEqual(events[-1], f"smoke:releases/{SHA}:releases/{SHA}")
         self.assertEqual(os.readlink(self.article_current), "releases/content-1")
 
+    def test_smoke_retries_a_startup_readiness_race_before_succeeding(self) -> None:
+        result = self.run_deploy({**self.env, "OKNOTIKA_SMOKE_FAILURES": "1"})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        events = self.log.read_text(encoding="utf-8").splitlines()
+        self.assertEqual(sum(event.startswith("systemctl:restart") for event in events), 1)
+        self.assertEqual(sum(event.startswith("smoke:") for event in events), 2)
+        self.assertIn("Smoke attempt 1 failed", result.stderr)
+
     def test_post_switch_failure_restores_exact_targets_and_verifies_health(self) -> None:
-        env = {**self.env, "OKNOTIKA_FAIL_FIRST_SMOKE": "1"}
+        env = {**self.env, "OKNOTIKA_SMOKE_FAILURES": "5"}
         result = self.run_deploy(env)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Rollback health verified", result.stderr)
@@ -291,17 +322,38 @@ printf 'systemctl:%s:app=%s:marketing=%s\n' "$*" "$(readlink "$OKNOTIKA_APPLICAT
             os.readlink(self.marketing_root / "current"),
             f"releases/{PREVIOUS_MARKETING_SHA}",
         )
-        self.assertTrue((self.application_root / "releases" / SHA).is_dir())
-        self.assertTrue((self.marketing_root / "releases" / SHA).is_dir())
+        self.assertFalse((self.application_root / "releases" / SHA).exists())
+        self.assertFalse((self.marketing_root / "releases" / SHA).exists())
         self.assertTrue(self.bundle.is_file())
         events = self.log.read_text(encoding="utf-8").splitlines()
         self.assertEqual(sum(event.startswith("systemctl:restart") for event in events), 2)
-        self.assertEqual(sum(event.startswith("smoke:") for event in events), 2)
+        self.assertEqual(sum(event.startswith("smoke:") for event in events), 6)
         self.assertEqual(
             events[-1],
             f"smoke:releases/{PREVIOUS_APPLICATION_SHA}:releases/{PREVIOUS_MARKETING_SHA}",
         )
         self.assertEqual(os.readlink(self.article_current), "releases/content-1")
+
+        retry = self.run_deploy()
+        self.assertEqual(retry.returncode, 0, retry.stderr)
+        self.assertEqual(os.readlink(self.application_root / "current"), f"releases/{SHA}")
+        self.assertEqual(os.readlink(self.marketing_root / "current"), f"releases/{SHA}")
+
+    def test_artifact_cannot_replace_the_root_installed_marketing_helper(self) -> None:
+        marker = self.root / "artifact-installer-ran"
+        artifact_installer = (
+            b"#!/usr/bin/env bash\n"
+            b"touch \"$OKNOTIKA_ARTIFACT_INSTALLER_MARKER\"\n"
+            b"exit 99\n"
+        )
+        self.build_bundle(
+            overrides={"deploy/scripts/install-marketing.sh": (artifact_installer, 0o755)}
+        )
+        result = self.run_deploy(
+            {**self.env, "OKNOTIKA_ARTIFACT_INSTALLER_MARKER": str(marker)}
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(marker.exists())
 
     def test_initial_bootstrap_and_checksum_fail_closed_before_staging(self) -> None:
         (self.marketing_root / "current").unlink()
@@ -356,7 +408,9 @@ printf 'systemctl:%s:app=%s:marketing=%s\n' "$*" "$(readlink "$OKNOTIKA_APPLICAT
         self.assertIn("/opt/oknotika-admin", source)
         self.assertIn("/srv/oknotika", source)
         self.assertIn("/var/lib/oknotika-deploy/incoming", source)
+        self.assertIn("/usr/local/sbin/oknotika-install-marketing", source)
         self.assertIn('"$flock_bin" -n 9', source)
+        self.assertNotIn('"$application_target/deploy/scripts/install-marketing.sh"', source)
         self.assertNotIn("article-releases/active", source)
 
 

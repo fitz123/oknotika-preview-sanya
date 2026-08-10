@@ -47,6 +47,8 @@ sudo install -d -o oknotika-deploy -g oknotika-deploy -m 0750 \
 sudo install -d -o root -g root -m 0755 /usr/local/sbin
 sudo install -o root -g root -m 0755 \
   deploy/cicd/oknotika-deploy /usr/local/sbin/oknotika-deploy
+sudo install -o root -g root -m 0755 \
+  deploy/scripts/install-marketing.sh /usr/local/sbin/oknotika-install-marketing
 ```
 
 В `/var/lib/oknotika-deploy/.ssh/authorized_keys` установить только отдельный public key GitHub deploy credential с OpenSSH option `restrict`; каталог должен быть `0700`, файл `0600`, владелец `oknotika-deploy`. Не использовать личный ключ, agent forwarding или ключ от backup/runtime account. Restricted account получает запись только в `/var/lib/oknotika-deploy/incoming` и следующий root-owned sudoers rule:
@@ -55,7 +57,7 @@ sudo install -o root -g root -m 0755 \
 oknotika-deploy ALL=(root) NOPASSWD: /usr/local/sbin/oknotika-deploy *
 ```
 
-Проверить rule через `visudo -cf`, затем из отдельной сессии подтвердить, что `sudo -n -l` не разрешает других root-команд. Wildcard передаёт аргументы только этому root-owned parser: primitive принимает ровно bundle/checksum/release SHA, требует файлы непосредственно в fixed incoming directory, проверяет SHA, archive boundary и internal manifest. Не давать deploy account право менять `/usr/local/sbin/oknotika-deploy`, application/marketing roots, systemd units или credentials.
+Проверить rule через `visudo -cf`, затем из отдельной сессии подтвердить, что `sudo -n -l` не разрешает других root-команд. Wildcard передаёт аргументы только этому root-owned parser: primitive принимает ровно bundle/checksum/release SHA, требует файлы непосредственно в fixed incoming directory, проверяет SHA, archive boundary и internal manifest. Primitive запускает bundle `preflight.sh` и `smoke-test.sh` только от `oknotika-admin`, а public allowlist устанавливает через отдельно сверенный root-owned `/usr/local/sbin/oknotika-install-marketing`; artifact-controlled shell не исполняется с root privileges. Не давать deploy account право менять оба `/usr/local/sbin/oknotika-*` helper, application/marketing roots, systemd units или credentials.
 
 ### GitHub Environment, secrets и protected main
 
@@ -73,25 +75,25 @@ Telegram OIDC, `weekly-ingest-token`, restic credentials, editor identity и run
 
 1. Создать `main` из exact approved commit, проверить SHA и сделать его default branch; старый `master` не удалять до проверки ссылок и automation.
 2. Защитить `main`: changes only through pull requests, минимум один независимый approval, dismiss stale approvals, require conversation resolution, запрет force-push/deletion и required check `CI / Secret-free validation`.
-3. Ограничить изменение `.github/workflows/**`, `deploy/cicd/**` и этого runbook обязательным review Жени через repository ownership policy.
+3. Ограничить изменение `.github/workflows/**`, `deploy/cicd/**`, `deploy/scripts/install-marketing.sh` и этого runbook обязательным review Жени через repository ownership policy.
 4. Настроить `production` Environment как выше. До этого шага не добавлять deploy secrets; после настройки выполнить только reviewed no-op connection rehearsal, не production activation.
 
 ### Первый bootstrap, routine deploy и evidence
 
 `oknotika-deploy` fail-closed отклоняет сервер без обоих existing `current` symlink. Первый application/marketing release устанавливает Женя вручную по разделам ниже из проверенного `v2.29.0-rc.2`, затем настраивает systemd credentials, nginx, enrollment, backup/restore и smoke gates. Только после работающих `/opt/oknotika-admin/current` и `/srv/oknotika/current` разрешать первый workflow run.
 
-Routine deploy: reviewed PR проходит CI → PR merges в protected `main` → workflow повторяет CI и строит artifact `oknotika-ci-<commit SHA>` → Женя сверяет commit/run и одобряет `production` → helper проверяет local checksum и pinned host identity, передаёт только `<sha>.zip` и `<sha>.zip.sha256` → root primitive проверяет и активирует application/marketing → public/admin smoke подтверждает результат. Никогда не одобрять run для SHA, которого нет в protected `main`.
+Routine deploy: reviewed PR проходит CI → PR merges в protected `main` → workflow повторяет CI и строит artifact `oknotika-ci-<commit SHA>` → Женя сверяет commit/run и одобряет `production` → helper проверяет local checksum и pinned host identity, передаёт только `<sha>.zip` и `<sha>.zip.sha256` → root primitive проверяет и активирует application/marketing → после restart делает bounded readiness retries и public/admin smoke подтверждает результат. Никогда не одобрять run для SHA, которого нет в protected `main`.
 
 Для каждого run сохранить вне release ZIP: GitHub run URL/ID, exact commit SHA, artifact SHA-256, reviewer/timestamp, pre/post application и marketing symlink targets, primitive exit status, smoke result и rollback result. Не сохранять key material, host credentials, private payload, editor identity, response bodies, DB/uploads/previews или environment dump.
 
-При ошибке после switch primitive автоматически возвращает ровно captured application/marketing targets, перезапускает service и повторяет smoke; article/content symlink не меняется. Если проблема обнаружена после успешного workflow, Женя под deploy lock вручную проверяет предыдущие immutable application/marketing directories, атомарно возвращает оба relative `current` symlink, перезапускает `oknotika-admin.service` и выполняет `smoke-test.sh`. Если rollback smoke не проходит, остановить admin write surface, сохранить evidence и перейти к Emergency disable; не пытаться менять content release как часть application/marketing rollback.
+При ошибке после switch primitive автоматически возвращает ровно captured application/marketing targets, перезапускает service и повторяет smoke; article/content symlink не меняется. После подтверждённого rollback он удаляет только два failed `<sha>` target, сохраняя incoming bundle/checksum и logs как evidence, поэтому exact reviewed SHA можно повторить без ручной очистки. При неуспешном rollback failed targets сохраняются для расследования. Если проблема обнаружена после успешного workflow, Женя под deploy lock вручную проверяет предыдущие immutable application/marketing directories, атомарно возвращает оба relative `current` symlink, перезапускает `oknotika-admin.service` и выполняет `smoke-test.sh`. Если rollback smoke не проходит, остановить admin write surface, сохранить evidence и перейти к Emergency disable; не пытаться менять content release как часть application/marketing rollback.
 
 ## Установка application release
 
 1. Проверить checksum secret-free ZIP и release SHA из release notes.
 2. Распаковать в новый `/opt/oknotika-admin/releases/<sha>`. Старый каталог не изменять.
 3. В `admin-app/` выполнить pinned Node: `npm ci`, затем локальные gates `npm run lint`, `npm test`, `npm run test:security`, `npm run build`, `npm run render:fixture`. Для production artifact разрешено удалить devDependencies только после этих проверок через `npm prune --omit=dev`.
-4. Скопировать `deploy/config/oknotika-admin.env.example` в `/etc/oknotika-admin/oknotika-admin.env`, поставить `root:oknotika-admin` и `0640`, заменить только release SHA и подтверждённые canonical origins. Credentials в этот файл не писать.
+4. Скопировать `deploy/config/oknotika-admin.env.example` в `/etc/oknotika-admin/oknotika-admin.env`, поставить `root:oknotika-admin` и `0640`, заменить только подтверждённые canonical origins. Release SHA для migration/backup evidence автоматически берётся из immutable application release path; credentials в этот файл не писать.
 5. Атомарно переключить `/opt/oknotika-admin/current` через новый относительный symlink и `mv -T`. Не удалять предыдущий release до следующего успешного backup/restore drill.
 
 ## Установка marketing release

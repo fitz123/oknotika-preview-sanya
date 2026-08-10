@@ -27,7 +27,12 @@ prune_migration_backups
 migration_state="$(node "$script_root/pending-migrations.mjs" "$database" "$migrations")"
 [[ -n "$migration_state" ]] || exit 0
 IFS=$'\t' read -r current_version target_version migration_fingerprint <<< "$migration_state"
-release="${OKNOTIKA_RELEASE_SHA:-unversioned}"
+installed_release="$(basename -- "$(cd "$script_root/../.." && pwd -P)")"
+if [[ "$installed_release" =~ ^[a-f0-9]{40,64}$ ]]; then
+  release="$installed_release"
+else
+  release="${OKNOTIKA_RELEASE_SHA:-unversioned}"
+fi
 [[ "$release" == "unversioned" || "$release" =~ ^[a-f0-9]{40,64}$ ]] || {
   echo "OKNOTIKA_RELEASE_SHA must be 40-64 lowercase hex characters" >&2
   exit 1

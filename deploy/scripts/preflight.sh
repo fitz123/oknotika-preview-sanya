@@ -67,10 +67,6 @@ if $service_start; then
     "${OKNOTIKA_ARTICLE_RELEASES_ROOT:-}" "$expected_article_releases"
   require_exact OKNOTIKA_PUBLIC_ROOT "${OKNOTIKA_PUBLIC_ROOT:-}" "$expected_public_root"
   require_exact OKNOTIKA_LISTEN_SOCKET "${OKNOTIKA_LISTEN_SOCKET:-$expected_socket}" "$expected_socket"
-  [[ "${OKNOTIKA_RELEASE_SHA:-}" =~ ^[a-f0-9]{40,64}$ ]] || {
-    echo "OKNOTIKA_RELEASE_SHA must be 40-64 lowercase hex characters" >&2
-    exit 1
-  }
   for name in OKNOTIKA_ADMIN_ORIGIN OKNOTIKA_PUBLIC_ORIGIN TELEGRAM_OIDC_REDIRECT_URI \
     TELEGRAM_OIDC_CLIENT_ID_FILE TELEGRAM_OIDC_CLIENT_SECRET_FILE \
     OKNOTIKA_WEEKLY_INGEST_TOKEN_FILE; do
