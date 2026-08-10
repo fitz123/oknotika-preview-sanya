@@ -252,6 +252,27 @@ def main() -> None:
         "destination must be absent",
     )
 
+    cicd_deploy = deploy / "cicd/oknotika-deploy"
+    require_text(
+        cicd_deploy,
+        "flock_bin",
+        "BUNDLE_MANIFEST.json",
+        "npm_bin\" ci --omit=dev",
+        "previous_application_target",
+        "previous_marketing_target",
+        "rollback_activation",
+        "Rollback health verified",
+        "install-marketing.sh",
+        "smoke-test.sh",
+    )
+    cicd_syntax = subprocess.run(
+        ["bash", "-n", cicd_deploy], capture_output=True, text=True, check=False
+    )
+    if cicd_syntax.returncode:
+        fail(f"bash syntax error in {cicd_deploy}: {cicd_syntax.stderr.strip()}")
+    if not stat.S_IMODE(cicd_deploy.stat().st_mode) & stat.S_IXUSR:
+        fail(f"deployment primitive is not executable: {cicd_deploy}")
+
     scripts = sorted((deploy / "scripts").glob("*.sh"))
     if not scripts:
         fail("no deployment shell scripts found")

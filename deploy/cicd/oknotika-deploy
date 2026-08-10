@@ -1,0 +1,452 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+umask 0022
+
+usage() {
+  echo "usage: oknotika-deploy --bundle BUNDLE.zip --checksum-file BUNDLE.zip.sha256 --release-sha SHA" >&2
+  exit 2
+}
+
+fail() {
+  echo "oknotika deploy failed: $*" >&2
+  return 1
+}
+
+bundle=""
+checksum_file=""
+release_sha=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --bundle) bundle="${2:-}"; shift 2 ;;
+    --checksum-file) checksum_file="${2:-}"; shift 2 ;;
+    --release-sha) release_sha="${2:-}"; shift 2 ;;
+    *) usage ;;
+  esac
+done
+
+[[ -n "$bundle" && -n "$checksum_file" && -n "$release_sha" ]] || usage
+[[ "$release_sha" =~ ^[a-f0-9]{40}([a-f0-9]{24})?$ ]] || {
+  echo "release SHA must be 40 or 64 lowercase hex characters" >&2
+  exit 2
+}
+
+application_root="${OKNOTIKA_APPLICATION_ROOT:-/opt/oknotika-admin}"
+marketing_root="${OKNOTIKA_MARKETING_ROOT:-/srv/oknotika}"
+incoming_root="${OKNOTIKA_INCOMING_ROOT:-/var/lib/oknotika-deploy/incoming}"
+deploy_lock="${OKNOTIKA_DEPLOY_LOCK:-/run/lock/oknotika-deploy.lock}"
+node_bin="${OKNOTIKA_NODE_BIN:-/opt/node-v24.18.0/bin/node}"
+npm_bin="${OKNOTIKA_NPM_BIN:-/opt/node-v24.18.0/bin/npm}"
+systemctl_bin="${OKNOTIKA_SYSTEMCTL_BIN:-/usr/bin/systemctl}"
+runuser_bin="${OKNOTIKA_RUNUSER_BIN:-/usr/sbin/runuser}"
+python_bin="${OKNOTIKA_PYTHON_BIN:-python3}"
+flock_bin="${OKNOTIKA_FLOCK_BIN:-flock}"
+realpath_bin="${OKNOTIKA_REALPATH_BIN:-realpath}"
+sha256sum_bin="${OKNOTIKA_SHA256SUM_BIN:-sha256sum}"
+install_bin="${OKNOTIKA_INSTALL_BIN:-install}"
+mv_bin="${OKNOTIKA_MV_BIN:-mv}"
+service_name="${OKNOTIKA_SERVICE_NAME:-oknotika-admin.service}"
+service_user="${OKNOTIKA_SERVICE_USER:-oknotika-admin}"
+service_group="${OKNOTIKA_SERVICE_GROUP:-www-data}"
+release_owner="${OKNOTIKA_RELEASE_OWNER:-root}"
+release_group="${OKNOTIKA_RELEASE_GROUP:-root}"
+public_origin="https://oknotika.ru"
+admin_origin="https://admin.oknotika.ru"
+
+if [[ "$EUID" -ne 0 && "${OKNOTIKA_ALLOW_UNPRIVILEGED_TEST:-}" != "1" ]]; then
+  fail "root privileges are required"
+  exit 1
+fi
+
+for executable in "$node_bin" "$npm_bin" "$systemctl_bin"; do
+  [[ -x "$executable" ]] || { fail "required executable is missing: $executable"; exit 1; }
+done
+if [[ "$EUID" -eq 0 && "$service_user" != "root" && ! -x "$runuser_bin" ]]; then
+  fail "required executable is missing: $runuser_bin"
+  exit 1
+fi
+for command in "$python_bin" "$flock_bin" "$realpath_bin" "$sha256sum_bin" "$install_bin" "$mv_bin"; do
+  command -v "$command" >/dev/null || { fail "required command is missing: $command"; exit 1; }
+done
+
+canonical_directory() {
+  local label="$1" path="$2"
+  [[ "$path" == /* && -d "$path" && ! -L "$path" ]] || {
+    fail "$label must be an existing absolute non-symlink directory: $path"
+    return 1
+  }
+  "$realpath_bin" -e -- "$path"
+}
+
+application_root="$(canonical_directory "application root" "$application_root")"
+marketing_root="$(canonical_directory "marketing root" "$marketing_root")"
+incoming_root="$(canonical_directory "incoming root" "$incoming_root")"
+
+lock_parent="$(dirname -- "$deploy_lock")"
+[[ "$deploy_lock" == /* && -d "$lock_parent" && ! -L "$lock_parent" && ! -L "$deploy_lock" ]] || {
+  fail "deployment lock must be a non-symlink file under an existing absolute directory"
+  exit 1
+}
+exec 9>"$deploy_lock"
+"$flock_bin" -n 9 || { fail "another OKNOTIKA deployment is running"; exit 1; }
+
+validate_incoming_file() {
+  local label="$1" path="$2" expected_name="$3" resolved
+  [[ "$path" == /* && -f "$path" && ! -L "$path" ]] || {
+    fail "$label must be an existing absolute regular non-symlink file"
+    return 1
+  }
+  resolved="$("$realpath_bin" -e -- "$path")"
+  [[ "$(dirname -- "$resolved")" == "$incoming_root" ]] || {
+    fail "$label must be directly inside $incoming_root"
+    return 1
+  }
+  [[ "$(basename -- "$resolved")" == "$expected_name" ]] || {
+    fail "$label must be named $expected_name"
+    return 1
+  }
+  printf '%s\n' "$resolved"
+}
+
+bundle="$(validate_incoming_file "bundle" "$bundle" "$release_sha.zip")"
+checksum_file="$(validate_incoming_file "checksum file" "$checksum_file" "$release_sha.zip.sha256")"
+
+expected_checksum="$("$python_bin" - "$checksum_file" "$release_sha.zip" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+checksum_path = Path(sys.argv[1])
+expected_name = sys.argv[2]
+try:
+    value = checksum_path.read_bytes().decode("ascii")
+except (OSError, UnicodeDecodeError) as exc:
+    raise SystemExit(f"invalid checksum file: {exc}")
+match = re.fullmatch(r"([a-f0-9]{64})  (\*?)([^\s/]+)\n?", value)
+if match is None or match.group(3) != expected_name:
+    raise SystemExit("checksum file must contain one lowercase SHA-256 entry for the bundle basename")
+print(match.group(1))
+PY
+)"
+read -r actual_checksum _ < <("$sha256sum_bin" -- "$bundle")
+[[ "$actual_checksum" == "$expected_checksum" ]] || {
+  fail "bundle SHA-256 does not match the checksum file"
+  exit 1
+}
+
+application_current="$application_root/current"
+marketing_current="$marketing_root/current"
+
+capture_current_target() {
+  local label="$1" root="$2" current="$3" target resolved expected
+  [[ -L "$current" ]] || {
+    fail "$label current symlink is missing; initial bootstrap is required"
+    return 1
+  }
+  target="$(readlink "$current")"
+  [[ "$target" =~ ^releases/[a-f0-9]{40}([a-f0-9]{24})?$ ]] || {
+    fail "$label current symlink target is not an immutable relative release"
+    return 1
+  }
+  resolved="$("$realpath_bin" -e -- "$current")"
+  expected="$("$realpath_bin" -e -- "$root/$target")"
+  [[ "$resolved" == "$expected" ]] || {
+    fail "$label current symlink escapes its releases root"
+    return 1
+  }
+  printf '%s\n' "$target"
+}
+
+previous_application_target="$(capture_current_target "application" "$application_root" "$application_current")"
+previous_marketing_target="$(capture_current_target "marketing" "$marketing_root" "$marketing_current")"
+[[ -x "$application_current/deploy/scripts/smoke-test.sh" ]] || {
+  fail "current application has no executable rollback smoke check"
+  exit 1
+}
+
+application_target="$application_root/releases/$release_sha"
+marketing_target="$marketing_root/releases/$release_sha"
+[[ ! -e "$application_target" && ! -L "$application_target" ]] || { fail "immutable application release already exists: $application_target"; exit 1; }
+[[ ! -e "$marketing_target" && ! -L "$marketing_target" ]] || { fail "immutable marketing release already exists: $marketing_target"; exit 1; }
+
+work_parent="$incoming_root/.work"
+"$install_bin" -d -o "$release_owner" -g "$release_group" -m 0700 "$work_parent"
+work_root="$(mktemp -d "$work_parent/$release_sha.XXXXXXXX")"
+extract_root="$work_root/extracted"
+application_stage="$application_root/releases/.$release_sha.stage.$$"
+activation_started=false
+
+cleanup() {
+  if [[ -n "${application_stage:-}" && ( -e "$application_stage" || -L "$application_stage" ) ]]; then
+    rm -rf -- "$application_stage"
+  fi
+  rm -f -- "$application_root/.current.new.$$" "$marketing_root/.current.new.$$"
+  if [[ -n "${work_root:-}" && -d "$work_root" ]]; then
+    rm -rf -- "$work_root"
+  fi
+}
+
+atomic_link() {
+  local target="$1" current="$2" temporary
+  temporary="$(dirname -- "$current")/.current.new.$$"
+  rm -f -- "$temporary"
+  ln -s -- "$target" "$temporary"
+  "$mv_bin" -Tf -- "$temporary" "$current"
+}
+
+run_service_restart() {
+  "$systemctl_bin" restart "$service_name"
+}
+
+run_smoke() {
+  "$application_current/deploy/scripts/smoke-test.sh" \
+    --base-url "$public_origin" \
+    --admin-url "$admin_origin"
+}
+
+rollback_activation() {
+  local rollback_failed=0
+  echo "Post-switch deployment gate failed; restoring captured application and marketing targets." >&2
+  atomic_link "$previous_application_target" "$application_current" || rollback_failed=1
+  atomic_link "$previous_marketing_target" "$marketing_current" || rollback_failed=1
+  run_service_restart || rollback_failed=1
+  run_smoke || rollback_failed=1
+  if [[ "$rollback_failed" -ne 0 ]]; then
+    echo "Rollback health verification failed; bundle and immutable release evidence were preserved." >&2
+    return 1
+  fi
+  echo "Rollback health verified; bundle and failed immutable release evidence were preserved." >&2
+}
+
+on_error() {
+  local status=$?
+  trap - ERR
+  set +e
+  if $activation_started; then
+    if ! rollback_activation; then
+      status=1
+    fi
+  else
+    echo "Deployment failed before activation; captured current symlinks were not changed." >&2
+  fi
+  exit "$status"
+}
+
+trap on_error ERR
+trap cleanup EXIT
+
+"$python_bin" - "$bundle" "$release_sha" "$extract_root" <<'PY'
+import hashlib
+import json
+import shutil
+import stat
+import sys
+import zipfile
+from pathlib import Path, PurePosixPath
+
+archive_path = Path(sys.argv[1])
+release_sha = sys.argv[2]
+extract_root = Path(sys.argv[3])
+payload_root = f"oknotika-ci-{release_sha}"
+allowed_top_level = {
+    "index.html", "script.js", "style.css", "aluminum", "articles",
+    "carbon-glass", "glass", "img", "js", "oknotika-smart-window",
+    "protectapeel", "pvc", "wood-stoller", "admin-app", "deploy",
+    "BUNDLE_MANIFEST.json",
+}
+top_level_files = {"index.html", "script.js", "style.css", "BUNDLE_MANIFEST.json"}
+required = {
+    "index.html", "script.js", "style.css", "js/latest-fact.js",
+    "img/logo-oknotika.svg", "articles/index.html", "articles/latest.json",
+    "admin-app/package.json", "admin-app/package-lock.json",
+    "admin-app/src/http/start.js", "deploy/release-manifest.json",
+    "deploy/scripts/install-marketing.sh", "deploy/scripts/preflight.sh",
+    "deploy/scripts/smoke-test.sh", "deploy/systemd/oknotika-admin.service",
+    "deploy/cicd/oknotika-deploy",
+}
+forbidden_components = {
+    ".git", ".ralphex", ".tmp-inputs", "__pycache__", "node_modules",
+    "uploads", "previews", "article-releases", "release", "var",
+}
+forbidden_credential_names = {
+    "telegram-oidc-client-id", "telegram-oidc-client-secret",
+    "weekly-ingest-token", "restic-repository", "restic-password",
+}
+forbidden_suffixes = (
+    ".sqlite", ".sqlite-wal", ".sqlite-shm", ".log", ".pem", ".key",
+    ".cred", ".credential",
+)
+max_file_bytes = 512 * 1024 * 1024
+max_total_bytes = 1024 * 1024 * 1024
+
+def reject(message):
+    raise SystemExit(f"bundle validation failed: {message}")
+
+try:
+    archive = zipfile.ZipFile(archive_path)
+except (OSError, zipfile.BadZipFile) as exc:
+    reject(str(exc))
+
+with archive:
+    infos = archive.infolist()
+    if len(infos) != len({info.filename for info in infos}):
+        reject("archive contains duplicate filenames")
+    if sum(info.file_size for info in infos) > max_total_bytes:
+        reject("archive exceeds the uncompressed size limit")
+
+    relative_infos = {}
+    for info in infos:
+        name = info.filename
+        path = PurePosixPath(name)
+        if (
+            not name or "\\" in name or name.startswith("/")
+            or path.as_posix() != name
+            or any(part in {"", ".", ".."} for part in path.parts)
+            or len(path.parts) < 2
+        ):
+            reject(f"unsafe archive path: {name!r}")
+        if path.parts[0] != payload_root:
+            reject("archive must contain exactly the expected SHA-addressed payload root")
+        if info.is_dir() or info.flag_bits & 0x1:
+            reject(f"directory or encrypted entry is forbidden: {name}")
+        mode = info.external_attr >> 16
+        if not stat.S_ISREG(mode) or stat.S_IMODE(mode) not in {0o644, 0o755}:
+            reject(f"entry must be a regular 0644/0755 file: {name}")
+        if info.file_size > max_file_bytes:
+            reject(f"entry exceeds the size limit: {name}")
+        relative = PurePosixPath(*path.parts[1:])
+        relative_name = relative.as_posix()
+        if relative.parts[0] not in allowed_top_level:
+            reject(f"unexpected top-level content: {relative_name}")
+        if relative.parts[0] in top_level_files and len(relative.parts) != 1:
+            reject(f"top-level file cannot contain nested content: {relative_name}")
+        lower_parts = {part.lower() for part in relative.parts}
+        if lower_parts & forbidden_components:
+            reject(f"runtime path is forbidden: {relative_name}")
+        lower_name = relative.name.lower()
+        environment_file = (
+            lower_name == ".env" or lower_name.startswith(".env.")
+            or lower_name.endswith(".env") or ".env." in lower_name
+        ) and not lower_name.endswith(".env.example")
+        if environment_file or lower_name in forbidden_credential_names:
+            reject(f"credential path is forbidden: {relative_name}")
+        if lower_name.endswith(forbidden_suffixes):
+            reject(f"runtime file suffix is forbidden: {relative_name}")
+        if relative_name in relative_infos:
+            reject(f"duplicate normalized path: {relative_name}")
+        relative_infos[relative_name] = info
+
+    missing = sorted(required - set(relative_infos))
+    if missing:
+        reject(f"required files are missing: {missing}")
+    manifest_info = relative_infos.get("BUNDLE_MANIFEST.json")
+    if manifest_info is None or manifest_info.file_size > 5 * 1024 * 1024:
+        reject("bundle manifest is missing or too large")
+    try:
+        manifest = json.loads(archive.read(manifest_info))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        reject(f"invalid bundle manifest: {exc}")
+    if not isinstance(manifest, dict):
+        reject("bundle manifest must be an object")
+    if manifest.get("schemaVersion") != 1 or manifest.get("format") != "oknotika-ci-bundle":
+        reject("bundle manifest schema/format is unsupported")
+    if manifest.get("implementationCommit") != release_sha:
+        reject("bundle implementation SHA does not match the requested release")
+    if manifest.get("payloadRoot") != payload_root:
+        reject("bundle manifest payload root is wrong")
+    files = manifest.get("files")
+    inspected_names = set(relative_infos) - {"BUNDLE_MANIFEST.json"}
+    if not isinstance(files, dict) or set(files) != inspected_names:
+        reject("bundle manifest file set does not match the archive")
+
+    actual = {}
+    for relative_name in sorted(inspected_names):
+        info = relative_infos[relative_name]
+        digest = hashlib.sha256()
+        size = 0
+        with archive.open(info) as source:
+            while chunk := source.read(1024 * 1024):
+                digest.update(chunk)
+                size += len(chunk)
+        mode = f"{stat.S_IMODE(info.external_attr >> 16):04o}"
+        metadata = files.get(relative_name)
+        if not isinstance(metadata, dict) or metadata != {
+            "sha256": digest.hexdigest(), "bytes": size, "mode": mode,
+        }:
+            reject(f"manifest checksum/size/mode mismatch: {relative_name}")
+        actual[relative_name] = digest.hexdigest()
+
+    try:
+        release_manifest = json.loads(archive.read(relative_infos["deploy/release-manifest.json"]))
+        package_lock = json.loads(archive.read(relative_infos["admin-app/package-lock.json"]))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        reject(f"invalid deployment runtime metadata: {exc}")
+    runtime = release_manifest.get("runtime", {}) if isinstance(release_manifest, dict) else {}
+    if not isinstance(package_lock, dict):
+        reject("npm lockfile must be an object")
+    if runtime.get("nodeVersion") != "24.18.0":
+        reject("deployment runtime must pin Node 24.18.0")
+    if runtime.get("packageLockVersion") != 3 or package_lock.get("lockfileVersion") != 3:
+        reject("deployment runtime must use npm lockfile version 3")
+    if runtime.get("packageLockSha256") != actual["admin-app/package-lock.json"]:
+        reject("deployment manifest package-lock checksum is stale")
+
+    extract_root.mkdir(mode=0o700)
+    for relative_name in sorted(relative_infos):
+        info = relative_infos[relative_name]
+        destination = extract_root / payload_root / relative_name
+        destination.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+        with archive.open(info) as source, destination.open("xb") as target:
+            shutil.copyfileobj(source, target, length=1024 * 1024)
+        destination.chmod(stat.S_IMODE(info.external_attr >> 16))
+
+print(f"Validated and extracted immutable bundle for {release_sha}.")
+PY
+
+payload_root="$extract_root/oknotika-ci-$release_sha"
+[[ -d "$payload_root" && ! -L "$payload_root" ]] || fail "validated payload root is missing"
+[[ "$($node_bin --version)" == "v24.18.0" ]] || fail "Node v24.18.0 is required"
+
+"$install_bin" -d -o "$release_owner" -g "$release_group" -m 0755 "$application_root/releases"
+"$install_bin" -d -o "$service_user" -g "$service_group" -m 0755 "$application_stage"
+cp -a -- "$payload_root/admin-app" "$application_stage/admin-app"
+cp -a -- "$payload_root/deploy" "$application_stage/deploy"
+cp -a -- "$payload_root/BUNDLE_MANIFEST.json" "$application_stage/BUNDLE_MANIFEST.json"
+chown -R "$service_user:$service_group" "$application_stage"
+
+run_as_service() {
+  if [[ "$EUID" -eq 0 && "$service_user" != "root" ]]; then
+    "$runuser_bin" -u "$service_user" -- "$@"
+  else
+    "$@"
+  fi
+}
+
+(
+  cd "$application_stage/admin-app"
+  npm_cache="$application_stage/.npm-cache"
+  "$install_bin" -d -o "$service_user" -g "$service_group" -m 0700 "$npm_cache"
+  HOME="$application_stage" NPM_CONFIG_CACHE="$npm_cache" \
+    run_as_service "$npm_bin" ci --omit=dev --no-audit --no-fund
+  rm -rf -- "$npm_cache"
+)
+chown -R "$release_owner:$release_group" "$application_stage"
+PATH="$(dirname -- "$node_bin"):/usr/bin:/bin" \
+  OKNOTIKA_APP_ROOT="$application_stage" \
+  "$application_stage/deploy/scripts/preflight.sh"
+"$mv_bin" -- "$application_stage" "$application_target"
+application_stage=""
+
+activation_started=true
+atomic_link "releases/$release_sha" "$application_current"
+OKNOTIKA_RELEASE_OWNER="$release_owner" \
+  OKNOTIKA_RELEASE_GROUP="$release_group" \
+  "$application_target/deploy/scripts/install-marketing.sh" \
+    --source "$payload_root" \
+    --release-sha "$release_sha" \
+    --marketing-root "$marketing_root"
+run_service_restart
+run_smoke
+activation_started=false
+
+echo "Deployed and health-checked OKNOTIKA release $release_sha."

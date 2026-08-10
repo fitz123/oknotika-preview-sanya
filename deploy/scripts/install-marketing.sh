@@ -5,6 +5,8 @@ umask 0022
 source_root=""
 release_sha=""
 marketing_root="${OKNOTIKA_MARKETING_ROOT:-/srv/oknotika}"
+release_owner="${OKNOTIKA_RELEASE_OWNER:-root}"
+release_group="${OKNOTIKA_RELEASE_GROUP:-root}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -28,17 +30,17 @@ for path in index.html script.js style.css js img articles; do
   [[ -e "$source_root/$path" ]] || { echo "required public path is missing: $path" >&2; exit 1; }
 done
 
-install -d -o root -g root -m 0755 "$marketing_root/releases"
+install -d -o "$release_owner" -g "$release_group" -m 0755 "$marketing_root/releases"
 target="$marketing_root/releases/$release_sha"
 [[ ! -e "$target" ]] || { echo "immutable marketing release already exists: $target" >&2; exit 1; }
 stage="$marketing_root/releases/.${release_sha}.stage.$$"
 trap 'rm -rf -- "$stage" "$marketing_root/.current.new.$$"' EXIT
-install -d -o root -g root -m 0755 "$stage"
+install -d -o "$release_owner" -g "$release_group" -m 0755 "$stage"
 for path in "${public_paths[@]}"; do
   [[ -e "$source_root/$path" ]] || continue
   cp -a -- "$source_root/$path" "$stage/$path"
 done
-chown -R root:root "$stage"
+chown -R "$release_owner:$release_group" "$stage"
 find "$stage" -type d -exec chmod 0755 {} +
 find "$stage" -type f -exec chmod 0644 {} +
 mv -- "$stage" "$target"

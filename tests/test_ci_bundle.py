@@ -42,12 +42,14 @@ FIXTURE_FILES = {
     "admin-app/package-lock.json": b'{"lockfileVersion":3}\n',
     "admin-app/src/http/start.js": b"export const start = true;\n",
     "deploy/release-manifest.json": b"{}\n",
+    "deploy/cicd/oknotika-deploy": b"#!/usr/bin/env bash\n",
     "deploy/scripts/install-marketing.sh": b"#!/usr/bin/env bash\n",
     "deploy/scripts/preflight.sh": b"#!/usr/bin/env bash\n",
     "deploy/scripts/smoke-test.sh": b"#!/usr/bin/env bash\n",
     "deploy/systemd/oknotika-admin.service": b"[Service]\n",
 }
 EXECUTABLES = {
+    "deploy/cicd/oknotika-deploy",
     "deploy/scripts/install-marketing.sh",
     "deploy/scripts/preflight.sh",
     "deploy/scripts/smoke-test.sh",

@@ -44,6 +44,7 @@ REQUIRED_FILES = {
     "admin-app/package-lock.json",
     "admin-app/src/http/start.js",
     "deploy/release-manifest.json",
+    "deploy/cicd/oknotika-deploy",
     "deploy/scripts/install-marketing.sh",
     "deploy/scripts/preflight.sh",
     "deploy/scripts/smoke-test.sh",

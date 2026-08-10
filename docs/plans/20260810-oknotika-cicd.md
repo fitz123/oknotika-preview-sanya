@@ -84,10 +84,10 @@ python3 scripts/scan_release_zip.py release/oknotika-final-v2.29.0-rc.2.zip
 
 **Serves:** Sanya’s approved requirements “публичный сайт + редактор”, “healthcheck” and “откат”.
 
-- [ ] Add `deploy/cicd/oknotika-deploy` with strict argument/path/SHA/checksum validation, archive boundary checks, `flock`, exact previous-target capture and fail-closed initial-bootstrap detection.
-- [ ] Stage/install the application under `/opt/oknotika-admin/releases/<sha>` with pinned Node/npm rules, use the existing public allowlist installer for `/srv/oknotika/releases/<sha>`, restart the existing systemd service and run existing smoke checks.
-- [ ] On post-switch failure, atomically restore only the captured application/marketing symlinks, restart the previous service and verify rollback health; preserve evidence and never mutate article/content release state.
-- [ ] Add shell/static integration tests using isolated temporary roots and stubbed service/smoke commands; do not require root or a live server in CI.
+- [x] Add `deploy/cicd/oknotika-deploy` with strict argument/path/SHA/checksum validation, archive boundary checks, `flock`, exact previous-target capture and fail-closed initial-bootstrap detection.
+- [x] Stage/install the application under `/opt/oknotika-admin/releases/<sha>` with pinned Node/npm rules, use the existing public allowlist installer for `/srv/oknotika/releases/<sha>`, restart the existing systemd service and run existing smoke checks.
+- [x] On post-switch failure, atomically restore only the captured application/marketing symlinks, restart the previous service and verify rollback health; preserve evidence and never mutate article/content release state.
+- [x] Add shell/static integration tests using isolated temporary roots and stubbed service/smoke commands; do not require root or a live server in CI.
 
 ### Task 4: Production workflow and Zhenya activation runbook
 
