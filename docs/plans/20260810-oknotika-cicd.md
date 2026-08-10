@@ -73,10 +73,10 @@ python3 scripts/scan_release_zip.py release/oknotika-final-v2.29.0-rc.2.zip
 
 **Serves:** Sanya’s approved requirement “deploy по SHA” and the existing no-secret/public-boundary constraints.
 
-- [ ] Add a minimal bundle builder for the exact commit containing only public payload, `admin-app/`, required deploy sources and an internal SHA/file manifest; reject dirty or uncommitted payload inputs where applicable.
-- [ ] Add bundle validation for traversal, symlinks, duplicates, secret/runtime paths, unexpected top-level content, checksum mismatch and implementation-SHA mismatch.
-- [ ] Add focused deterministic/tamper/secret-boundary tests.
-- [ ] Validate Task 2 by rebuilding twice from the same commit and comparing hashes.
+- [x] Add a minimal bundle builder for the exact commit containing only public payload, `admin-app/`, required deploy sources and an internal SHA/file manifest; reject dirty or uncommitted payload inputs where applicable.
+- [x] Add bundle validation for traversal, symlinks, duplicates, secret/runtime paths, unexpected top-level content, checksum mismatch and implementation-SHA mismatch.
+- [x] Add focused deterministic/tamper/secret-boundary tests.
+- [x] Validate Task 2 by rebuilding twice from the same commit and comparing hashes.
 
 ### Task 3: Root-controlled server deploy and rollback primitive
 
