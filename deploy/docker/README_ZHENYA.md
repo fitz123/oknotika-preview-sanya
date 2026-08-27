@@ -393,17 +393,24 @@ Restore всегда делать в новый Compose project: исходны�
 
 ```bash
 set -euo pipefail
+export OKNOTIKA_BACKUP_DIR=/var/backups/oknotika/YYYYMMDD-HHMMSS
 export OKNOTIKA_RESTORE_PROJECT=oknotika-restore-yyyymmddhhmm
+[[ "$OKNOTIKA_BACKUP_DIR" =~ ^/var/backups/oknotika/[0-9A-Za-z._-]+$ ]]
 [[ "$OKNOTIKA_RESTORE_PROJECT" =~ ^[a-z0-9][a-z0-9_-]*$ ]]
+sudo test -d "$OKNOTIKA_BACKUP_DIR"
+test "$(sudo stat -c %U:%G "$OKNOTIKA_BACKUP_DIR")" = root:root
+test "$(sudo stat -c %a "$OKNOTIKA_BACKUP_DIR")" = 700
 sudo sh -c 'cd "$1"; sha256sum --check SHA256SUMS' _ "$OKNOTIKA_BACKUP_DIR"
 sudo grep -Eq '^[0-9a-f]{64}$' "$OKNOTIKA_BACKUP_DIR/SOURCE_ARCHIVE_SHA256"
 sudo grep -Eq '^oknotika-docker-v[0-9A-Za-z._-]+$' "$OKNOTIKA_BACKUP_DIR/SOURCE_RELEASE_NAME"
 export OKNOTIKA_RESTORE_ARCHIVE_SHA="$(sudo cat "$OKNOTIKA_BACKUP_DIR/SOURCE_ARCHIVE_SHA256")"
 OKNOTIKA_RESTORE_RELEASE_NAME="$(sudo cat "$OKNOTIKA_BACKUP_DIR/SOURCE_RELEASE_NAME")"
 export OKNOTIKA_RESTORE_RELEASE_ROOT="/opt/oknotika-docker/releases/$OKNOTIKA_RESTORE_ARCHIVE_SHA/$OKNOTIKA_RESTORE_RELEASE_NAME"
-export OKNOTIKA_RESTORE_COMPOSE_ENV="$OKNOTIKA_BACKUP_DIR/compose.env"
+export OKNOTIKA_RESTORE_COMPOSE_ENV="/etc/oknotika/compose-restore-$OKNOTIKA_RESTORE_PROJECT.env"
 sudo test -f "$OKNOTIKA_RESTORE_RELEASE_ROOT/deploy/docker/docker-compose.yml"
-sudo test -f "$OKNOTIKA_RESTORE_COMPOSE_ENV"
+sudo test ! -e "$OKNOTIKA_RESTORE_COMPOSE_ENV"
+sudo install -o root -g root -m 0600 "$OKNOTIKA_BACKUP_DIR/compose.env" \
+  "$OKNOTIKA_RESTORE_COMPOSE_ENV"
 sudo docker compose --project-name "$OKNOTIKA_RESTORE_PROJECT" \
   --file "$OKNOTIKA_RESTORE_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
   --env-file "$OKNOTIKA_RESTORE_COMPOSE_ENV" create
@@ -519,26 +526,56 @@ export OKNOTIKA_NEW_ARCHIVE_SHA="$(sha256sum "$OKNOTIKA_NEW_ARCHIVE" | awk '{pri
 OKNOTIKA_NEW_RELEASE_NAME="${OKNOTIKA_NEW_ARCHIVE_NAME%.zip}"
 [[ "$OKNOTIKA_NEW_RELEASE_NAME" =~ ^oknotika-docker-v[0-9A-Za-z._-]+$ ]]
 OKNOTIKA_NEW_RELEASE_DIR="/opt/oknotika-docker/releases/$OKNOTIKA_NEW_ARCHIVE_SHA"
-sudo test ! -e "$OKNOTIKA_NEW_RELEASE_DIR"
-sudo install -d -o root -g root -m 0755 "$OKNOTIKA_NEW_RELEASE_DIR"
-sudo unzip -q "$OKNOTIKA_NEW_ARCHIVE" -d "$OKNOTIKA_NEW_RELEASE_DIR"
 export OKNOTIKA_NEW_RELEASE_ROOT="$OKNOTIKA_NEW_RELEASE_DIR/$OKNOTIKA_NEW_RELEASE_NAME"
-sudo test -f "$OKNOTIKA_NEW_RELEASE_ROOT/deploy/docker/docker-compose.yml"
-sudo chown -R root:root "$OKNOTIKA_NEW_RELEASE_DIR"
-sudo chmod -R a-w "$OKNOTIKA_NEW_RELEASE_DIR"
-
 OKNOTIKA_NEW_IMAGE_SUFFIX="sha-$(printf '%s' "$OKNOTIKA_NEW_ARCHIVE_SHA" | cut -c1-16)"
 export OKNOTIKA_NEW_COMPOSE_ENV="/etc/oknotika/compose-$OKNOTIKA_NEW_ARCHIVE_SHA.env"
-sudo test ! -e "$OKNOTIKA_NEW_COMPOSE_ENV"
+OKNOTIKA_NEW_RELEASE_STAGE=
+OKNOTIKA_NEW_COMPOSE_STAGE=
+cleanup_upgrade_staging() {
+  upgrade_status=$?
+  trap - EXIT
+  if [[ -n "$OKNOTIKA_NEW_COMPOSE_STAGE" ]]; then
+    sudo rm -f -- "$OKNOTIKA_NEW_COMPOSE_STAGE"
+  fi
+  if [[ -n "$OKNOTIKA_NEW_RELEASE_STAGE" ]]; then
+    sudo rm -rf -- "$OKNOTIKA_NEW_RELEASE_STAGE"
+  fi
+  exit "$upgrade_status"
+}
+trap cleanup_upgrade_staging EXIT
+
+if sudo test -e "$OKNOTIKA_NEW_RELEASE_DIR"; then
+  sudo test -f "$OKNOTIKA_NEW_RELEASE_ROOT/deploy/docker/docker-compose.yml"
+else
+  OKNOTIKA_NEW_RELEASE_STAGE="$(sudo mktemp -d \
+    "/opt/oknotika-docker/releases/.upgrade-$OKNOTIKA_NEW_ARCHIVE_SHA.XXXXXXXX")"
+  sudo unzip -q "$OKNOTIKA_NEW_ARCHIVE" -d "$OKNOTIKA_NEW_RELEASE_STAGE"
+  sudo test -f "$OKNOTIKA_NEW_RELEASE_STAGE/$OKNOTIKA_NEW_RELEASE_NAME/deploy/docker/docker-compose.yml"
+  sudo chown -R root:root "$OKNOTIKA_NEW_RELEASE_STAGE"
+  sudo chmod -R a-w "$OKNOTIKA_NEW_RELEASE_STAGE"
+  sudo mv "$OKNOTIKA_NEW_RELEASE_STAGE" "$OKNOTIKA_NEW_RELEASE_DIR"
+  OKNOTIKA_NEW_RELEASE_STAGE=
+fi
+
+OKNOTIKA_NEW_COMPOSE_STAGE="$(sudo mktemp \
+  "/etc/oknotika/.compose-$OKNOTIKA_NEW_ARCHIVE_SHA.XXXXXXXX")"
 printf '%s\n' \
   "OKNOTIKA_ADMIN_IMAGE=oknotika-admin:$OKNOTIKA_NEW_IMAGE_SUFFIX" \
   "OKNOTIKA_PUBLIC_IMAGE=oknotika-public:$OKNOTIKA_NEW_IMAGE_SUFFIX" \
   'OKNOTIKA_ADMIN_PORT=8000' \
   'OKNOTIKA_PUBLIC_PORT=8001' \
   'OKNOTIKA_SECRETS_DIR=/etc/oknotika/secrets' \
-  | sudo tee "$OKNOTIKA_NEW_COMPOSE_ENV" >/dev/null
-sudo chown root:root "$OKNOTIKA_NEW_COMPOSE_ENV"
-sudo chmod 0600 "$OKNOTIKA_NEW_COMPOSE_ENV"
+  | sudo tee "$OKNOTIKA_NEW_COMPOSE_STAGE" >/dev/null
+sudo chown root:root "$OKNOTIKA_NEW_COMPOSE_STAGE"
+sudo chmod 0600 "$OKNOTIKA_NEW_COMPOSE_STAGE"
+if sudo test -e "$OKNOTIKA_NEW_COMPOSE_ENV"; then
+  sudo cmp --silent "$OKNOTIKA_NEW_COMPOSE_STAGE" "$OKNOTIKA_NEW_COMPOSE_ENV"
+  sudo rm -f -- "$OKNOTIKA_NEW_COMPOSE_STAGE"
+else
+  sudo mv "$OKNOTIKA_NEW_COMPOSE_STAGE" "$OKNOTIKA_NEW_COMPOSE_ENV"
+fi
+OKNOTIKA_NEW_COMPOSE_STAGE=
+trap - EXIT
 
 sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OKNOTIKA_NEW_RELEASE_ROOT/deploy/docker/docker-compose.yml" \

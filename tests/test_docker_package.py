@@ -145,6 +145,21 @@ class DockerPackageTests(unittest.TestCase):
                 "OKNOTIKA_RESTORE_ARCHIVE_SHA",
             ),
             (
+                runbook.replace(
+                    "export OKNOTIKA_BACKUP_DIR=/var/backups/oknotika/YYYYMMDD-HHMMSS",
+                    "restore backup input removed",
+                    1,
+                ),
+                "OKNOTIKA_BACKUP_DIR",
+            ),
+            (
+                runbook.replace(
+                    'export OKNOTIKA_RESTORE_COMPOSE_ENV="/etc/oknotika/compose-restore-$OKNOTIKA_RESTORE_PROJECT.env"',
+                    'export OKNOTIKA_RESTORE_COMPOSE_ENV="$OKNOTIKA_BACKUP_DIR/compose.env"',
+                ),
+                "compose-restore-$OKNOTIKA_RESTORE_PROJECT.env",
+            ),
+            (
                 runbook.replace("/opt/oknotika-docker/previous", "/tmp/previous"),
                 "/opt/oknotika-docker/previous",
             ),
@@ -158,6 +173,17 @@ class DockerPackageTests(unittest.TestCase):
                     "upgrade archive input removed",
                 ),
                 "OKNOTIKA_NEW_ARCHIVE",
+            ),
+            (
+                runbook.replace("cleanup_upgrade_staging() {", "upgrade cleanup removed"),
+                "cleanup_upgrade_staging() {",
+            ),
+            (
+                runbook.replace(
+                    'sudo cmp --silent "$OKNOTIKA_NEW_COMPOSE_STAGE" "$OKNOTIKA_NEW_COMPOSE_ENV"',
+                    "upgrade env reuse check removed",
+                ),
+                "sudo cmp --silent",
             ),
         )
         for changed, expected in changes:
