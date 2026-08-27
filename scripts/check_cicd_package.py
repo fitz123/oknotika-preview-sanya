@@ -10,6 +10,7 @@ from pathlib import Path
 
 PINNED_NODE_VERSION = "24.18.0"
 RIPGREP_INSTALL_COMMAND = "sudo apt-get install --yes ripgrep"
+PILLOW_INSTALL_COMMAND = "python3 -m pip install Pillow==12.2.0"
 ALLOWED_DEPLOY_SECRETS = {
     "OKNOTIKA_DEPLOY_HOST",
     "OKNOTIKA_DEPLOY_PORT",
@@ -20,6 +21,7 @@ ALLOWED_DEPLOY_SECRETS = {
 REQUIRED_CI_COMMANDS = (
     "sudo apt-get update",
     RIPGREP_INSTALL_COMMAND,
+    PILLOW_INSTALL_COMMAND,
     "npm ci",
     "npm audit --audit-level=high",
     "npm audit --omit=dev --audit-level=high",
@@ -130,6 +132,12 @@ def validate_ci_text(text: str) -> list[str]:
     if RIPGREP_INSTALL_COMMAND in workflow_lines and "npm test" in workflow_lines:
         if text.index(RIPGREP_INSTALL_COMMAND) > text.index("npm test"):
             errors.append("CI must install ripgrep before admin tests")
+    repository_tests = "python3 -m unittest discover -s tests -v"
+    if PILLOW_INSTALL_COMMAND in workflow_lines and (
+        repository_tests in workflow_lines or f"run: {repository_tests}" in workflow_lines
+    ):
+        if text.index(PILLOW_INSTALL_COMMAND) > text.index(repository_tests):
+            errors.append("CI must install Pillow before repository Python tests")
 
     return errors
 
