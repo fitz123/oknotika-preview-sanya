@@ -129,6 +129,7 @@ class DockerArchiveTests(unittest.TestCase):
 
         with zipfile.ZipFile(second) as archive:
             for relative in (
+                ".dockerignore",
                 "deploy/scripts/smoke-weekly-ingestion.mjs",
                 "docs/WEEKLY_INGESTION.md",
             ):

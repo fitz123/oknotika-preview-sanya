@@ -19,7 +19,7 @@ PACKAGE_VERSION = "v2.29.0-rc.3"
 PAYLOAD_ROOT = f"oknotika-docker-{PACKAGE_VERSION}"
 MANIFEST_NAME = "DOCKER_PACKAGE_MANIFEST.json"
 COMMIT_RE = re.compile(r"^[a-f0-9]{40}(?:[a-f0-9]{24})?$")
-PUBLIC_FILES = {"index.html", "script.js", "style.css"}
+PUBLIC_FILES = {".dockerignore", "index.html", "script.js", "style.css"}
 PUBLIC_DIRECTORIES = {
     "aluminum",
     "articles",
@@ -38,6 +38,7 @@ DEPLOY_SUPPORT_FILES = {
     "docs/WEEKLY_INGESTION.md",
 }
 REQUIRED_FILES = {
+    ".dockerignore",
     "index.html",
     "script.js",
     "style.css",

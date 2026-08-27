@@ -127,6 +127,7 @@ def validate_docker_runbook_text(text: str) -> list[str]:
             "/etc/letsencrypt/live/admin.oknotika.ru/{fullchain,privkey}.pem",
             "https://admin.oknotika.ru/auth/callback",
             "sha256sum --check oknotika-docker-v2.29.0-rc.3.zip.sha256",
+            "set -euo pipefail",
             'OKNOTIKA_SECRETS_DIR=/etc/oknotika/secrets',
             "for name in telegram-oidc-client-id telegram-oidc-client-secret; do",
             '"/etc/oknotika/secrets/$name"',
@@ -134,6 +135,8 @@ def validate_docker_runbook_text(text: str) -> list[str]:
             "sudo sh -c '\nset -eu\nchown root:1000 /etc/oknotika/secrets/*",
             "chmod 0640 /etc/oknotika/secrets/*",
             "export OKNOTIKA_ACTIVE_PROJECT=oknotika",
+            "/etc/oknotika/active-project",
+            "sudo readlink -f /opt/oknotika-docker/current",
             '--project-name "$OKNOTIKA_ACTIVE_PROJECT"',
             'up --detach --no-build --wait --wait-timeout 120',
             "logs --no-color --tail 100 admin public",
@@ -146,13 +149,21 @@ def validate_docker_runbook_text(text: str) -> list[str]:
             "admin_previews.tar",
             "admin_backups.tar",
             "article_releases.tar",
-            "sha256sum *.tar > SHA256SUMS",
+            "sha256sum admin_database.tar admin_uploads.tar admin_previews.tar admin_backups.tar article_releases.tar SOURCE_ARCHIVE_SHA256 SOURCE_RELEASE_NAME compose.env > SHA256SUMS",
             '-exec chmod 0600 {} +',
             "OKNOTIKA_RESTORE_PROJECT",
+            "OKNOTIKA_RESTORE_ARCHIVE_SHA",
+            "SOURCE_RELEASE_NAME",
+            "OKNOTIKA_RESTORE_RELEASE_NAME",
+            "OKNOTIKA_RESTORE_RELEASE_ROOT",
+            "OKNOTIKA_RESTORE_COMPOSE_ENV",
+            "sudo sh -c 'cd \"$1\"; sha256sum --check SHA256SUMS'",
             'export OKNOTIKA_ACTIVE_PROJECT="$OKNOTIKA_RESTORE_PROJECT"',
             "Restore всегда делать в новый Compose project",
             "OLD_OKNOTIKA_RELEASE_ROOT",
             "OLD_OKNOTIKA_COMPOSE_ENV",
+            "/opt/oknotika-docker/previous",
+            "/etc/oknotika/compose-previous.env",
             "stop admin",
             "`docker compose down -v` ЗАПРЕЩЕНА",
             "`0.0.0.0:8000`, `0.0.0.0:8001`",
@@ -170,6 +181,8 @@ def validate_docker_runbook_text(text: str) -> list[str]:
         errors.append("Docker runbook embeds a credential in an environment assignment")
     if "--project-name oknotika" in text:
         errors.append("Docker runbook hardcodes the original Compose project name")
+    if text.count("set -euo pipefail") < 6:
+        errors.append("Docker runbook integrity-sensitive command blocks are not fail-fast")
     return errors
 
 

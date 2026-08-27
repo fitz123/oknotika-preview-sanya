@@ -11,8 +11,9 @@ Production-адреса зафиксированы: `https://oknotika.ru`,
 
 ## Что должно быть готово
 
-- Linux-хост с Docker Engine, Compose v2 (`docker compose`), nginx, `curl`,
-  `openssl`, `sha256sum`, `unzip` и достаточным местом для двух копий volumes.
+- Linux-хост с Docker Engine, Compose v2 (`docker compose`), nginx, `bash`,
+  `curl`, `openssl`, `sha256sum`, `unzip` и достаточным местом для двух копий
+  volumes.
 - DNS `A`/`AAAA` для `oknotika.ru`, `www.oknotika.ru` и
   `admin.oknotika.ru` указывает на этот хост. При наличии `AAAA` IPv6 также
   должен доходить до nginx.
@@ -28,7 +29,7 @@ Production-адреса зафиксированы: `https://oknotika.ru`,
 Проверить инструменты и не продолжать при ошибке:
 
 ```bash
-command -v docker nginx curl openssl sha256sum unzip
+command -v docker nginx bash curl openssl sha256sum unzip
 sudo docker info
 sudo docker compose version
 sudo nginx -t
@@ -41,6 +42,7 @@ sudo nginx -t
 передал Саша. Для `oknotika-docker-v2.29.0-rc.3.zip`:
 
 ```bash
+set -euo pipefail
 cd /private/incoming
 sha256sum --check oknotika-docker-v2.29.0-rc.3.zip.sha256
 OKNOTIKA_ARCHIVE_SHA="$(sha256sum oknotika-docker-v2.29.0-rc.3.zip | awk '{print $1}')"
@@ -142,6 +144,7 @@ sudo systemctl reload nginx
 первичного развёртывания это `oknotika`:
 
 ```bash
+set -euo pipefail
 export OKNOTIKA_ACTIVE_PROJECT=oknotika
 sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
@@ -179,6 +182,31 @@ sudo mv -Tf "/opt/oknotika-docker/.current-$OKNOTIKA_ARCHIVE_SHA" \
 sudo ln -s "$OKNOTIKA_COMPOSE_ENV" "/etc/oknotika/.compose-current-$OKNOTIKA_ARCHIVE_SHA"
 sudo mv -Tf "/etc/oknotika/.compose-current-$OKNOTIKA_ARCHIVE_SHA" \
   /etc/oknotika/compose-current.env
+sudo install -o root -g root -m 0600 /dev/null \
+  "/etc/oknotika/.active-project-$OKNOTIKA_ARCHIVE_SHA"
+printf '%s\n' "$OKNOTIKA_ACTIVE_PROJECT" \
+  | sudo tee "/etc/oknotika/.active-project-$OKNOTIKA_ARCHIVE_SHA" >/dev/null
+sudo mv -Tf "/etc/oknotika/.active-project-$OKNOTIKA_ARCHIVE_SHA" \
+  /etc/oknotika/active-project
+```
+
+## Новая shell-сессия
+
+После logout/reboot и перед backup, restore, upgrade, rollback или emergency
+stop восстановить только проверенное active-состояние из root-controlled файлов:
+
+```bash
+set -euo pipefail
+export OKNOTIKA_RELEASE_ROOT="$(sudo readlink -f /opt/oknotika-docker/current)"
+export OKNOTIKA_COMPOSE_ENV="$(sudo readlink -f /etc/oknotika/compose-current.env)"
+sudo grep -Eq '^[a-z0-9][a-z0-9_-]*$' /etc/oknotika/active-project
+export OKNOTIKA_ACTIVE_PROJECT="$(sudo cat /etc/oknotika/active-project)"
+export OKNOTIKA_ARCHIVE_SHA="$(basename "$(dirname "$OKNOTIKA_RELEASE_ROOT")")"
+[[ "$OKNOTIKA_ARCHIVE_SHA" =~ ^[0-9a-f]{64}$ ]]
+test "$(dirname "$OKNOTIKA_RELEASE_ROOT")" = \
+  "/opt/oknotika-docker/releases/$OKNOTIKA_ARCHIVE_SHA"
+sudo test -f "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml"
+sudo test -f "$OKNOTIKA_COMPOSE_ENV"
 ```
 
 ## Первичное подключение редактора
@@ -294,7 +322,9 @@ upgrade. Для согласованного offline snapshot остановит
 удаляет containers или volumes. Архивировать все пять volumes вместе:
 
 ```bash
+set -euo pipefail
 export OKNOTIKA_BACKUP_DIR="/var/backups/oknotika/YYYYMMDD-HHMMSS"
+sudo test ! -e "$OKNOTIKA_BACKUP_DIR"
 sudo install -d -o root -g root -m 0700 "$OKNOTIKA_BACKUP_DIR"
 sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
@@ -311,10 +341,19 @@ tar --numeric-owner -C /var/lib/oknotika-admin/previews -cpf /backup/admin_previ
 tar --numeric-owner -C /var/lib/oknotika-admin/backups -cpf /backup/admin_backups.tar .
 tar --numeric-owner -C /var/lib/oknotika-admin/article-releases -cpf /backup/article_releases.tar .
 '
-sudo sh -c 'cd "$1"; sha256sum *.tar > SHA256SUMS' _ "$OKNOTIKA_BACKUP_DIR"
+for archive in admin_database.tar admin_uploads.tar admin_previews.tar \
+  admin_backups.tar article_releases.tar; do
+  sudo test -f "$OKNOTIKA_BACKUP_DIR/$archive"
+done
 printf '%s\n' "$OKNOTIKA_ARCHIVE_SHA" \
   | sudo tee "$OKNOTIKA_BACKUP_DIR/SOURCE_ARCHIVE_SHA256" >/dev/null
+OKNOTIKA_RELEASE_NAME="$(basename "$OKNOTIKA_RELEASE_ROOT")"
+[[ "$OKNOTIKA_RELEASE_NAME" =~ ^oknotika-docker-v[0-9A-Za-z._-]+$ ]]
+printf '%s\n' "$OKNOTIKA_RELEASE_NAME" \
+  | sudo tee "$OKNOTIKA_BACKUP_DIR/SOURCE_RELEASE_NAME" >/dev/null
 sudo cp "$OKNOTIKA_COMPOSE_ENV" "$OKNOTIKA_BACKUP_DIR/compose.env"
+sudo sh -c 'cd "$1"; sha256sum admin_database.tar admin_uploads.tar admin_previews.tar admin_backups.tar article_releases.tar SOURCE_ARCHIVE_SHA256 SOURCE_RELEASE_NAME compose.env > SHA256SUMS' \
+  _ "$OKNOTIKA_BACKUP_DIR"
 sudo chown -R root:root "$OKNOTIKA_BACKUP_DIR"
 sudo chmod 0700 "$OKNOTIKA_BACKUP_DIR"
 sudo find "$OKNOTIKA_BACKUP_DIR" -mindepth 1 -maxdepth 1 -type f \
@@ -335,15 +374,24 @@ Restore всегда делать в новый Compose project: исходны�
 имя из lowercase ASCII, затем создать пустые volumes:
 
 ```bash
+set -euo pipefail
 export OKNOTIKA_RESTORE_PROJECT=oknotika-restore-yyyymmddhhmm
-cd "$OKNOTIKA_BACKUP_DIR"
-sudo sha256sum --check SHA256SUMS
+[[ "$OKNOTIKA_RESTORE_PROJECT" =~ ^[a-z0-9][a-z0-9_-]*$ ]]
+sudo sh -c 'cd "$1"; sha256sum --check SHA256SUMS' _ "$OKNOTIKA_BACKUP_DIR"
+sudo grep -Eq '^[0-9a-f]{64}$' "$OKNOTIKA_BACKUP_DIR/SOURCE_ARCHIVE_SHA256"
+sudo grep -Eq '^oknotika-docker-v[0-9A-Za-z._-]+$' "$OKNOTIKA_BACKUP_DIR/SOURCE_RELEASE_NAME"
+export OKNOTIKA_RESTORE_ARCHIVE_SHA="$(sudo cat "$OKNOTIKA_BACKUP_DIR/SOURCE_ARCHIVE_SHA256")"
+OKNOTIKA_RESTORE_RELEASE_NAME="$(sudo cat "$OKNOTIKA_BACKUP_DIR/SOURCE_RELEASE_NAME")"
+export OKNOTIKA_RESTORE_RELEASE_ROOT="/opt/oknotika-docker/releases/$OKNOTIKA_RESTORE_ARCHIVE_SHA/$OKNOTIKA_RESTORE_RELEASE_NAME"
+export OKNOTIKA_RESTORE_COMPOSE_ENV="$OKNOTIKA_BACKUP_DIR/compose.env"
+sudo test -f "$OKNOTIKA_RESTORE_RELEASE_ROOT/deploy/docker/docker-compose.yml"
+sudo test -f "$OKNOTIKA_RESTORE_COMPOSE_ENV"
 sudo docker compose --project-name "$OKNOTIKA_RESTORE_PROJECT" \
-  --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
-  --env-file "$OKNOTIKA_COMPOSE_ENV" create
+  --file "$OKNOTIKA_RESTORE_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
+  --env-file "$OKNOTIKA_RESTORE_COMPOSE_ENV" create
 sudo docker compose --project-name "$OKNOTIKA_RESTORE_PROJECT" \
-  --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
-  --env-file "$OKNOTIKA_COMPOSE_ENV" run --rm --no-deps \
+  --file "$OKNOTIKA_RESTORE_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
+  --env-file "$OKNOTIKA_RESTORE_COMPOSE_ENV" run --rm --no-deps \
   --user 0:0 --cap-add DAC_READ_SEARCH --cap-add DAC_OVERRIDE \
   --cap-add CHOWN --cap-add FOWNER --entrypoint sh \
   --volume "$OKNOTIKA_BACKUP_DIR:/backup:ro" admin -c '
@@ -367,8 +415,8 @@ sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
   --env-file "$OKNOTIKA_COMPOSE_ENV" stop
 sudo docker compose --project-name "$OKNOTIKA_RESTORE_PROJECT" \
-  --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
-  --env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --wait --wait-timeout 120
+  --file "$OKNOTIKA_RESTORE_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
+  --env-file "$OKNOTIKA_RESTORE_COMPOSE_ENV" up --detach --no-build --wait --wait-timeout 120
 curl --fail --silent --show-error https://oknotika.ru/ >/dev/null
 curl --fail --silent --show-error https://oknotika.ru/articles/ >/dev/null
 curl --fail --silent --show-error https://admin.oknotika.ru/login >/dev/null
@@ -380,29 +428,84 @@ project `$OKNOTIKA_ACTIVE_PROJECT`; исходные volumes всё ещё на 
 после успешной проверки переключить active project для всех следующих операций:
 
 ```bash
+set -euo pipefail
 export OKNOTIKA_ACTIVE_PROJECT="$OKNOTIKA_RESTORE_PROJECT"
+export OKNOTIKA_RELEASE_ROOT="$OKNOTIKA_RESTORE_RELEASE_ROOT"
+export OKNOTIKA_COMPOSE_ENV="$OKNOTIKA_RESTORE_COMPOSE_ENV"
+export OKNOTIKA_ARCHIVE_SHA="$OKNOTIKA_RESTORE_ARCHIVE_SHA"
+sudo ln -s "$OKNOTIKA_RELEASE_ROOT" "/opt/oknotika-docker/.current-$OKNOTIKA_ACTIVE_PROJECT"
+sudo mv -Tf "/opt/oknotika-docker/.current-$OKNOTIKA_ACTIVE_PROJECT" \
+  /opt/oknotika-docker/current
+sudo ln -s "$OKNOTIKA_COMPOSE_ENV" "/etc/oknotika/.compose-current-$OKNOTIKA_ACTIVE_PROJECT"
+sudo mv -Tf "/etc/oknotika/.compose-current-$OKNOTIKA_ACTIVE_PROJECT" \
+  /etc/oknotika/compose-current.env
+sudo install -o root -g root -m 0600 /dev/null \
+  "/etc/oknotika/.active-project-$OKNOTIKA_ACTIVE_PROJECT"
+printf '%s\n' "$OKNOTIKA_ACTIVE_PROJECT" \
+  | sudo tee "/etc/oknotika/.active-project-$OKNOTIKA_ACTIVE_PROJECT" >/dev/null
+sudo mv -Tf "/etc/oknotika/.active-project-$OKNOTIKA_ACTIVE_PROJECT" \
+  /etc/oknotika/active-project
 ```
 
-Записать новое значение в root-controlled операционный журнал. Никогда не
-восстанавливать только SQLite отдельно от согласованного набора volumes.
+Записать restore и проверки в операционный журнал без private данных. Никогда
+не восстанавливать только SQLite отдельно от согласованного набора volumes.
 
 ## Upgrade и rollback без потери данных
 
-До upgrade сделать полный backup выше. Новый ZIP проверить, распаковать в новый
+До upgrade сделать полный backup выше. В новой shell-сессии сначала выполнить
+блок восстановления active-состояния. До изменения release-переменных атомарно
+сохранить прежние source/env для rollback:
+
+```bash
+set -euo pipefail
+export OLD_OKNOTIKA_RELEASE_ROOT="$(sudo readlink -f /opt/oknotika-docker/current)"
+export OLD_OKNOTIKA_COMPOSE_ENV="$(sudo readlink -f /etc/oknotika/compose-current.env)"
+OLD_OKNOTIKA_ARCHIVE_SHA="$(basename "$(dirname "$OLD_OKNOTIKA_RELEASE_ROOT")")"
+[[ "$OLD_OKNOTIKA_ARCHIVE_SHA" =~ ^[0-9a-f]{64}$ ]]
+sudo test -f "$OLD_OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml"
+sudo test -f "$OLD_OKNOTIKA_COMPOSE_ENV"
+sudo ln -s "$OLD_OKNOTIKA_RELEASE_ROOT" \
+  "/opt/oknotika-docker/.previous-$OLD_OKNOTIKA_ARCHIVE_SHA"
+sudo mv -Tf "/opt/oknotika-docker/.previous-$OLD_OKNOTIKA_ARCHIVE_SHA" \
+  /opt/oknotika-docker/previous
+sudo ln -s "$OLD_OKNOTIKA_COMPOSE_ENV" \
+  "/etc/oknotika/.compose-previous-$OLD_OKNOTIKA_ARCHIVE_SHA"
+sudo mv -Tf "/etc/oknotika/.compose-previous-$OLD_OKNOTIKA_ARCHIVE_SHA" \
+  /etc/oknotika/compose-previous.env
+```
+
+Новый ZIP проверить, распаковать в новый
 checksum-каталог, создать новый release env и собрать новые checksum-tagged
 images, не перезаписывая старые tags. С тем же active project name выполнить
 `up --detach --no-build --wait`; Compose заменит containers, но подключит те же
 named volumes. Проверить health, login, public site и weekly draft smoke. Только
 после pass переключить `current`/`compose-current.env`.
 
-Если новый application release не проходит gate, взять прежние
-`OKNOTIKA_RELEASE_ROOT` и `OKNOTIKA_COMPOSE_ENV` из сохранённых symlinks и
+Если новый application release не проходит gate или regression обнаружен после
+promotion, прежние source/env повторно получить из сохранённых symlinks и
 выполнить:
 
 ```bash
+set -euo pipefail
+export OLD_OKNOTIKA_RELEASE_ROOT="$(sudo readlink -f /opt/oknotika-docker/previous)"
+export OLD_OKNOTIKA_COMPOSE_ENV="$(sudo readlink -f /etc/oknotika/compose-previous.env)"
+sudo test -f "$OLD_OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml"
+sudo test -f "$OLD_OKNOTIKA_COMPOSE_ENV"
 sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OLD_OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
   --env-file "$OLD_OKNOTIKA_COMPOSE_ENV" up --detach --no-build --wait --wait-timeout 120
+OLD_OKNOTIKA_ARCHIVE_SHA="$(basename "$(dirname "$OLD_OKNOTIKA_RELEASE_ROOT")")"
+sudo ln -s "$OLD_OKNOTIKA_RELEASE_ROOT" \
+  "/opt/oknotika-docker/.current-rollback-$OLD_OKNOTIKA_ARCHIVE_SHA"
+sudo mv -Tf "/opt/oknotika-docker/.current-rollback-$OLD_OKNOTIKA_ARCHIVE_SHA" \
+  /opt/oknotika-docker/current
+sudo ln -s "$OLD_OKNOTIKA_COMPOSE_ENV" \
+  "/etc/oknotika/.compose-current-rollback-$OLD_OKNOTIKA_ARCHIVE_SHA"
+sudo mv -Tf "/etc/oknotika/.compose-current-rollback-$OLD_OKNOTIKA_ARCHIVE_SHA" \
+  /etc/oknotika/compose-current.env
+export OKNOTIKA_RELEASE_ROOT="$OLD_OKNOTIKA_RELEASE_ROOT"
+export OKNOTIKA_COMPOSE_ENV="$OLD_OKNOTIKA_COMPOSE_ENV"
+export OKNOTIKA_ARCHIVE_SHA="$OLD_OKNOTIKA_ARCHIVE_SHA"
 ```
 
 Это application rollback: он не удаляет и не заменяет DB/uploads/releases. Если

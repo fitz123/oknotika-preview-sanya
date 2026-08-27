@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import importlib.util
+import re
 import shutil
 import subprocess
 import sys
@@ -123,6 +124,22 @@ class DockerPackageTests(unittest.TestCase):
                 runbook + "\nTELEGRAM_OIDC_CLIENT_" + "SECRET=assigned-production-value\n",
                 "embeds a credential",
             ),
+            (
+                runbook.replace("set -euo pipefail", "set +e"),
+                "not fail-fast",
+            ),
+            (
+                runbook.replace("/etc/oknotika/active-project", "/tmp/active-project"),
+                "/etc/oknotika/active-project",
+            ),
+            (
+                runbook.replace("OKNOTIKA_RESTORE_ARCHIVE_SHA", "IGNORED_ARCHIVE_SHA"),
+                "OKNOTIKA_RESTORE_ARCHIVE_SHA",
+            ),
+            (
+                runbook.replace("/opt/oknotika-docker/previous", "/tmp/previous"),
+                "/opt/oknotika-docker/previous",
+            ),
         )
         for changed, expected in changes:
             with self.subTest(expected=expected):
@@ -143,6 +160,21 @@ class DockerPackageTests(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_runbook_bash_blocks_have_valid_syntax(self) -> None:
+        runbook = (REPO / "deploy/docker/README_ZHENYA.md").read_text(encoding="utf-8")
+        blocks = re.findall(r"```bash\n(.*?)\n```", runbook, flags=re.DOTALL)
+        self.assertGreater(len(blocks), 0)
+        for index, block in enumerate(blocks, start=1):
+            with self.subTest(block=index):
+                result = subprocess.run(
+                    ["bash", "-n"],
+                    input=block,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
 
 
 if __name__ == "__main__":
