@@ -2,7 +2,8 @@
 
 This directory contains the secret-free two-container deployment definition.
 The production procedure, host nginx configuration, backup and rollback commands
-are added in the Docker operations runbook.
+are in the Russian operator runbook `README_ZHENYA.md`; the copy-ready host
+configuration is `host-nginx.conf`.
 
 - `admin` publishes only `127.0.0.1:8000` and stores its database, uploads,
   previews, backups and immutable article releases in separate named volumes.

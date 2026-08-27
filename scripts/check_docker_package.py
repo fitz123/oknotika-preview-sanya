@@ -27,6 +27,7 @@ SECRETS = {
     "telegram_oidc_client_secret",
     "weekly_ingest_token",
 }
+REJECTED_ADMIN_DOMAIN = "admin." + "okntoika.ru"
 
 
 def read_required(root: Path, relative: str, errors: list[str]) -> str:
@@ -64,6 +65,104 @@ def validate_compose_text(text: str) -> list[str]:
         ),
         errors,
     )
+    return errors
+
+
+def validate_host_nginx_text(text: str) -> list[str]:
+    errors: list[str] = []
+    require_markers(
+        text,
+        "deploy/docker/host-nginx.conf",
+        (
+            "limit_req_zone $binary_remote_addr zone=oknotika_docker_admin_general:10m rate=60r/m;",
+            "limit_req_zone $binary_remote_addr zone=oknotika_docker_admin_login:10m rate=5r/m;",
+            "limit_conn_zone $server_name zone=oknotika_docker_admin_uploads:10m;",
+            "upstream oknotika_docker_admin {\n    server 127.0.0.1:8000;",
+            "upstream oknotika_docker_public {\n    server 127.0.0.1:8001;",
+            "server_name admin.oknotika.ru;\n    return 308 https://admin.oknotika.ru$request_uri;",
+            "server_name oknotika.ru www.oknotika.ru;\n    return 308 https://oknotika.ru$request_uri;",
+            "server_name www.oknotika.ru;",
+            "ssl_certificate /etc/letsencrypt/live/admin.oknotika.ru/fullchain.pem;",
+            "ssl_certificate /etc/letsencrypt/live/oknotika.ru/fullchain.pem;",
+            "proxy_pass http://oknotika_docker_admin;",
+            "proxy_pass http://oknotika_docker_public;",
+            "client_max_body_size 1m;",
+            "client_max_body_size 10m;",
+            "location = /auth/callback {",
+            "location = /api/uploads {",
+            "limit_req zone=oknotika_docker_admin_login burst=3 nodelay;",
+            "limit_conn oknotika_docker_admin_uploads 2;",
+            "proxy_set_header Host admin.oknotika.ru;",
+            "proxy_set_header X-Forwarded-Host admin.oknotika.ru;",
+            "proxy_set_header X-Forwarded-Proto https;",
+            "proxy_set_header X-Forwarded-For $remote_addr;",
+        ),
+        errors,
+    )
+    if REJECTED_ADMIN_DOMAIN in text:
+        errors.append("host nginx contains the rejected typo admin domain")
+    for public_listener in (
+        "server 0.0.0.0:8000",
+        "server 0.0.0.0:8001",
+        "server [::]:8000",
+        "server [::]:8001",
+    ):
+        if public_listener in text:
+            errors.append(f"host nginx uses a public backend upstream: {public_listener}")
+    if "$proxy_add_x_forwarded_for" in text:
+        errors.append("host nginx must replace, not append, X-Forwarded-For")
+    if text.count("proxy_set_header X-Forwarded-For $remote_addr;") < 5:
+        errors.append("host nginx does not replace X-Forwarded-For in every proxy location")
+    return errors
+
+
+def validate_docker_runbook_text(text: str) -> list[str]:
+    errors: list[str] = []
+    require_markers(
+        text,
+        "deploy/docker/README_ZHENYA.md",
+        (
+            "DNS `A`/`AAAA`",
+            "/etc/letsencrypt/live/oknotika.ru/{fullchain,privkey}.pem",
+            "/etc/letsencrypt/live/admin.oknotika.ru/{fullchain,privkey}.pem",
+            "https://admin.oknotika.ru/auth/callback",
+            "sha256sum --check oknotika-docker-v2.29.0-rc.3.zip.sha256",
+            'OKNOTIKA_SECRETS_DIR=/etc/oknotika/secrets',
+            "/etc/oknotika/secrets/telegram-oidc-client-id",
+            "/etc/oknotika/secrets/telegram-oidc-client-secret",
+            "/etc/oknotika/secrets/weekly-ingest-token",
+            "sudo chmod 0600 /etc/oknotika/secrets/*",
+            'up --detach --no-build --wait --wait-timeout 120',
+            "logs --no-color --tail 100 admin public",
+            "npm run bootstrap-editor",
+            "npm run bootstrap-content",
+            "npm run register-weekly-cover",
+            "smoke-weekly-ingestion.mjs",
+            "admin_database.tar",
+            "admin_uploads.tar",
+            "admin_previews.tar",
+            "admin_backups.tar",
+            "article_releases.tar",
+            "sha256sum *.tar > SHA256SUMS",
+            "OKNOTIKA_RESTORE_PROJECT",
+            "Restore всегда делать в новый Compose project",
+            "OLD_OKNOTIKA_RELEASE_ROOT",
+            "OLD_OKNOTIKA_COMPOSE_ENV",
+            "stop admin",
+            "`docker compose down -v` ЗАПРЕЩЕНА",
+            "`0.0.0.0:8000`, `0.0.0.0:8001`",
+            "Запрещено встраивать credentials",
+        ),
+        errors,
+    )
+    if REJECTED_ADMIN_DOMAIN in text:
+        errors.append("Docker runbook contains the rejected typo admin domain")
+    direct_secret = re.compile(
+        r"^\s*(?:TELEGRAM_OIDC_CLIENT_ID|TELEGRAM_OIDC_CLIENT_SECRET|OKNOTIKA_WEEKLY_INGEST_TOKEN)\s*=\s*\S+",
+        re.MULTILINE,
+    )
+    if direct_secret.search(text):
+        errors.append("Docker runbook embeds a credential in an environment assignment")
     return errors
 
 
@@ -244,6 +343,11 @@ def validate(root: Path) -> list[str]:
         if private_path in nginx:
             errors.append(f"public nginx exposes a private path marker: {private_path}")
 
+    host_nginx = read_required(root, "deploy/docker/host-nginx.conf", errors)
+    errors.extend(validate_host_nginx_text(host_nginx))
+    runbook = read_required(root, "deploy/docker/README_ZHENYA.md", errors)
+    errors.extend(validate_docker_runbook_text(runbook))
+
     dockerignore = read_required(root, ".dockerignore", errors)
     require_markers(
         dockerignore,
@@ -284,7 +388,10 @@ def main() -> int:
         for error in errors:
             print(f"docker package check failed: {error}", file=sys.stderr)
         return 1
-    print("docker package check passed: two hardened services, five volumes, three file secrets")
+    print(
+        "docker package check passed: two hardened services, five volumes, "
+        "three file secrets, host nginx and operations runbook"
+    )
     return 0
 
 

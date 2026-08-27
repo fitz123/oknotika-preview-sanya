@@ -59,6 +59,63 @@ class DockerPackageTests(unittest.TestCase):
             checker.validate_compose_text(changed),
         )
 
+    def test_host_nginx_domains_ports_and_proxy_headers_are_enforced(self) -> None:
+        nginx = (REPO / "deploy/docker/host-nginx.conf").read_text(encoding="utf-8")
+        changes = (
+            (
+                nginx.replace("server 127.0.0.1:8000;", "server 0.0.0.0:8000;", 1),
+                "public backend upstream",
+            ),
+            (
+                nginx.replace("admin.oknotika.ru", checker.REJECTED_ADMIN_DOMAIN, 1),
+                "rejected typo admin domain",
+            ),
+            (
+                nginx.replace(
+                    "proxy_set_header X-Forwarded-For $remote_addr;",
+                    "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+                    1,
+                ),
+                "must replace, not append",
+            ),
+            (
+                nginx.replace("server 127.0.0.1:8001;", "server 127.0.0.1:8081;", 1),
+                "127.0.0.1:8001",
+            ),
+        )
+        for changed, expected in changes:
+            with self.subTest(expected=expected):
+                self.assertTrue(any(
+                    expected in error
+                    for error in checker.validate_host_nginx_text(changed)
+                ))
+
+    def test_runbook_callback_safety_and_no_secret_boundary_are_enforced(self) -> None:
+        runbook = (REPO / "deploy/docker/README_ZHENYA.md").read_text(encoding="utf-8")
+        changes = (
+            (
+                runbook.replace(
+                    "https://admin.oknotika.ru/auth/callback",
+                    "https://admin.oknotika.ru/callback",
+                ),
+                "https://admin.oknotika.ru/auth/callback",
+            ),
+            (
+                runbook.replace("`docker compose down -v` ЗАПРЕЩЕНА", "volume warning removed"),
+                "docker compose down -v",
+            ),
+            (
+                runbook + "\nTELEGRAM_OIDC_CLIENT_" + "SECRET=assigned-production-value\n",
+                "embeds a credential",
+            ),
+        )
+        for changed, expected in changes:
+            with self.subTest(expected=expected):
+                self.assertTrue(any(
+                    expected in error
+                    for error in checker.validate_docker_runbook_text(changed)
+                ))
+
     def test_container_shell_scripts_have_valid_syntax(self) -> None:
         for relative, shell in (
             ("deploy/docker/admin-entrypoint.sh", "sh"),

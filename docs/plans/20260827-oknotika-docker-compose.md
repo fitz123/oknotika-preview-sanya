@@ -91,11 +91,11 @@ When the local Docker daemon is available, also build both images and run the re
 
 **Serves:** Zhenya’s request for nginx `proxy_pass` on `admin.oknotika.ru` and `oknotika.ru`, plus Sanya’s request for a separate instruction file.
 
-- [ ] Add host nginx config with canonical HTTP→HTTPS redirects, `www` handling, exact upstreams `127.0.0.1:8000/8001`, admin request limits/rate limits and trusted proxy headers.
-- [ ] Document DNS/TLS prerequisites, secret-file creation with safe permissions, Compose startup, logs/health, Telegram enrollment, initial content/cover bootstrap and weekly draft smoke.
-- [ ] Document persistent-volume backup/restore, upgrade by immutable source/archive checksum, no-data-loss rollback, and emergency stop without deleting volumes.
-- [ ] Explicitly warn that `docker compose down -v`, public port binding and embedding credentials are forbidden.
-- [ ] Add documentation checks for exact domains, ports, callback, proxy headers and no-secret boundary.
+- [x] Add host nginx config with canonical HTTP→HTTPS redirects, `www` handling, exact upstreams `127.0.0.1:8000/8001`, admin request limits/rate limits and trusted proxy headers.
+- [x] Document DNS/TLS prerequisites, secret-file creation with safe permissions, Compose startup, logs/health, Telegram enrollment, initial content/cover bootstrap and weekly draft smoke.
+- [x] Document persistent-volume backup/restore, upgrade by immutable source/archive checksum, no-data-loss rollback, and emergency stop without deleting volumes.
+- [x] Explicitly warn that `docker compose down -v`, public port binding and embedding credentials are forbidden.
+- [x] Add documentation checks for exact domains, ports, callback, proxy headers and no-secret boundary.
 
 ### Task 4: Build and verify the Docker handoff archive
 
