@@ -9,6 +9,7 @@ from pathlib import Path
 
 
 PINNED_NODE_VERSION = "24.18.0"
+RIPGREP_INSTALL_COMMAND = "sudo apt-get install --yes ripgrep"
 ALLOWED_DEPLOY_SECRETS = {
     "OKNOTIKA_DEPLOY_HOST",
     "OKNOTIKA_DEPLOY_PORT",
@@ -17,6 +18,8 @@ ALLOWED_DEPLOY_SECRETS = {
     "OKNOTIKA_DEPLOY_SSH_KNOWN_HOSTS",
 }
 REQUIRED_CI_COMMANDS = (
+    "sudo apt-get update",
+    RIPGREP_INSTALL_COMMAND,
     "npm ci",
     "npm audit --audit-level=high",
     "npm audit --omit=dev --audit-level=high",
@@ -124,6 +127,9 @@ def validate_ci_text(text: str) -> list[str]:
     for command in REQUIRED_CI_COMMANDS:
         if command not in workflow_lines and f"run: {command}" not in workflow_lines:
             errors.append(f"CI command is missing: {command}")
+    if RIPGREP_INSTALL_COMMAND in workflow_lines and "npm test" in workflow_lines:
+        if text.index(RIPGREP_INSTALL_COMMAND) > text.index("npm test"):
+            errors.append("CI must install ripgrep before admin tests")
 
     return errors
 
