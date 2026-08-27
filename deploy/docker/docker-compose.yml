@@ -1,0 +1,119 @@
+services:
+  admin:
+    image: ${OKNOTIKA_ADMIN_IMAGE:-oknotika-admin:v2.29.0-rc.3}
+    build:
+      context: ../..
+      dockerfile: deploy/docker/admin.Dockerfile
+    init: true
+    restart: unless-stopped
+    read_only: true
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      NODE_ENV: production
+      OKNOTIKA_ADMIN_ORIGIN: https://admin.oknotika.ru
+      OKNOTIKA_PUBLIC_ORIGIN: https://oknotika.ru
+      TELEGRAM_OIDC_REDIRECT_URI: https://admin.oknotika.ru/auth/callback
+      TELEGRAM_OIDC_SIGNING_ALG: RS256
+      TELEGRAM_OIDC_CLIENT_ID_FILE: /run/secrets/telegram_oidc_client_id
+      TELEGRAM_OIDC_CLIENT_SECRET_FILE: /run/secrets/telegram_oidc_client_secret
+      OKNOTIKA_WEEKLY_INGEST_TOKEN_FILE: /run/secrets/weekly_ingest_token
+      OKNOTIKA_DATABASE_PATH: /var/lib/oknotika-admin/db/admin.sqlite
+      OKNOTIKA_UPLOADS_ROOT: /var/lib/oknotika-admin/uploads
+      OKNOTIKA_PREVIEWS_ROOT: /var/lib/oknotika-admin/previews
+      OKNOTIKA_ARTICLE_RELEASES_ROOT: /var/lib/oknotika-admin/article-releases
+      OKNOTIKA_PUBLIC_ROOT: /srv/oknotika/public
+      OKNOTIKA_LISTEN_HOST: 0.0.0.0
+      OKNOTIKA_LISTEN_PORT: "8000"
+    secrets:
+      - telegram_oidc_client_id
+      - telegram_oidc_client_secret
+      - weekly_ingest_token
+    ports:
+      - "127.0.0.1:${OKNOTIKA_ADMIN_PORT:-8000}:8000"
+    volumes:
+      - admin_database:/var/lib/oknotika-admin/db
+      - admin_uploads:/var/lib/oknotika-admin/uploads
+      - admin_previews:/var/lib/oknotika-admin/previews
+      - admin_backups:/var/lib/oknotika-admin/backups
+      - article_releases:/var/lib/oknotika-admin/article-releases
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          const http=require('node:http');const request=http.get({host:'127.0.0.1',port:8000,path:'/login',headers:{Host:'admin.oknotika.ru','X-Forwarded-Host':'admin.oknotika.ru','X-Forwarded-Proto':'https','X-Forwarded-For':'127.0.0.1'}},response=>{response.resume();process.exit(response.statusCode===200?0:1)});request.setTimeout(2000,()=>request.destroy());request.on('error',()=>process.exit(1));
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 15s
+    stop_grace_period: 30s
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  public:
+    image: ${OKNOTIKA_PUBLIC_IMAGE:-oknotika-public:v2.29.0-rc.3}
+    build:
+      context: ../..
+      dockerfile: deploy/docker/public.Dockerfile
+    init: true
+    restart: unless-stopped
+    read_only: true
+    user: "101:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "127.0.0.1:${OKNOTIKA_PUBLIC_PORT:-8001}:8001"
+    volumes:
+      - article_releases:/srv/oknotika/article-releases:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,mode=1777
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - --quiet
+        - --spider
+        - http://127.0.0.1:8001/healthz
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    stop_grace_period: 10s
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+secrets:
+  telegram_oidc_client_id:
+    file: ${OKNOTIKA_SECRETS_DIR:-./secrets}/telegram-oidc-client-id
+  telegram_oidc_client_secret:
+    file: ${OKNOTIKA_SECRETS_DIR:-./secrets}/telegram-oidc-client-secret
+  weekly_ingest_token:
+    file: ${OKNOTIKA_SECRETS_DIR:-./secrets}/weekly-ingest-token
+
+volumes:
+  admin_database:
+  admin_uploads:
+  admin_previews:
+  admin_backups:
+  article_releases:

@@ -79,11 +79,11 @@ When the local Docker daemon is available, also build both images and run the re
 
 **Serves:** Zhenya’s requirements for `docker-compose`, admin `8000`, public `8001`, and a deployable complete site.
 
-- [ ] Add minimal pinned admin/public Dockerfiles, `.dockerignore`, deterministic entrypoint/runtime preparation and non-root steady-state processes.
-- [ ] Add `deploy/docker/docker-compose.yml` with exact loopback bindings, healthchecks, restart policies, resource limits, read-only/rootfs/tmpfs where compatible, and separate named volumes for DB, uploads, previews, backups and article releases.
-- [ ] Mount Telegram OIDC and weekly-ingestion values only through Compose secret files; include safe examples/README and gitignore rules, never secret values.
-- [ ] Add the internal public nginx configuration that serves the bundled site and shared immutable article releases without exposing admin/private volumes.
-- [ ] Add static policy tests plus a live isolated build/smoke path that proves both ports and persistent-volume survival when Docker is available.
+- [x] Add minimal pinned admin/public Dockerfiles, `.dockerignore`, deterministic entrypoint/runtime preparation and non-root steady-state processes.
+- [x] Add `deploy/docker/docker-compose.yml` with exact loopback bindings, healthchecks, restart policies, resource limits, read-only/rootfs/tmpfs where compatible, and separate named volumes for DB, uploads, previews, backups and article releases.
+- [x] Mount Telegram OIDC and weekly-ingestion values only through Compose secret files; include safe examples/README and gitignore rules, never secret values.
+- [x] Add the internal public nginx configuration that serves the bundled site and shared immutable article releases without exposing admin/private volumes.
+- [x] Add static policy tests plus a live isolated build/smoke path that proves both ports and persistent-volume survival when Docker is available.
 
 ### Task 3: Add host nginx proxy configuration and Docker operations runbook
 

@@ -11,3 +11,6 @@ var/
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
+deploy/docker/secrets/*
+!deploy/docker/secrets/README.md
+!deploy/docker/secrets/*.example
