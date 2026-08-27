@@ -102,11 +102,15 @@ sudo install -o root -g root -m 0600 /dev/null \
   /etc/oknotika/secrets/weekly-ingest-token
 openssl rand -hex 32 \
   | sudo tee /etc/oknotika/secrets/weekly-ingest-token >/dev/null
-sudo chown root:root /etc/oknotika/secrets/*
-sudo chmod 0600 /etc/oknotika/secrets/*
-sudo test "$(stat -c %a /etc/oknotika/secrets/telegram-oidc-client-id)" = 600
-sudo test "$(stat -c %a /etc/oknotika/secrets/telegram-oidc-client-secret)" = 600
-sudo test "$(stat -c %a /etc/oknotika/secrets/weekly-ingest-token)" = 600
+sudo sh -c '
+set -eu
+chown root:1000 /etc/oknotika/secrets/*
+chmod 0640 /etc/oknotika/secrets/*
+for name in telegram-oidc-client-id telegram-oidc-client-secret weekly-ingest-token; do
+  test "$(stat -c %u:%g "/etc/oknotika/secrets/$name")" = 0:1000
+  test "$(stat -c %a "/etc/oknotika/secrets/$name")" = 640
+done
+'
 ```
 
 Не выводить содержимое файлов и не сохранять callback URL, authorization code,
@@ -134,22 +138,24 @@ sudo systemctl reload nginx
 
 ## Сборка, запуск, health и logs
 
-Во всех штатных командах использовать постоянный project name `oknotika`:
+Во всех штатных командах использовать текущий active project name. Для
+первичного развёртывания это `oknotika`:
 
 ```bash
-sudo docker compose --project-name oknotika \
+export OKNOTIKA_ACTIVE_PROJECT=oknotika
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
   --env-file "$OKNOTIKA_COMPOSE_ENV" config --quiet
-sudo docker compose --project-name oknotika \
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
   --env-file "$OKNOTIKA_COMPOSE_ENV" build
-sudo docker compose --project-name oknotika \
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
   --env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --wait --wait-timeout 120
-sudo docker compose --project-name oknotika \
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
   --env-file "$OKNOTIKA_COMPOSE_ENV" ps
-sudo docker compose --project-name oknotika \
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
   --env-file "$OKNOTIKA_COMPOSE_ENV" logs --no-color --tail 100 admin public
 curl --fail --silent --show-error https://oknotika.ru/ >/dev/null
@@ -180,10 +186,10 @@ sudo mv -Tf "/etc/oknotika/.compose-current-$OKNOTIKA_ARCHIVE_SHA" \
 Остановить обычный admin, чтобы bootstrap был единственным писателем SQLite:
 
 ```bash
-sudo docker compose --project-name oknotika \
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
   --env-file "$OKNOTIKA_COMPOSE_ENV" stop admin
-sudo docker compose --project-name oknotika \
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
   --env-file "$OKNOTIKA_COMPOSE_ENV" run --rm --no-deps admin \
   npm run bootstrap-editor
@@ -196,7 +202,7 @@ sudo docker compose --project-name oknotika \
 согласовавших и fingerprint, но не `sub`/code/token. Затем:
 
 ```bash
-sudo docker compose --project-name oknotika \
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
   --env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --wait admin
 ```
@@ -211,10 +217,10 @@ reviewed maintenance-операция.
 Bahr идемпотентно как первую published revision и immutable active release:
 
 ```bash
-sudo docker compose --project-name oknotika \
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
   --env-file "$OKNOTIKA_COMPOSE_ENV" stop admin
-sudo docker compose --project-name oknotika \
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
   --env-file "$OKNOTIKA_COMPOSE_ENV" run --rm --no-deps \
   --volume "$OKNOTIKA_RELEASE_ROOT/articles/assets/e794ac9b2fc096b47e5a406d.jpg:/run/al-bahr.jpg:ro" \
@@ -224,7 +230,7 @@ sudo docker compose --project-name oknotika \
   --uploads-root /var/lib/oknotika-admin/uploads \
   --public-origin https://oknotika.ru \
   --cover /run/al-bahr.jpg
-sudo docker compose --project-name oknotika \
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
   --env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --wait admin public
 curl --fail --silent --show-error \
@@ -239,10 +245,10 @@ Git/public root и читаться только root и pinned container group 
 ```bash
 sudo chown root:1000 /private/path/approved-weekly-cover.png
 sudo chmod 0640 /private/path/approved-weekly-cover.png
-sudo docker compose --project-name oknotika \
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
   --env-file "$OKNOTIKA_COMPOSE_ENV" stop admin
-sudo docker compose --project-name oknotika \
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
   --env-file "$OKNOTIKA_COMPOSE_ENV" run --rm --no-deps \
   --volume /private/path/approved-weekly-cover.png:/run/weekly-cover.png:ro \
@@ -251,7 +257,7 @@ sudo docker compose --project-name oknotika \
   --uploads-root /var/lib/oknotika-admin/uploads \
   --public-root /srv/oknotika/public \
   --cover /run/weekly-cover.png
-sudo docker compose --project-name oknotika \
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
   --env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --wait admin
 ```
@@ -266,7 +272,7 @@ Compose secret file, не из argv/env:
 ```bash
 sudo chown root:1000 /private/path/generated-weekly-payload.json
 sudo chmod 0640 /private/path/generated-weekly-payload.json
-sudo docker compose --project-name oknotika \
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
   --env-file "$OKNOTIKA_COMPOSE_ENV" run --rm --no-deps \
   --volume "$OKNOTIKA_RELEASE_ROOT/deploy/scripts/smoke-weekly-ingestion.mjs:/run/smoke-weekly-ingestion.mjs:ro" \
@@ -290,10 +296,10 @@ upgrade. Для согласованного offline snapshot остановит
 ```bash
 export OKNOTIKA_BACKUP_DIR="/var/backups/oknotika/YYYYMMDD-HHMMSS"
 sudo install -d -o root -g root -m 0700 "$OKNOTIKA_BACKUP_DIR"
-sudo docker compose --project-name oknotika \
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
   --env-file "$OKNOTIKA_COMPOSE_ENV" stop
-sudo docker compose --project-name oknotika \
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
   --env-file "$OKNOTIKA_COMPOSE_ENV" run --rm --no-deps \
   --user 0:0 --cap-add DAC_READ_SEARCH --entrypoint sh \
@@ -311,8 +317,9 @@ printf '%s\n' "$OKNOTIKA_ARCHIVE_SHA" \
 sudo cp "$OKNOTIKA_COMPOSE_ENV" "$OKNOTIKA_BACKUP_DIR/compose.env"
 sudo chown -R root:root "$OKNOTIKA_BACKUP_DIR"
 sudo chmod 0700 "$OKNOTIKA_BACKUP_DIR"
-sudo chmod 0600 "$OKNOTIKA_BACKUP_DIR"/*
-sudo docker compose --project-name oknotika \
+sudo find "$OKNOTIKA_BACKUP_DIR" -mindepth 1 -maxdepth 1 -type f \
+  -exec chmod 0600 {} +
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
   --env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --wait
 ```
@@ -356,7 +363,7 @@ tar --numeric-owner -C /var/lib/oknotika-admin/article-releases -xpf /backup/art
 запустить восстановленный, который займёт те же loopback ports:
 
 ```bash
-sudo docker compose --project-name oknotika \
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
   --env-file "$OKNOTIKA_COMPOSE_ENV" stop
 sudo docker compose --project-name "$OKNOTIKA_RESTORE_PROJECT" \
@@ -369,8 +376,14 @@ curl --fail --silent --show-error https://admin.oknotika.ru/login >/dev/null
 
 Проверить login, SQLite state, uploads и active article release. При любой ошибке
 остановить restore project командой `docker compose ... stop` и снова запустить
-project `oknotika`; исходные volumes всё ещё на месте. После успешного restore
-зафиксировать новое active project name для всех следующих операций. Никогда не
+project `$OKNOTIKA_ACTIVE_PROJECT`; исходные volumes всё ещё на месте. Только
+после успешной проверки переключить active project для всех следующих операций:
+
+```bash
+export OKNOTIKA_ACTIVE_PROJECT="$OKNOTIKA_RESTORE_PROJECT"
+```
+
+Записать новое значение в root-controlled операционный журнал. Никогда не
 восстанавливать только SQLite отдельно от согласованного набора volumes.
 
 ## Upgrade и rollback без потери данных
@@ -387,7 +400,7 @@ named volumes. Проверить health, login, public site и weekly draft smo
 выполнить:
 
 ```bash
-sudo docker compose --project-name oknotika \
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OLD_OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
   --env-file "$OLD_OKNOTIKA_COMPOSE_ENV" up --detach --no-build --wait --wait-timeout 120
 ```
@@ -403,7 +416,7 @@ volumes — восстановить согласованный pre-upgrade back
 Для немедленного отключения write surface, сохранив публичный статический сайт:
 
 ```bash
-sudo docker compose --project-name oknotika \
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
   --env-file "$OKNOTIKA_COMPOSE_ENV" stop admin
 ```

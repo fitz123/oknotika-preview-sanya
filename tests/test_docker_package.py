@@ -105,6 +105,21 @@ class DockerPackageTests(unittest.TestCase):
                 "docker compose down -v",
             ),
             (
+                runbook.replace(
+                    'chown root:1000 /etc/oknotika/secrets/*',
+                    'chown root:root /etc/oknotika/secrets/*',
+                ),
+                "root:1000",
+            ),
+            (
+                runbook.replace(
+                    '--project-name "$OKNOTIKA_ACTIVE_PROJECT"',
+                    '--project-name oknotika',
+                    1,
+                ),
+                "hardcodes the original Compose project name",
+            ),
+            (
                 runbook + "\nTELEGRAM_OIDC_CLIENT_" + "SECRET=assigned-production-value\n",
                 "embeds a credential",
             ),

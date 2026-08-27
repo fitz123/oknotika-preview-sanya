@@ -33,7 +33,9 @@ PUBLIC_DIRECTORIES = {
     "wood-stoller",
 }
 DEPLOY_SUPPORT_FILES = {
+    "deploy/scripts/smoke-weekly-ingestion.mjs",
     "deploy/nginx/snippets/public-security-headers.conf",
+    "docs/WEEKLY_INGESTION.md",
 }
 REQUIRED_FILES = {
     "index.html",

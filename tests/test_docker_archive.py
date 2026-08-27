@@ -34,6 +34,7 @@ FIXTURE_FILES = {path: f"fixture for {path}\n".encode() for path in checker.REQU
 EXECUTABLES = {
     "deploy/docker/admin-entrypoint.sh",
     "deploy/docker/smoke-test.sh",
+    "deploy/scripts/smoke-weekly-ingestion.mjs",
 }
 
 
@@ -127,6 +128,11 @@ class DockerArchiveTests(unittest.TestCase):
         )
 
         with zipfile.ZipFile(second) as archive:
+            for relative in (
+                "deploy/scripts/smoke-weekly-ingestion.mjs",
+                "docs/WEEKLY_INGESTION.md",
+            ):
+                self.assertIn(f"{checker.PAYLOAD_ROOT}/{relative}", archive.namelist())
             manifest = json.loads(
                 archive.read(f"{checker.PAYLOAD_ROOT}/{checker.MANIFEST_NAME}")
             )

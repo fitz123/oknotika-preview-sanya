@@ -128,10 +128,13 @@ def validate_docker_runbook_text(text: str) -> list[str]:
             "https://admin.oknotika.ru/auth/callback",
             "sha256sum --check oknotika-docker-v2.29.0-rc.3.zip.sha256",
             'OKNOTIKA_SECRETS_DIR=/etc/oknotika/secrets',
-            "/etc/oknotika/secrets/telegram-oidc-client-id",
-            "/etc/oknotika/secrets/telegram-oidc-client-secret",
+            "for name in telegram-oidc-client-id telegram-oidc-client-secret; do",
+            '"/etc/oknotika/secrets/$name"',
             "/etc/oknotika/secrets/weekly-ingest-token",
-            "sudo chmod 0600 /etc/oknotika/secrets/*",
+            "sudo sh -c '\nset -eu\nchown root:1000 /etc/oknotika/secrets/*",
+            "chmod 0640 /etc/oknotika/secrets/*",
+            "export OKNOTIKA_ACTIVE_PROJECT=oknotika",
+            '--project-name "$OKNOTIKA_ACTIVE_PROJECT"',
             'up --detach --no-build --wait --wait-timeout 120',
             "logs --no-color --tail 100 admin public",
             "npm run bootstrap-editor",
@@ -144,7 +147,9 @@ def validate_docker_runbook_text(text: str) -> list[str]:
             "admin_backups.tar",
             "article_releases.tar",
             "sha256sum *.tar > SHA256SUMS",
+            '-exec chmod 0600 {} +',
             "OKNOTIKA_RESTORE_PROJECT",
+            'export OKNOTIKA_ACTIVE_PROJECT="$OKNOTIKA_RESTORE_PROJECT"',
             "Restore всегда делать в новый Compose project",
             "OLD_OKNOTIKA_RELEASE_ROOT",
             "OLD_OKNOTIKA_COMPOSE_ENV",
@@ -163,6 +168,8 @@ def validate_docker_runbook_text(text: str) -> list[str]:
     )
     if direct_secret.search(text):
         errors.append("Docker runbook embeds a credential in an environment assignment")
+    if "--project-name oknotika" in text:
+        errors.append("Docker runbook hardcodes the original Compose project name")
     return errors
 
 
@@ -359,7 +366,13 @@ def validate(root: Path) -> list[str]:
     require_markers(gitignore, ".gitignore", ("deploy/docker/secrets/*",), errors)
     read_required(root, "deploy/docker/compose.env.example", errors)
     read_required(root, "deploy/docker/README.md", errors)
-    read_required(root, "deploy/docker/secrets/README.md", errors)
+    secrets_readme = read_required(root, "deploy/docker/secrets/README.md", errors)
+    require_markers(
+        secrets_readme,
+        "deploy/docker/secrets/README.md",
+        ("`root:1000`", "`0640`", "`1000:1000`"),
+        errors,
+    )
     read_required(root, "deploy/docker/smoke-test.sh", errors)
     for name in (
         "telegram-oidc-client-id",
