@@ -194,6 +194,23 @@ class FinalDocumentationTests(unittest.TestCase):
             subprocess.run(["git", "-C", str(repo), "commit", "-qm", "source"], check=True)
             self.assertEqual(docs_checker.non_release_changes_since(repo, implementation), ["app.js"])
 
+    def test_legacy_release_allows_only_the_reviewed_docker_extension(self) -> None:
+        for path in (
+            "admin-app/src/http/listener.js",
+            "deploy/docker/docker-compose.yml",
+            "scripts/check_docker_archive.py",
+            "tests/test_docker_archive.py",
+        ):
+            with self.subTest(path=path):
+                self.assertTrue(docs_checker.reviewed_docker_extension_path(path))
+        for path in (
+            "admin-app/src/http/handler.js",
+            "deploy/systemd/oknotika-admin.service",
+            "scripts/unreviewed.py",
+        ):
+            with self.subTest(path=path):
+                self.assertFalse(docs_checker.reviewed_docker_extension_path(path))
+
 
 if __name__ == "__main__":
     unittest.main()

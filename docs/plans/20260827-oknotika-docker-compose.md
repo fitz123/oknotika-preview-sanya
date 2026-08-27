@@ -103,7 +103,7 @@ When the local Docker daemon is available, also build both images and run the re
 
 **Serves:** Sanya’s request to send Zhenya “и файл, и инструкцию” for a self-managed Docker deployment.
 
-- [ ] Add a deterministic builder and internal manifest/checksum for `oknotika-docker-v2.29.0-rc.3.zip` from the exact committed tree.
-- [ ] Include only required public paths, `admin-app`, Docker deployment files/runbook and validation metadata; exclude node_modules, runtime state, prior release ZIPs, raw portraits, evidence and credentials.
-- [ ] Add archive traversal/symlink/duplicate/secret/runtime/tamper checks and deterministic double-build tests.
-- [ ] Run the full suite, Docker build/isolated smoke, secret scan and final diff cut pass against the approved outcome and Non-goals.
+- [x] Add a deterministic builder and internal manifest/checksum for `oknotika-docker-v2.29.0-rc.3.zip` from the exact committed tree.
+- [x] Include only required public paths, `admin-app`, Docker deployment files/runbook and validation metadata; exclude node_modules, runtime state, prior release ZIPs, raw portraits, evidence and credentials.
+- [x] Add archive traversal/symlink/duplicate/secret/runtime/tamper checks and deterministic double-build tests.
+- [x] Run the full suite, Docker build/isolated smoke, secret scan and final diff cut pass against the approved outcome and Non-goals.

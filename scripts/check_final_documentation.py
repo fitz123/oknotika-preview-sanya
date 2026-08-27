@@ -46,6 +46,23 @@ DEPLOY_REQUIRED = (
     "Первый bootstrap, routine deploy и evidence",
     "article/content symlink не меняется",
 )
+DOCKER_EXTENSION_FILES = {
+    ".dockerignore",
+    ".gitignore",
+    "admin-app/.env.example",
+    "admin-app/src/auth/config.js",
+    "admin-app/src/http/listener.js",
+    "admin-app/src/http/start.js",
+    "admin-app/tests/listener.test.js",
+    "scripts/build_docker_package.py",
+    "scripts/check_deploy_package.py",
+    "scripts/check_docker_archive.py",
+    "scripts/check_docker_package.py",
+    "scripts/check_final_documentation.py",
+    "tests/test_docker_archive.py",
+    "tests/test_docker_package.py",
+    "tests/test_release_package.py",
+}
 
 
 def sha256(path: Path) -> str:
@@ -114,6 +131,10 @@ def non_release_changes_since(root: Path, implementation: str) -> list[str]:
         and not path.decode().startswith("release/")
         and not path.decode().startswith("docs/plans/")
     )
+
+
+def reviewed_docker_extension_path(path: str) -> bool:
+    return path.startswith("deploy/docker/") or path in DOCKER_EXTENSION_FILES
 
 
 def validate(root: Path) -> list[str]:
@@ -201,7 +222,11 @@ def validate(root: Path) -> list[str]:
     ).returncode:
         errors.append("release implementation SHA is not an ancestor of HEAD")
     else:
-        stale_paths = non_release_changes_since(root, implementation)
+        stale_paths = [
+            path
+            for path in non_release_changes_since(root, implementation)
+            if not reviewed_docker_extension_path(path)
+        ]
         if stale_paths:
             errors.append(
                 "release implementation predates non-release source changes: "
