@@ -194,7 +194,7 @@ class FinalDocumentationTests(unittest.TestCase):
             subprocess.run(["git", "-C", str(repo), "commit", "-qm", "source"], check=True)
             self.assertEqual(docs_checker.non_release_changes_since(repo, implementation), ["app.js"])
 
-    def test_legacy_release_allows_only_the_reviewed_docker_extension(self) -> None:
+    def test_legacy_release_allows_only_reviewed_post_release_extensions(self) -> None:
         for path in (
             "admin-app/src/http/listener.js",
             "deploy/docker/docker-compose.yml",
@@ -203,13 +203,22 @@ class FinalDocumentationTests(unittest.TestCase):
         ):
             with self.subTest(path=path):
                 self.assertTrue(docs_checker.reviewed_docker_extension_path(path))
+                self.assertTrue(docs_checker.reviewed_post_release_extension_path(path))
+        for path in (
+            ".github/workflows/ci.yml",
+            "scripts/check_cicd_package.py",
+            "tests/test_cicd_package.py",
+        ):
+            with self.subTest(path=path):
+                self.assertFalse(docs_checker.reviewed_docker_extension_path(path))
+                self.assertTrue(docs_checker.reviewed_post_release_extension_path(path))
         for path in (
             "admin-app/src/http/handler.js",
             "deploy/systemd/oknotika-admin.service",
             "scripts/unreviewed.py",
         ):
             with self.subTest(path=path):
-                self.assertFalse(docs_checker.reviewed_docker_extension_path(path))
+                self.assertFalse(docs_checker.reviewed_post_release_extension_path(path))
 
 
 if __name__ == "__main__":

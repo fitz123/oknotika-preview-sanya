@@ -63,6 +63,11 @@ DOCKER_EXTENSION_FILES = {
     "tests/test_docker_package.py",
     "tests/test_release_package.py",
 }
+CI_OPERATIONAL_EXTENSION_FILES = {
+    ".github/workflows/ci.yml",
+    "scripts/check_cicd_package.py",
+    "tests/test_cicd_package.py",
+}
 
 
 def sha256(path: Path) -> str:
@@ -135,6 +140,10 @@ def non_release_changes_since(root: Path, implementation: str) -> list[str]:
 
 def reviewed_docker_extension_path(path: str) -> bool:
     return path.startswith("deploy/docker/") or path in DOCKER_EXTENSION_FILES
+
+
+def reviewed_post_release_extension_path(path: str) -> bool:
+    return reviewed_docker_extension_path(path) or path in CI_OPERATIONAL_EXTENSION_FILES
 
 
 def validate(root: Path) -> list[str]:
@@ -225,7 +234,7 @@ def validate(root: Path) -> list[str]:
         stale_paths = [
             path
             for path in non_release_changes_since(root, implementation)
-            if not reviewed_docker_extension_path(path)
+            if not reviewed_post_release_extension_path(path)
         ]
         if stale_paths:
             errors.append(
