@@ -326,6 +326,23 @@ set -euo pipefail
 export OKNOTIKA_BACKUP_DIR="/var/backups/oknotika/YYYYMMDD-HHMMSS"
 sudo test ! -e "$OKNOTIKA_BACKUP_DIR"
 sudo install -d -o root -g root -m 0700 "$OKNOTIKA_BACKUP_DIR"
+restart_after_backup() {
+  backup_status=$?
+  trap - EXIT
+  set +e
+  sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
+    --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
+    --env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --wait
+  restart_status=$?
+  if (( restart_status != 0 )); then
+    echo "Не удалось снова запустить OKNOTIKA после backup; требуется ручное восстановление." >&2
+  fi
+  if (( backup_status != 0 )); then
+    exit "$backup_status"
+  fi
+  exit "$restart_status"
+}
+trap restart_after_backup EXIT
 sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
   --env-file "$OKNOTIKA_COMPOSE_ENV" stop
@@ -361,6 +378,7 @@ sudo find "$OKNOTIKA_BACKUP_DIR" -mindepth 1 -maxdepth 1 -type f \
 sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
   --file "$OKNOTIKA_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
   --env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --wait
+trap - EXIT
 ```
 
 Скопировать backup в encrypted off-host storage, проверить `sha256sum -c
@@ -474,12 +492,94 @@ sudo mv -Tf "/etc/oknotika/.compose-previous-$OLD_OKNOTIKA_ARCHIVE_SHA" \
   /etc/oknotika/compose-previous.env
 ```
 
-Новый ZIP проверить, распаковать в новый
-checksum-каталог, создать новый release env и собрать новые checksum-tagged
-images, не перезаписывая старые tags. С тем же active project name выполнить
-`up --detach --no-build --wait`; Compose заменит containers, но подключит те же
-named volumes. Проверить health, login, public site и weekly draft smoke. Только
-после pass переключить `current`/`compose-current.env`.
+Задать полный путь к новому ZIP и его sidecar, а также путь к уже проверенному
+private weekly payload. Следующий блок проверяет checksum, создаёт immutable
+release/env и новые image tags, обновляет тот же active project с прежними named
+volumes, выполняет health/public/weekly gates и только после ручной проверки
+login/logout атомарно переключает active source/env. При любой ошибке после
+`up` выполнить rollback-блок ниже: прежние pointers уже сохранены.
+
+```bash
+set -euo pipefail
+export OKNOTIKA_NEW_ARCHIVE=/private/incoming/oknotika-docker-vX.Y.Z.zip
+export OKNOTIKA_NEW_ARCHIVE_CHECKSUM="$OKNOTIKA_NEW_ARCHIVE.sha256"
+export OKNOTIKA_WEEKLY_PAYLOAD=/private/path/generated-weekly-payload.json
+OKNOTIKA_NEW_INCOMING_DIR="$(dirname -- "$OKNOTIKA_NEW_ARCHIVE")"
+OKNOTIKA_NEW_ARCHIVE_NAME="$(basename -- "$OKNOTIKA_NEW_ARCHIVE")"
+OKNOTIKA_NEW_CHECKSUM_NAME="$(basename -- "$OKNOTIKA_NEW_ARCHIVE_CHECKSUM")"
+test "$OKNOTIKA_NEW_CHECKSUM_NAME" = "$OKNOTIKA_NEW_ARCHIVE_NAME.sha256"
+test -f "$OKNOTIKA_NEW_ARCHIVE"
+test -f "$OKNOTIKA_NEW_ARCHIVE_CHECKSUM"
+(
+  cd "$OKNOTIKA_NEW_INCOMING_DIR"
+  sha256sum --check "$OKNOTIKA_NEW_CHECKSUM_NAME"
+)
+export OKNOTIKA_NEW_ARCHIVE_SHA="$(sha256sum "$OKNOTIKA_NEW_ARCHIVE" | awk '{print $1}')"
+[[ "$OKNOTIKA_NEW_ARCHIVE_SHA" =~ ^[0-9a-f]{64}$ ]]
+OKNOTIKA_NEW_RELEASE_NAME="${OKNOTIKA_NEW_ARCHIVE_NAME%.zip}"
+[[ "$OKNOTIKA_NEW_RELEASE_NAME" =~ ^oknotika-docker-v[0-9A-Za-z._-]+$ ]]
+OKNOTIKA_NEW_RELEASE_DIR="/opt/oknotika-docker/releases/$OKNOTIKA_NEW_ARCHIVE_SHA"
+sudo test ! -e "$OKNOTIKA_NEW_RELEASE_DIR"
+sudo install -d -o root -g root -m 0755 "$OKNOTIKA_NEW_RELEASE_DIR"
+sudo unzip -q "$OKNOTIKA_NEW_ARCHIVE" -d "$OKNOTIKA_NEW_RELEASE_DIR"
+export OKNOTIKA_NEW_RELEASE_ROOT="$OKNOTIKA_NEW_RELEASE_DIR/$OKNOTIKA_NEW_RELEASE_NAME"
+sudo test -f "$OKNOTIKA_NEW_RELEASE_ROOT/deploy/docker/docker-compose.yml"
+sudo chown -R root:root "$OKNOTIKA_NEW_RELEASE_DIR"
+sudo chmod -R a-w "$OKNOTIKA_NEW_RELEASE_DIR"
+
+OKNOTIKA_NEW_IMAGE_SUFFIX="sha-$(printf '%s' "$OKNOTIKA_NEW_ARCHIVE_SHA" | cut -c1-16)"
+export OKNOTIKA_NEW_COMPOSE_ENV="/etc/oknotika/compose-$OKNOTIKA_NEW_ARCHIVE_SHA.env"
+sudo test ! -e "$OKNOTIKA_NEW_COMPOSE_ENV"
+printf '%s\n' \
+  "OKNOTIKA_ADMIN_IMAGE=oknotika-admin:$OKNOTIKA_NEW_IMAGE_SUFFIX" \
+  "OKNOTIKA_PUBLIC_IMAGE=oknotika-public:$OKNOTIKA_NEW_IMAGE_SUFFIX" \
+  'OKNOTIKA_ADMIN_PORT=8000' \
+  'OKNOTIKA_PUBLIC_PORT=8001' \
+  'OKNOTIKA_SECRETS_DIR=/etc/oknotika/secrets' \
+  | sudo tee "$OKNOTIKA_NEW_COMPOSE_ENV" >/dev/null
+sudo chown root:root "$OKNOTIKA_NEW_COMPOSE_ENV"
+sudo chmod 0600 "$OKNOTIKA_NEW_COMPOSE_ENV"
+
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
+  --file "$OKNOTIKA_NEW_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
+  --env-file "$OKNOTIKA_NEW_COMPOSE_ENV" config --quiet
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
+  --file "$OKNOTIKA_NEW_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
+  --env-file "$OKNOTIKA_NEW_COMPOSE_ENV" build
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
+  --file "$OKNOTIKA_NEW_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
+  --env-file "$OKNOTIKA_NEW_COMPOSE_ENV" up --detach --no-build --wait --wait-timeout 120
+curl --fail --silent --show-error https://oknotika.ru/ >/dev/null
+curl --fail --silent --show-error https://oknotika.ru/articles/ >/dev/null
+curl --fail --silent --show-error https://admin.oknotika.ru/login >/dev/null
+sudo test -f "$OKNOTIKA_WEEKLY_PAYLOAD"
+test "$(sudo stat -c %u:%g "$OKNOTIKA_WEEKLY_PAYLOAD")" = 0:1000
+test "$(sudo stat -c %a "$OKNOTIKA_WEEKLY_PAYLOAD")" = 640
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
+  --file "$OKNOTIKA_NEW_RELEASE_ROOT/deploy/docker/docker-compose.yml" \
+  --env-file "$OKNOTIKA_NEW_COMPOSE_ENV" run --rm --no-deps \
+  --volume "$OKNOTIKA_NEW_RELEASE_ROOT/deploy/scripts/smoke-weekly-ingestion.mjs:/run/smoke-weekly-ingestion.mjs:ro" \
+  --volume "$OKNOTIKA_WEEKLY_PAYLOAD:/run/weekly-payload.json:ro" \
+  admin node /run/smoke-weekly-ingestion.mjs \
+  --admin-url https://admin.oknotika.ru \
+  --payload-file /run/weekly-payload.json \
+  --token-file /run/secrets/weekly_ingest_token
+read -r -p "После проверки login/logout введите UPGRADE-PASS: " OKNOTIKA_UPGRADE_CONFIRMATION
+test "$OKNOTIKA_UPGRADE_CONFIRMATION" = UPGRADE-PASS
+unset OKNOTIKA_UPGRADE_CONFIRMATION
+
+sudo ln -s "$OKNOTIKA_NEW_RELEASE_ROOT" \
+  "/opt/oknotika-docker/.current-upgrade-$OKNOTIKA_NEW_ARCHIVE_SHA"
+sudo mv -Tf "/opt/oknotika-docker/.current-upgrade-$OKNOTIKA_NEW_ARCHIVE_SHA" \
+  /opt/oknotika-docker/current
+sudo ln -s "$OKNOTIKA_NEW_COMPOSE_ENV" \
+  "/etc/oknotika/.compose-current-upgrade-$OKNOTIKA_NEW_ARCHIVE_SHA"
+sudo mv -Tf "/etc/oknotika/.compose-current-upgrade-$OKNOTIKA_NEW_ARCHIVE_SHA" \
+  /etc/oknotika/compose-current.env
+export OKNOTIKA_RELEASE_ROOT="$OKNOTIKA_NEW_RELEASE_ROOT"
+export OKNOTIKA_COMPOSE_ENV="$OKNOTIKA_NEW_COMPOSE_ENV"
+export OKNOTIKA_ARCHIVE_SHA="$OKNOTIKA_NEW_ARCHIVE_SHA"
+```
 
 Если новый application release не проходит gate или regression обнаружен после
 promotion, прежние source/env повторно получить из сохранённых symlinks и

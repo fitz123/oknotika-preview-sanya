@@ -78,6 +78,8 @@ trap 'exit 143' TERM
 "${compose[@]}" build
 "${compose[@]}" up --detach --wait --wait-timeout 120
 
+"${compose[@]}" exec --no-TTY admin test -r /opt/oknotika/style.css
+"${compose[@]}" exec --no-TTY admin test -r /opt/oknotika/img/logo-oknotika.svg
 curl --fail --silent --show-error "http://127.0.0.1:$public_port/" >/dev/null
 curl --fail --silent --show-error "http://127.0.0.1:$public_port/articles/" >/dev/null
 curl --fail --silent --show-error \
@@ -112,4 +114,4 @@ curl --fail --silent --show-error "http://127.0.0.1:$public_port/articles/smoke-
 curl --fail --silent --show-error "http://127.0.0.1:$public_port/articles/smoke-persistence/" \
   | grep --fixed-strings "$project_name" >/dev/null
 
-echo "Docker Compose smoke passed: loopback ports and named-volume persistence verified."
+echo "Docker Compose smoke passed: preview assets, loopback ports and named-volume persistence verified."

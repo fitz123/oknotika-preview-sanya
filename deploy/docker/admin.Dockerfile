@@ -15,6 +15,8 @@ COPY --chown=node:node admin-app/migrations ./migrations
 COPY --chown=node:node admin-app/scripts ./scripts
 COPY --chown=node:node admin-app/src ./src
 COPY --chown=node:node admin-app/templates ./templates
+COPY --chown=node:node style.css /opt/oknotika/style.css
+COPY --chown=node:node img/logo-oknotika.svg /opt/oknotika/img/logo-oknotika.svg
 COPY deploy/docker/admin-entrypoint.sh /usr/local/bin/oknotika-admin-entrypoint
 
 RUN install -d -o node -g node -m 0700 \

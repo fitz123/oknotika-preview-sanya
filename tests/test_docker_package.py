@@ -83,6 +83,14 @@ class DockerPackageTests(unittest.TestCase):
                 nginx.replace("server 127.0.0.1:8001;", "server 127.0.0.1:8081;", 1),
                 "127.0.0.1:8001",
             ),
+            (
+                nginx.replace("access_log off;", "access_log /var/log/nginx/access.log;", 1),
+                "callback access logging must be disabled",
+            ),
+            (
+                nginx.replace("error_log /dev/null crit;", "error_log /var/log/nginx/error.log error;", 1),
+                "callback error logging must be suppressed",
+            ),
         )
         for changed, expected in changes:
             with self.subTest(expected=expected):
@@ -140,6 +148,17 @@ class DockerPackageTests(unittest.TestCase):
                 runbook.replace("/opt/oknotika-docker/previous", "/tmp/previous"),
                 "/opt/oknotika-docker/previous",
             ),
+            (
+                runbook.replace("trap restart_after_backup EXIT", "backup restart trap removed"),
+                "trap restart_after_backup EXIT",
+            ),
+            (
+                runbook.replace(
+                    "export OKNOTIKA_NEW_ARCHIVE=/private/incoming/oknotika-docker-vX.Y.Z.zip",
+                    "upgrade archive input removed",
+                ),
+                "OKNOTIKA_NEW_ARCHIVE",
+            ),
         )
         for changed, expected in changes:
             with self.subTest(expected=expected):
@@ -147,6 +166,14 @@ class DockerPackageTests(unittest.TestCase):
                     expected in error
                     for error in checker.validate_docker_runbook_text(changed)
                 ))
+
+    def test_admin_image_and_smoke_include_preview_assets(self) -> None:
+        dockerfile = (REPO / "deploy/docker/admin.Dockerfile").read_text(encoding="utf-8")
+        smoke = (REPO / "deploy/docker/smoke-test.sh").read_text(encoding="utf-8")
+        for path in ("style.css", "img/logo-oknotika.svg"):
+            with self.subTest(path=path):
+                self.assertIn(path, dockerfile)
+                self.assertIn(path, smoke)
 
     def test_container_shell_scripts_have_valid_syntax(self) -> None:
         for relative, shell in (

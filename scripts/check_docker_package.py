@@ -113,6 +113,13 @@ def validate_host_nginx_text(text: str) -> list[str]:
         errors.append("host nginx must replace, not append, X-Forwarded-For")
     if text.count("proxy_set_header X-Forwarded-For $remote_addr;") < 5:
         errors.append("host nginx does not replace X-Forwarded-For in every proxy location")
+    callback = re.search(r"location = /auth/callback \{(?P<body>.*?)\n    \}", text, re.DOTALL)
+    if callback is not None:
+        callback_body = callback.group("body")
+        if "access_log off;" not in callback_body:
+            errors.append("host nginx callback access logging must be disabled")
+        if "error_log /dev/null crit;" not in callback_body:
+            errors.append("host nginx callback error logging must be suppressed")
     return errors
 
 
@@ -151,6 +158,9 @@ def validate_docker_runbook_text(text: str) -> list[str]:
             "article_releases.tar",
             "sha256sum admin_database.tar admin_uploads.tar admin_previews.tar admin_backups.tar article_releases.tar SOURCE_ARCHIVE_SHA256 SOURCE_RELEASE_NAME compose.env > SHA256SUMS",
             '-exec chmod 0600 {} +',
+            "restart_after_backup() {",
+            "trap restart_after_backup EXIT",
+            "trap - EXIT",
             "OKNOTIKA_RESTORE_PROJECT",
             "OKNOTIKA_RESTORE_ARCHIVE_SHA",
             "SOURCE_RELEASE_NAME",
@@ -164,6 +174,13 @@ def validate_docker_runbook_text(text: str) -> list[str]:
             "OLD_OKNOTIKA_COMPOSE_ENV",
             "/opt/oknotika-docker/previous",
             "/etc/oknotika/compose-previous.env",
+            "export OKNOTIKA_NEW_ARCHIVE=/private/incoming/oknotika-docker-vX.Y.Z.zip",
+            'sha256sum --check "$OKNOTIKA_NEW_CHECKSUM_NAME"',
+            'export OKNOTIKA_NEW_RELEASE_ROOT="$OKNOTIKA_NEW_RELEASE_DIR/$OKNOTIKA_NEW_RELEASE_NAME"',
+            'export OKNOTIKA_NEW_COMPOSE_ENV="/etc/oknotika/compose-$OKNOTIKA_NEW_ARCHIVE_SHA.env"',
+            '--file "$OKNOTIKA_NEW_RELEASE_ROOT/deploy/docker/docker-compose.yml"',
+            "OKNOTIKA_UPGRADE_CONFIRMATION",
+            "/opt/oknotika-docker/.current-upgrade-$OKNOTIKA_NEW_ARCHIVE_SHA",
             "stop admin",
             "`docker compose down -v` ЗАПРЕЩЕНА",
             "`0.0.0.0:8000`, `0.0.0.0:8001`",
@@ -316,6 +333,8 @@ def validate(root: Path) -> list[str]:
         (
             "node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d",
             "npm ci --omit=dev",
+            "COPY --chown=node:node style.css /opt/oknotika/style.css",
+            "COPY --chown=node:node img/logo-oknotika.svg /opt/oknotika/img/logo-oknotika.svg",
             "USER node:node",
             'ENTRYPOINT ["/usr/local/bin/oknotika-admin-entrypoint"]',
         ),
@@ -386,7 +405,13 @@ def validate(root: Path) -> list[str]:
         ("`root:1000`", "`0640`", "`1000:1000`"),
         errors,
     )
-    read_required(root, "deploy/docker/smoke-test.sh", errors)
+    smoke_test = read_required(root, "deploy/docker/smoke-test.sh", errors)
+    require_markers(
+        smoke_test,
+        "deploy/docker/smoke-test.sh",
+        ("test -r /opt/oknotika/style.css", "test -r /opt/oknotika/img/logo-oknotika.svg"),
+        errors,
+    )
     for name in (
         "telegram-oidc-client-id",
         "telegram-oidc-client-secret",
