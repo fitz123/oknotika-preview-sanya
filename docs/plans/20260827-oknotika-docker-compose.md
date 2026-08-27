@@ -68,10 +68,10 @@ When the local Docker daemon is available, also build both images and run the re
 
 **Serves:** Zhenya’s requirement that the admin service run on port `8000` under Docker Compose.
 
-- [ ] Extend configuration with mutually exclusive, validated Unix-socket and TCP host/port modes; Docker defaults remain explicit rather than silently changing systemd behavior.
-- [ ] Refactor startup/shutdown so socket cleanup/chmod occurs only for Unix sockets and TCP binds the configured host/port.
-- [ ] Add focused configuration/listener tests for valid container mode, invalid ports/hosts, mixed modes and unchanged Unix-socket behavior.
-- [ ] Preserve exact origin, callback, proxy-header and runtime-separation checks.
+- [x] Extend configuration with mutually exclusive, validated Unix-socket and TCP host/port modes; Docker defaults remain explicit rather than silently changing systemd behavior.
+- [x] Refactor startup/shutdown so socket cleanup/chmod occurs only for Unix sockets and TCP binds the configured host/port.
+- [x] Add focused configuration/listener tests for valid container mode, invalid ports/hosts, mixed modes and unchanged Unix-socket behavior.
+- [x] Preserve exact origin, callback, proxy-header and runtime-separation checks.
 
 ### Task 2: Add container images and Compose topology
 
