@@ -23,6 +23,12 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Install required host tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ripgrep
+          python3 -m pip install Pillow==12.2.0
+
       - name: Use the pinned Node.js runtime
         uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:

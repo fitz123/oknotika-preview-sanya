@@ -149,8 +149,13 @@ def main() -> None:
     )
     require_text(
         root / "admin-app/src/http/start.js",
-        "chmodSync(config.listenSocket, 0o660)",
+        "startListener(server, config.listener)",
         "assertTrustedProxyHeaders",
+    )
+    require_text(
+        root / "admin-app/src/http/listener.js",
+        "chmodSync(listener.path, 0o660)",
+        "if (listener.mode === 'unix') rmSync(listener.path, { force: true })",
     )
     editor_handler = (root / "admin-app/src/http/handler.js").read_text(encoding="utf-8")
     if "/api/releases/rollback" in editor_handler:

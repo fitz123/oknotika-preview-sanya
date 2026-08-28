@@ -65,6 +65,29 @@ class CiWorkflowPolicyTests(unittest.TestCase):
                 )
                 self.assert_rejected(changed, "Node version must be exactly 24.18.0")
 
+    def test_ripgrep_is_installed_before_admin_tests(self) -> None:
+        install = "sudo apt-get install --yes ripgrep"
+        missing = self.workflow.replace(install, "true # ripgrep install removed", 1)
+        self.assert_rejected(missing, f"CI command is missing: {install}")
+        late = self.workflow.replace(f"          {install}\n", "", 1).replace(
+            "          npm test\n",
+            f"          npm test\n          {install}\n",
+            1,
+        )
+        self.assert_rejected(late, "must install ripgrep before admin tests")
+
+    def test_pillow_is_installed_before_repository_python_tests(self) -> None:
+        install = "python3 -m pip install Pillow==12.2.0"
+        missing = self.workflow.replace(install, "true # Pillow install removed", 1)
+        self.assert_rejected(missing, f"CI command is missing: {install}")
+        late = self.workflow.replace(f"          {install}\n", "", 1).replace(
+            "          python3 scripts/check_generated_articles.py var/test-release\n",
+            f"          {install}\n"
+            "          python3 scripts/check_generated_articles.py var/test-release\n",
+            1,
+        )
+        self.assert_rejected(late, "must install Pillow before repository Python tests")
+
     def test_exact_deployment_bundle_build_and_validation_are_required(self) -> None:
         for command in (
             'python3 scripts/build_ci_bundle.py --repo . --commit "$CI_SHA" --output var/ci-bundle.zip',

@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ОКНОТИКА — установка Docker handoff v2.29.0-rc.4</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, -apple-system, sans-serif; }
+    body { margin: 0; color: #18201d; background: #f5f7f6; line-height: 1.55; }
+    main { box-sizing: border-box; max-width: 980px; margin: 0 auto; padding: 32px 24px 64px; }
+    h1, h2 { line-height: 1.2; color: #0d4336; }
+    h1 { margin-top: 0; }
+    .notice { padding: 16px 18px; border-left: 5px solid #0d7b62; background: #e8f4f0; }
+    code { overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    pre { overflow-x: auto; padding: 16px; border-radius: 8px; color: #edf8f4; background: #16352e; white-space: pre-wrap; }
+    li + li { margin-top: 6px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>ОКНОТИКА: Docker handoff v2.29.0-rc.4</h1>
+  <p class="notice">Нужен один ZIP. После распаковки в <code>/var/home/oknotika</code>
+    на верхнем уровне должны быть ровно три каталога: <code>admin-app/</code>,
+    <code>public-app/</code> и <code>deploy/</code>.</p>
+
+  <h2>Перед началом</h2>
+  <ul>
+    <li>Установлены Docker Engine, Docker Compose v2, nginx, bash, curl, openssl, tar и unzip.</li>
+    <li>DNS для <code>oknotika.ru</code>, <code>www.oknotika.ru</code> и
+      <code>admin.oknotika.ru</code> указывает на сервер.</li>
+    <li>Снаружи открыты только TCP 80/443. Порты 8000/8001 нельзя открывать наружу.</li>
+    <li>Сертификаты обоих доменов уже выпущены, Telegram callback равен
+      <code>https://admin.oknotika.ru/auth/callback</code>.</li>
+  </ul>
+
+  <h2>Распаковка</h2>
+  <pre><code>set -euo pipefail
+cd /private/incoming
+export OKNOTIKA_ROOT=/var/home/oknotika
+sudo test ! -e "$OKNOTIKA_ROOT"
+sudo install -d -o root -g root -m 0755 "$OKNOTIKA_ROOT"
+sudo unzip -q oknotika-docker-v2.29.0-rc.4.zip -d "$OKNOTIKA_ROOT"
+sudo test -d "$OKNOTIKA_ROOT/admin-app"
+sudo test -d "$OKNOTIKA_ROOT/public-app"
+sudo test -d "$OKNOTIKA_ROOT/deploy"
+test "$(sudo find "$OKNOTIKA_ROOT" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tr '\n' ' ')" = "admin-app deploy public-app "
+sudo test -f "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml"</code></pre>
+  <p>Не распаковывать новый ZIP поверх работающих файлов. Upgrade выполняется через
+    отдельный staging-каталог после backup.</p>
+
+  <h2>Постоянные данные и права</h2>
+  <p>Все рабочие данные редактора хранятся в
+    <code>/var/home/oknotika/admin-app/data/</code>. Каталог
+    <code>/var/home/oknotika/public-app/data/</code> зарезервирован и в контейнер
+    public не монтируется.</p>
+  <pre><code>set -euo pipefail
+export OKNOTIKA_ROOT=/var/home/oknotika
+sudo install -d -o 1000 -g 1000 -m 0700 "$OKNOTIKA_ROOT/admin-app/data/db" "$OKNOTIKA_ROOT/admin-app/data/uploads" "$OKNOTIKA_ROOT/admin-app/data/previews" "$OKNOTIKA_ROOT/admin-app/data/backups" "$OKNOTIKA_ROOT/admin-app/data/private"
+sudo install -d -o 1000 -g 1000 -m 0750 "$OKNOTIKA_ROOT/admin-app/data/article-releases"
+sudo install -d -o root -g 1000 -m 0750 "$OKNOTIKA_ROOT/admin-app/data/secrets"
+sudo install -d -o 1000 -g 1000 -m 0750 "$OKNOTIKA_ROOT/public-app/data"</code></pre>
+
+  <h2>Secret-файлы</h2>
+  <p>Compose читает только три secret-файла. Реальные значения нельзя помещать в
+    ZIP, Git, Compose environment, image, build arg, командную строку или журнал.</p>
+  <pre><code>set -euo pipefail
+export OKNOTIKA_ROOT=/var/home/oknotika
+export OKNOTIKA_SECRETS_ROOT="$OKNOTIKA_ROOT/admin-app/data/secrets"
+sudo bash -c '
+set -eu
+umask 077
+secrets_root="$1"
+for name in telegram-oidc-client-id telegram-oidc-client-secret; do
+  read -r -s -p "$name: " value
+  printf "\n"
+  test -n "$value"
+  printf "%s\n" "$value" &gt; "$secrets_root/$name"
+  unset value
+done
+' _ "$OKNOTIKA_SECRETS_ROOT"
+sudo install -o root -g 1000 -m 0640 /dev/null "$OKNOTIKA_SECRETS_ROOT/weekly-ingest-token"
+openssl rand -hex 32 | sudo tee "$OKNOTIKA_SECRETS_ROOT/weekly-ingest-token" &gt;/dev/null
+sudo chown root:1000 "$OKNOTIKA_SECRETS_ROOT"/*
+sudo chmod 0640 "$OKNOTIKA_SECRETS_ROOT"/*</code></pre>
+
+  <h2>Versioned images и запуск</h2>
+  <pre><code>set -euo pipefail
+export OKNOTIKA_ROOT=/var/home/oknotika
+export OKNOTIKA_RELEASE=v2.29.0-rc.4
+export OKNOTIKA_ACTIVE_PROJECT=oknotika
+export OKNOTIKA_COMPOSE_ENV="$OKNOTIKA_ROOT/admin-app/data/private/compose.env"
+printf '%s\n' "OKNOTIKA_ADMIN_IMAGE=oknotika-admin:$OKNOTIKA_RELEASE" "OKNOTIKA_PUBLIC_IMAGE=oknotika-public:$OKNOTIKA_RELEASE" 'OKNOTIKA_ADMIN_PORT=8000' 'OKNOTIKA_PUBLIC_PORT=8001' | sudo tee "$OKNOTIKA_COMPOSE_ENV" &gt;/dev/null
+sudo chown root:1000 "$OKNOTIKA_COMPOSE_ENV"
+sudo chmod 0640 "$OKNOTIKA_COMPOSE_ENV"
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" config --quiet
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" build
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --wait --wait-timeout 120
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" ps
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" logs --no-color --tail 100 admin public</code></pre>
+
+  <h2>Host nginx и проверка</h2>
+  <pre><code>set -euo pipefail
+export OKNOTIKA_ROOT=/var/home/oknotika
+sudo install -o root -g root -m 0644 "$OKNOTIKA_ROOT/deploy/docker/host-nginx.conf" /etc/nginx/conf.d/oknotika-docker.conf
+sudo nginx -t
+sudo systemctl reload nginx
+curl --fail --silent --show-error https://oknotika.ru/ &gt;/dev/null
+curl --fail --silent --show-error https://oknotika.ru/articles/ &gt;/dev/null
+curl --fail --silent --show-error https://admin.oknotika.ru/login &gt;/dev/null
+sudo ss -ltnp | grep -E '127\.0\.0\.1:(8000|8001)'</code></pre>
+  <p>Оба контейнера должны быть healthy. Внешний nginx проксирует admin только на
+    <code>127.0.0.1:8000</code>, public — только на <code>127.0.0.1:8001</code>.</p>
+
+  <h2>Backup, upgrade и rollback</h2>
+  <ul>
+    <li>Перед publish и upgrade остановить admin и сохранить весь
+      <code>admin-app/data</code> единым tar-архивом в encrypted off-host storage.</li>
+    <li>Новый versioned ZIP распаковать в отдельный root-owned staging и убедиться,
+      что в нём ровно три верхних каталога и нет <code>admin-app/data</code>.</li>
+    <li>Собрать новые versioned images из staging. После health gates заменить только
+      source-каталоги, сохранив прежний <code>admin-app/data</code>.</li>
+    <li>Rollback возвращает прежние source-каталоги и image tags. Данные нельзя
+      удалять или заменять без отдельной restore-процедуры.</li>
+  </ul>
+
+  <h2>Аварийная остановка admin</h2>
+  <pre><code>sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" stop admin</code></pre>
+  <p><strong>Запрещено:</strong> выполнять <code>docker compose down -v</code>, публиковать
+    8000/8001 на <code>0.0.0.0</code> или <code>[::]</code>, давать public доступ к DB,
+    uploads, previews, backups, private или secrets. Единственный runtime mount
+    public — <code>article-releases</code> read-only.</p>
+</main>
+</body>
+</html>

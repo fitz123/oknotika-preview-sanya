@@ -1,4 +1,5 @@
 import { readFileSync, realpathSync } from 'node:fs';
+import { isIP } from 'node:net';
 import { dirname, relative, resolve } from 'node:path';
 import { assertWeeklyIngestionToken } from '../http/ingestion-auth.js';
 
@@ -40,8 +41,35 @@ export function loadConfiguration(env = process.env, { requireWeeklyIngestionTok
     previewsRoot,
     releasesRoot,
     publicRoot,
-    listenSocket: resolve(env.OKNOTIKA_LISTEN_SOCKET ?? '/run/oknotika-admin/app.sock'),
+    listener: loadListenerConfiguration(env),
   });
+}
+
+function loadListenerConfiguration(env = process.env) {
+  const hasSocket = env.OKNOTIKA_LISTEN_SOCKET !== undefined;
+  const hasHost = env.OKNOTIKA_LISTEN_HOST !== undefined;
+  const hasPort = env.OKNOTIKA_LISTEN_PORT !== undefined;
+  if (hasSocket && (hasHost || hasPort)) {
+    throw new Error('OKNOTIKA_LISTEN_SOCKET is mutually exclusive with TCP host/port settings');
+  }
+  if (hasHost !== hasPort) {
+    throw new Error('OKNOTIKA_LISTEN_HOST and OKNOTIKA_LISTEN_PORT must be set together');
+  }
+  if (hasHost) {
+    const host = requireValue(env, 'OKNOTIKA_LISTEN_HOST');
+    if (isIP(host) === 0) throw new Error('OKNOTIKA_LISTEN_HOST must be a valid IP address');
+    const portValue = requireValue(env, 'OKNOTIKA_LISTEN_PORT');
+    if (!/^[1-9]\d{0,4}$/.test(portValue)) {
+      throw new Error('OKNOTIKA_LISTEN_PORT must be an integer from 1 to 65535');
+    }
+    const port = Number(portValue);
+    if (port > 65535) throw new Error('OKNOTIKA_LISTEN_PORT must be an integer from 1 to 65535');
+    return Object.freeze({ mode: 'tcp', host, port });
+  }
+  const path = hasSocket
+    ? resolve(requireValue(env, 'OKNOTIKA_LISTEN_SOCKET'))
+    : '/run/oknotika-admin/app.sock';
+  return Object.freeze({ mode: 'unix', path });
 }
 
 export function assertRuntimeSeparation(config) {

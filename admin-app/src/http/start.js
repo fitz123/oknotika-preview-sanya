@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname } from 'node:path';
 import { setImmediate } from 'node:timers';
@@ -12,6 +12,7 @@ import { createPublisher } from '../render/publisher.js';
 import { createAdminActions } from './admin-actions.js';
 import { createAdminHandler } from './handler.js';
 import { createIngestionAuthenticator } from './ingestion-auth.js';
+import { startListener, stopListener } from './listener.js';
 import { createUploadStore } from './uploads.js';
 import { createProxiedRequest } from './node-adapter.js';
 import { assertTrustedProxyHeaders } from './security.js';
@@ -23,7 +24,6 @@ for (const directory of [
   config.uploadsRoot,
   config.previewsRoot,
   config.releasesRoot,
-  dirname(config.listenSocket),
 ]) mkdirSync(directory, { recursive: true, mode: 0o700 });
 assertRuntimeSeparation(config);
 
@@ -97,12 +97,10 @@ const server = createServer(async (incoming, outgoing) => {
   }
 });
 
-rmSync(config.listenSocket, { force: true });
-server.listen(config.listenSocket, () => chmodSync(config.listenSocket, 0o660));
+startListener(server, config.listener);
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
-  process.once(signal, () => server.close(() => {
+  process.once(signal, () => stopListener(server, config.listener, () => {
     db.close();
-    rmSync(config.listenSocket, { force: true });
   }));
 }
