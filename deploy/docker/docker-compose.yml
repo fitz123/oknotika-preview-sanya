@@ -1,6 +1,6 @@
 services:
   admin:
-    image: ${OKNOTIKA_ADMIN_IMAGE:-oknotika-admin:v2.29.0-rc.3}
+    image: ${OKNOTIKA_ADMIN_IMAGE:-oknotika-admin:v2.29.0-rc.4}
     build:
       context: ${OKNOTIKA_BUILD_ROOT:-../..}
       dockerfile: deploy/docker/admin.Dockerfile
@@ -84,7 +84,7 @@ services:
         max-file: "3"
 
   public:
-    image: ${OKNOTIKA_PUBLIC_IMAGE:-oknotika-public:v2.29.0-rc.3}
+    image: ${OKNOTIKA_PUBLIC_IMAGE:-oknotika-public:v2.29.0-rc.4}
     build:
       context: ${OKNOTIKA_BUILD_ROOT:-../..}
       dockerfile: deploy/docker/public.Dockerfile

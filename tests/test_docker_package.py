@@ -217,6 +217,15 @@ class DockerPackageTests(unittest.TestCase):
                     for error in checker.validate_docker_runbook_text(changed)
                 ))
 
+    def test_operator_handoff_has_no_checksum_steps_and_html_is_standalone(self) -> None:
+        runbook = (REPO / "deploy/docker/README_ZHENYA.md").read_text(encoding="utf-8")
+        instruction = (REPO / checker.STANDALONE_INSTRUCTION).read_text(encoding="utf-8")
+        self.assertEqual(checker.validate_standalone_instruction_text(instruction), [])
+        for forbidden in ("sha256sum", "SHA256SUMS", ".zip.sha256", "OKNOTIKA_ARCHIVE_SHA"):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, runbook)
+                self.assertNotIn(forbidden, instruction)
+
     def test_admin_image_and_smoke_include_preview_assets(self) -> None:
         dockerfile = (REPO / "deploy/docker/admin.Dockerfile").read_text(encoding="utf-8")
         smoke = (REPO / "deploy/docker/smoke-test.sh").read_text(encoding="utf-8")

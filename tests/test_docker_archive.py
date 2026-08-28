@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import copy
-import hashlib
 import importlib.util
-import json
 import stat
 import subprocess
 import sys
@@ -30,7 +28,9 @@ sys.modules["build_docker_package"] = builder
 BUILD_SPEC.loader.exec_module(builder)
 
 
-FIXTURE_FILES = {path: f"fixture for {path}\n".encode() for path in checker.REQUIRED_FILES}
+FIXTURE_FILES = {
+    path: f"fixture for {path}\n".encode() for path in checker.REQUIRED_SOURCE_FILES
+}
 EXECUTABLES = {
     "deploy/docker/admin-entrypoint.sh",
     "deploy/docker/smoke-test.sh",
@@ -85,15 +85,10 @@ def rewrite_archive(
             changed.writestr(info, data)
 
 
-def rewrite_payload_file(source: Path, target: Path, relative: str, data: bytes) -> None:
+def rewrite_payload_file(source: Path, target: Path, archive_path: str, data: bytes) -> None:
     def transform(info: zipfile.ZipInfo, original: bytes) -> tuple[zipfile.ZipInfo, bytes]:
-        if info.filename == f"{checker.PAYLOAD_ROOT}/{relative}":
+        if info.filename == archive_path:
             return info, data
-        if info.filename == f"{checker.PAYLOAD_ROOT}/{checker.MANIFEST_NAME}":
-            manifest = json.loads(original)
-            manifest["files"][relative]["sha256"] = hashlib.sha256(data).hexdigest()
-            manifest["files"][relative]["bytes"] = len(data)
-            return info, (json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode()
         return info, original
 
     rewrite_archive(source, target, transform)
@@ -108,7 +103,7 @@ class DockerArchiveTests(unittest.TestCase):
         self.commit = initialize_fixture_repo(self.repo)
         self.archive = self.root / "package.zip"
         builder.build_package(self.repo, "HEAD", self.archive)
-        result = checker.inspect_archive(self.archive, self.commit)
+        result = checker.inspect_archive(self.archive, self.commit, self.repo)
         self.assertEqual(result["errors"], [])
 
     def tearDown(self) -> None:
@@ -122,24 +117,22 @@ class DockerArchiveTests(unittest.TestCase):
         self.assertEqual(first_result["sha256"], second_result["sha256"])
         self.assertEqual(first.read_bytes(), second.read_bytes())
         self.assertEqual(stat.S_IMODE(second.stat().st_mode), 0o644)
-        self.assertEqual(
-            stat.S_IMODE(second.with_name(f"{second.name}.sha256").stat().st_mode),
-            0o644,
-        )
+        self.assertFalse(second.with_name(f"{second.name}.sha256").exists())
 
         with zipfile.ZipFile(second) as archive:
-            for relative in (
-                ".dockerignore",
-                "deploy/scripts/smoke-weekly-ingestion.mjs",
-                "docs/WEEKLY_INGESTION.md",
-            ):
-                self.assertIn(f"{checker.PAYLOAD_ROOT}/{relative}", archive.namelist())
-            manifest = json.loads(
-                archive.read(f"{checker.PAYLOAD_ROOT}/{checker.MANIFEST_NAME}")
-            )
-            self.assertEqual(manifest["implementationCommit"], self.commit)
             self.assertEqual(
-                archive.read(f"{checker.PAYLOAD_ROOT}/index.html"),
+                {name.split("/", 1)[0] for name in archive.namelist()},
+                checker.ARCHIVE_ROOTS,
+            )
+            for archive_path in (
+                "public-app/index.html",
+                "deploy/scripts/smoke-weekly-ingestion.mjs",
+                "deploy/docs/WEEKLY_INGESTION.md",
+            ):
+                self.assertIn(archive_path, archive.namelist())
+            self.assertFalse(any("MANIFEST" in name for name in archive.namelist()))
+            self.assertEqual(
+                archive.read("public-app/index.html"),
                 subprocess.run(
                     ["git", "-C", str(self.repo), "show", f"{self.commit}:index.html"],
                     check=True,
@@ -159,66 +152,39 @@ class DockerArchiveTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "private-runtime.txt"):
             builder.build_package(self.repo, "HEAD", self.root / "untracked.zip")
 
-    def test_manifest_and_archive_checksum_tampering_are_rejected(self) -> None:
+    def test_committed_content_tampering_is_rejected_without_a_shipped_manifest(self) -> None:
         tampered = self.root / "tampered.zip"
 
         def transform(info: zipfile.ZipInfo, data: bytes) -> tuple[zipfile.ZipInfo, bytes]:
-            if info.filename == f"{checker.PAYLOAD_ROOT}/index.html":
+            if info.filename == "public-app/index.html":
                 return info, b"tampered\n"
             return info, data
 
         rewrite_archive(self.archive, tampered, transform)
-        errors = checker.inspect_archive(tampered)["errors"]
-        self.assertTrue(any("checksum mismatch: index.html" in error for error in errors), errors)
-
-        checksum = self.archive.with_name(f"{self.archive.name}.sha256")
-        self.assertEqual(checker.checksum_errors(self.archive, checksum), [])
-        checksum.write_text(f"{'0' * 64}  {self.archive.name}\n", encoding="ascii")
-        self.assertIn("archive checksum does not match the ZIP", checker.checksum_errors(self.archive, checksum))
+        errors = checker.inspect_archive(tampered, self.commit, self.repo)["errors"]
+        self.assertTrue(
+            any("committed source content mismatch: public-app/index.html" in error for error in errors),
+            errors,
+        )
 
     def test_secret_content_and_runtime_paths_are_rejected(self) -> None:
         secret = self.root / "secret.zip"
         secret_marker = b"-----BEGIN " + b"PRIVATE KEY-----\nnot-a-real-key\n"
-        rewrite_payload_file(self.archive, secret, "script.js", secret_marker)
+        rewrite_payload_file(self.archive, secret, "public-app/script.js", secret_marker)
         secret_errors = checker.inspect_archive(secret)["errors"]
-        self.assertTrue(any("private key detected in script.js" in error for error in secret_errors), secret_errors)
-
-        manifest_secret = self.root / "manifest-secret.zip"
-
-        def add_manifest_secret(info: zipfile.ZipInfo, data: bytes) -> tuple[zipfile.ZipInfo, bytes]:
-            if info.filename == f"{checker.PAYLOAD_ROOT}/{checker.MANIFEST_NAME}":
-                manifest = json.loads(data)
-                manifest["note"] = secret_marker.decode("ascii")
-                data = (json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode()
-            return info, data
-
-        rewrite_archive(self.archive, manifest_secret, add_manifest_secret)
-        manifest_errors = checker.inspect_archive(manifest_secret)["errors"]
         self.assertTrue(any(
-            f"private key detected in {checker.MANIFEST_NAME}" in error
-            for error in manifest_errors
-        ), manifest_errors)
+            "private key detected in public-app/script.js" in error
+            for error in secret_errors
+        ), secret_errors)
 
         runtime = self.root / "runtime.zip"
-        runtime_path = "admin-app/var/admin.sqlite"
+        runtime_path = "admin-app/data/admin.sqlite"
         runtime_data = b"not-a-database"
-
-        def add_runtime_to_manifest(info: zipfile.ZipInfo, data: bytes) -> tuple[zipfile.ZipInfo, bytes]:
-            if info.filename == f"{checker.PAYLOAD_ROOT}/{checker.MANIFEST_NAME}":
-                manifest = json.loads(data)
-                manifest["files"][runtime_path] = {
-                    "sha256": hashlib.sha256(runtime_data).hexdigest(),
-                    "bytes": len(runtime_data),
-                    "mode": "0644",
-                }
-                data = (json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode()
-            return info, data
 
         rewrite_archive(
             self.archive,
             runtime,
-            add_runtime_to_manifest,
-            [(regular_info(f"{checker.PAYLOAD_ROOT}/{runtime_path}"), runtime_data)],
+            additions=[(regular_info(runtime_path), runtime_data)],
         )
         runtime_errors = checker.inspect_archive(runtime)["errors"]
         self.assertTrue(any("secret/runtime path is forbidden" in error for error in runtime_errors), runtime_errors)
@@ -228,39 +194,37 @@ class DockerArchiveTests(unittest.TestCase):
         cases: list[tuple[str, zipfile.ZipInfo, bytes, str]] = [
             (
                 "traversal",
-                regular_info(f"{checker.PAYLOAD_ROOT}/../escape"),
+                regular_info("admin-app/../escape"),
                 b"escape",
                 "unsafe archive path",
             ),
             (
                 "evidence",
-                regular_info(f"{checker.PAYLOAD_ROOT}/release-evidence/private.json"),
+                regular_info("deploy/release-evidence/private.json"),
                 b"private evidence",
                 "unexpected Docker package content",
             ),
             (
                 "prior-release",
-                regular_info(f"{checker.PAYLOAD_ROOT}/admin-app/release/old.zip"),
+                regular_info("admin-app/release/old.zip"),
                 b"prior release",
                 "secret/runtime path is forbidden",
             ),
             (
                 "raw-portrait",
-                regular_info(f"{checker.PAYLOAD_ROOT}/img/raw/portrait.jpg"),
+                regular_info("public-app/img/raw/portrait.jpg"),
                 b"raw portrait",
                 "raw photo path is forbidden",
             ),
             (
                 "credential",
-                regular_info(
-                    f"{checker.PAYLOAD_ROOT}/deploy/docker/secrets/telegram-oidc-client-secret"
-                ),
+                regular_info("deploy/docker/secrets/telegram-oidc-client-secret"),
                 b"assigned credential",
                 "credential file is forbidden",
             ),
         ]
         symlink = zipfile.ZipInfo(
-            f"{checker.PAYLOAD_ROOT}/admin-app/current", builder.FIXED_TIMESTAMP
+            "admin-app/current", builder.FIXED_TIMESTAMP
         )
         symlink.create_system = 3
         symlink.compress_type = zipfile.ZIP_DEFLATED
@@ -276,7 +240,7 @@ class DockerArchiveTests(unittest.TestCase):
 
         duplicate = self.root / "duplicate.zip"
         with zipfile.ZipFile(self.archive) as archive:
-            original_info = archive.getinfo(f"{checker.PAYLOAD_ROOT}/index.html")
+            original_info = archive.getinfo("public-app/index.html")
             duplicate_entry = (copy.copy(original_info), archive.read(original_info))
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)

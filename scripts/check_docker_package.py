@@ -13,8 +13,8 @@ from pathlib import Path
 from typing import Any
 
 
-ADMIN_IMAGE = "oknotika-admin:v2.29.0-rc.3"
-PUBLIC_IMAGE = "oknotika-public:v2.29.0-rc.3"
+ADMIN_IMAGE = "oknotika-admin:v2.29.0-rc.4"
+PUBLIC_IMAGE = "oknotika-public:v2.29.0-rc.4"
 HOST_ROOT = "/var/home/oknotika"
 ADMIN_DATA_ROOT = f"{HOST_ROOT}/admin-app/data"
 SECRETS = {
@@ -23,6 +23,7 @@ SECRETS = {
     "weekly_ingest_token",
 }
 REJECTED_ADMIN_DOMAIN = "admin." + "okntoika.ru"
+STANDALONE_INSTRUCTION = "release/oknotika-docker-v2.29.0-rc.4-instruction.html"
 
 
 def read_required(root: Path, relative: str, errors: list[str]) -> str:
@@ -136,7 +137,8 @@ def validate_docker_runbook_text(text: str) -> list[str]:
             "/etc/letsencrypt/live/oknotika.ru/{fullchain,privkey}.pem",
             "/etc/letsencrypt/live/admin.oknotika.ru/{fullchain,privkey}.pem",
             "https://admin.oknotika.ru/auth/callback",
-            "sha256sum --check oknotika-docker-v2.29.0-rc.4.zip.sha256",
+            "sudo unzip -q oknotika-docker-v2.29.0-rc.4.zip -d \"$OKNOTIKA_ROOT\"",
+            "export OKNOTIKA_RELEASE=v2.29.0-rc.4",
             "set -euo pipefail",
             "export OKNOTIKA_ROOT=/var/home/oknotika",
             "/var/home/oknotika/admin-app/data/",
@@ -180,11 +182,42 @@ def validate_docker_runbook_text(text: str) -> list[str]:
         errors.append("Docker runbook embeds a credential in an environment assignment")
     if "--project-name oknotika" in text:
         errors.append("Docker runbook hardcodes the original Compose project name")
+    for forbidden_checksum in ("sha256sum", "SHA256SUMS", ".zip.sha256", "OKNOTIKA_ARCHIVE_SHA"):
+        if forbidden_checksum in text:
+            errors.append(f"Docker runbook contains a user-facing checksum step: {forbidden_checksum}")
     if text.count("set -euo pipefail") < 6:
         errors.append("Docker runbook integrity-sensitive command blocks are not fail-fast")
     for retired in ("/var/lib/oknotika-admin", "/opt/oknotika-docker", "/etc/oknotika/secrets"):
         if retired in text:
             errors.append(f"Docker runbook contains retired path: {retired}")
+    return errors
+
+
+def validate_standalone_instruction_text(text: str) -> list[str]:
+    errors: list[str] = []
+    require_markers(
+        text,
+        STANDALONE_INSTRUCTION,
+        (
+            '<html lang="ru">',
+            "oknotika-docker-v2.29.0-rc.4.zip",
+            "/var/home/oknotika/admin-app/data/",
+            "/var/home/oknotika/public-app/data/",
+            "admin-app deploy public-app ",
+            "export OKNOTIKA_RELEASE=v2.29.0-rc.4",
+            "127.0.0.1:8000",
+            "127.0.0.1:8001",
+            "article-releases</code> read-only",
+        ),
+        errors,
+    )
+    if re.search(r"\b(?:src|href)\s*=", text, re.IGNORECASE):
+        errors.append("standalone Docker instruction must not depend on external resources")
+    for forbidden_checksum in ("sha256sum", "SHA256SUMS", ".zip.sha256", "OKNOTIKA_ARCHIVE_SHA"):
+        if forbidden_checksum in text:
+            errors.append(
+                f"standalone Docker instruction contains a user-facing checksum step: {forbidden_checksum}"
+            )
     return errors
 
 
@@ -406,6 +439,8 @@ def validate(root: Path) -> list[str]:
     errors.extend(validate_host_nginx_text(host_nginx))
     runbook = read_required(root, "deploy/docker/README_ZHENYA.md", errors)
     errors.extend(validate_docker_runbook_text(runbook))
+    standalone_instruction = read_required(root, STANDALONE_INSTRUCTION, errors)
+    errors.extend(validate_standalone_instruction_text(standalone_instruction))
 
     dockerignore = read_required(root, ".dockerignore", errors)
     require_markers(

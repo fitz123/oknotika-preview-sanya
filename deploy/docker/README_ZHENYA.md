@@ -17,8 +17,8 @@ https://admin.oknotika.ru/auth/callback.
 
 ## Что должно быть готово
 
-- Linux-хост с Docker Engine, Compose v2, nginx, bash, curl, openssl,
-  sha256sum, tar и unzip.
+- Linux-хост с Docker Engine, Compose v2, nginx, bash, curl, openssl, tar и
+  unzip.
 - DNS A/AAAA для oknotika.ru, www.oknotika.ru и admin.oknotika.ru указывает на
   этот хост.
 - Снаружи открыты только TCP 80/443. Порты 8000/8001 не открывать в firewall.
@@ -33,24 +33,21 @@ https://admin.oknotika.ru/auth/callback.
 
 ~~~bash
 set -euo pipefail
-command -v docker nginx bash curl openssl sha256sum tar unzip
+command -v docker nginx bash curl openssl tar unzip
 sudo docker info
 sudo docker compose version
 sudo nginx -t
 ~~~
 
-## Проверка и установка архива
+## Установка архива
 
-На переходном rc.4 шаге получить ZIP и его SHA-256 по разным согласованным
-каналам. Этот внешний checksum будет удалён из окончательного handoff отдельным
-изменением; пока он остаётся обязательным для этого варианта инструкции.
+Получить один файл oknotika-docker-v2.29.0-rc.4.zip. Дополнительный файл
+проверочной суммы для этого handoff не нужен. ZIP распаковывается без
+оборачивающего каталога прямо в новый /var/home/oknotika.
 
 ~~~bash
 set -euo pipefail
 cd /private/incoming
-sha256sum --check oknotika-docker-v2.29.0-rc.4.zip.sha256
-export OKNOTIKA_ARCHIVE_SHA="$(sha256sum oknotika-docker-v2.29.0-rc.4.zip | awk '{print $1}')"
-test "$(printf '%s' "$OKNOTIKA_ARCHIVE_SHA" | wc -c)" -eq 64
 export OKNOTIKA_ROOT=/var/home/oknotika
 sudo test ! -e "$OKNOTIKA_ROOT"
 sudo install -d -o root -g root -m 0755 "$OKNOTIKA_ROOT"
@@ -121,17 +118,17 @@ done
 Telegram sub, weekly payload или response body в журнал. Example-файлы из ZIP
 заведомо невалидны и не заменяют production credentials.
 
-Создать private non-secret env с уникальными image tags. Credential в этот файл,
+Создать private non-secret env с versioned image tags. Для следующего handoff
+значение OKNOTIKA_RELEASE меняется на его новую версию. Credential в этот файл,
 Compose environment, Dockerfile, build arg, image, Git, ZIP, shell argv или log
 помещать запрещено.
 
 ~~~bash
 set -euo pipefail
 export OKNOTIKA_ROOT=/var/home/oknotika
-test "$(printf '%s' "$OKNOTIKA_ARCHIVE_SHA" | wc -c)" -eq 64
-OKNOTIKA_IMAGE_SUFFIX="sha-$(printf '%s' "$OKNOTIKA_ARCHIVE_SHA" | cut -c1-16)"
+export OKNOTIKA_RELEASE=v2.29.0-rc.4
 export OKNOTIKA_COMPOSE_ENV="$OKNOTIKA_ROOT/admin-app/data/private/compose.env"
-printf '%s\n' "OKNOTIKA_ADMIN_IMAGE=oknotika-admin:$OKNOTIKA_IMAGE_SUFFIX" "OKNOTIKA_PUBLIC_IMAGE=oknotika-public:$OKNOTIKA_IMAGE_SUFFIX" 'OKNOTIKA_ADMIN_PORT=8000' 'OKNOTIKA_PUBLIC_PORT=8001' | sudo tee "$OKNOTIKA_COMPOSE_ENV" >/dev/null
+printf '%s\n' "OKNOTIKA_ADMIN_IMAGE=oknotika-admin:$OKNOTIKA_RELEASE" "OKNOTIKA_PUBLIC_IMAGE=oknotika-public:$OKNOTIKA_RELEASE" 'OKNOTIKA_ADMIN_PORT=8000' 'OKNOTIKA_PUBLIC_PORT=8001' | sudo tee "$OKNOTIKA_COMPOSE_ENV" >/dev/null
 sudo chown root:1000 "$OKNOTIKA_COMPOSE_ENV"
 sudo chmod 0640 "$OKNOTIKA_COMPOSE_ENV"
 ~~~
@@ -241,16 +238,17 @@ restart_after_backup() {
 trap restart_after_backup EXIT
 sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" stop admin
 sudo tar --numeric-owner -C "$OKNOTIKA_ROOT/admin-app" -cpf "$OKNOTIKA_BACKUP_DIR/admin-data.tar" data
-sudo sha256sum "$OKNOTIKA_BACKUP_DIR/admin-data.tar" > "$OKNOTIKA_BACKUP_DIR/SHA256SUMS"
-sudo chmod 0600 "$OKNOTIKA_BACKUP_DIR/admin-data.tar" "$OKNOTIKA_BACKUP_DIR/SHA256SUMS"
+sudo tar -tf "$OKNOTIKA_BACKUP_DIR/admin-data.tar" >/dev/null
+sudo chmod 0600 "$OKNOTIKA_BACKUP_DIR/admin-data.tar"
 sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --wait admin
 trap - EXIT
 ~~~
 
 ## Isolated restore drill
 
-Не распаковывать backup поверх live data. Проверить SHA256SUMS, распаковать в
-новый root-owned staging-каталог, проверить наличие всех каталогов и права.
+Не распаковывать backup поверх live data. Сначала проверить, что tar читается,
+затем распаковать его в новый root-owned staging-каталог и проверить наличие
+всех каталогов и права.
 Для drill использовать отдельную копию source tree и OKNOTIKA_HOST_ROOT,
 указывающий на task-owned restore root; production default не менять.
 
@@ -264,9 +262,9 @@ data.before-restore, атомарно переместить проверенн�
 ## Upgrade и rollback
 
 До upgrade сделать полный backup и сохранить source-копию admin-app без data,
-public-app и deploy. Новый ZIP сначала проверяется по sidecar и распаковывается
-в root-owned staging вне /var/home/oknotika. Проверить, что staging содержит
-ровно admin-app, public-app и deploy и не содержит admin-app/data.
+public-app и deploy. Новый versioned ZIP распаковывается в root-owned staging
+вне /var/home/oknotika. Проверить, что staging содержит ровно admin-app,
+public-app и deploy и не содержит admin-app/data.
 
 Собрать новые уникальные image tags из staging, используя его
 deploy/docker/docker-compose.yml, но production

@@ -69,8 +69,8 @@ Also build the archive twice from the same commit and compare bytes internally; 
 
 **Serves:** Zhenya’s request to remove SHA-256 checks and Sanya’s approved internal-verification compromise.
 
-- [ ] Change the deterministic builder to map committed sources into exactly three archive roots: editor → `admin-app/`, static site → `public-app/`, Docker/nginx/runbook/helpers → `deploy/`.
-- [ ] Remove the wrapper root, shipped manifest, `.sha256` sidecar, `SHA256SUMS`, checksum installation steps and checksum-dependent upgrade naming from the user handoff/runbook.
-- [ ] Keep internal traversal/symlink/duplicate/secret/runtime/path/determinism checks; update tests so archive integrity is proven before delivery without asking Zhenya to run SHA commands.
-- [ ] Build and validate a new `v2.29.0-rc.4` Docker ZIP, preserve rc.3 as historical, and produce a standalone static Russian HTML instruction matching the simple layout.
-- [ ] Run the full suite and final diff cut pass against this plan and the original Docker security boundaries.
+- [x] Change the deterministic builder to map committed sources into exactly three archive roots: editor → `admin-app/`, static site → `public-app/`, Docker/nginx/runbook/helpers → `deploy/`.
+- [x] Remove the wrapper root, shipped manifest, `.sha256` sidecar, `SHA256SUMS`, checksum installation steps and checksum-dependent upgrade naming from the user handoff/runbook.
+- [x] Keep internal traversal/symlink/duplicate/secret/runtime/path/determinism checks; update tests so archive integrity is proven before delivery without asking Zhenya to run SHA commands.
+- [x] Build and validate a new `v2.29.0-rc.4` Docker ZIP, preserve rc.3 as historical, and produce a standalone static Russian HTML instruction matching the simple layout.
+- [x] Run the full suite and final diff cut pass against this plan and the original Docker security boundaries.
