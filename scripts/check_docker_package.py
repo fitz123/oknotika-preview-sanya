@@ -286,11 +286,20 @@ def validate_standalone_instruction_text(text: str) -> list[str]:
 
 
 def compose_model(root: Path) -> dict[str, Any]:
-    environment = {
-        **os.environ,
+    environment = os.environ.copy()
+    for name in (
+        "OKNOTIKA_ADMIN_IMAGE",
+        "OKNOTIKA_PUBLIC_IMAGE",
+        "OKNOTIKA_BUILD_ROOT",
+        "OKNOTIKA_HOST_ROOT",
+        "OKNOTIKA_ADMIN_PORT",
+        "OKNOTIKA_PUBLIC_PORT",
+    ):
+        environment.pop(name, None)
+    environment.update({
         "OKNOTIKA_ADMIN_IMAGE": ADMIN_IMAGE,
         "OKNOTIKA_PUBLIC_IMAGE": PUBLIC_IMAGE,
-    }
+    })
     result = subprocess.run(
         [
             "docker", "compose",

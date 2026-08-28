@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import copy
 import importlib.util
+import os
 import re
 import shutil
 import subprocess
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 REPO = Path(__file__).resolve().parents[1]
@@ -27,6 +29,21 @@ class DockerPackageTests(unittest.TestCase):
     def test_resolved_compose_topology_passes(self) -> None:
         model = checker.compose_model(REPO)
         self.assertEqual(checker.validate_compose_model(model), [])
+
+    @unittest.skipUnless(shutil.which("docker"), "docker compose is unavailable")
+    def test_compose_model_ignores_ambient_topology_overrides(self) -> None:
+        overrides = {
+            "OKNOTIKA_HOST_ROOT": "/tmp/ambient-oknotika-host",
+            "OKNOTIKA_BUILD_ROOT": "/tmp/ambient-oknotika-build",
+            "OKNOTIKA_ADMIN_PORT": "18000",
+            "OKNOTIKA_PUBLIC_PORT": "18001",
+        }
+        with mock.patch.dict(os.environ, overrides):
+            model = checker.compose_model(REPO)
+
+        self.assertEqual(checker.validate_compose_model(model), [])
+        for service in model["services"].values():
+            self.assertEqual(service["build"]["context"], str(REPO))
 
     @unittest.skipUnless(shutil.which("docker"), "docker compose is unavailable")
     def test_public_private_bind_mount_or_public_port_regressions_are_rejected(self) -> None:
