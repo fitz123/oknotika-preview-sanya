@@ -180,6 +180,11 @@ def validate_docker_runbook_text(text: str) -> list[str]:
             "OKNOTIKA_HOST_ROOT=/var/home/oknotika",
             "rollback_failed_upgrade() {",
             'OKNOTIKA_PREVIOUS_ROOT="/var/home/oknotika-before-$OKNOTIKA_NEW_RELEASE"',
+            'export OKNOTIKA_OLD_COMPOSE_ENV="$OKNOTIKA_PREVIOUS_ROOT/compose.env"',
+            'sudo install -o root -g root -m 0600 "$OKNOTIKA_COMPOSE_ENV" "$OKNOTIKA_OLD_COMPOSE_ENV"',
+            'sudo install -d -o 1000 -g 1000 -m 0750 "$OKNOTIKA_ROOT/public-app/data"',
+            'sudo install -o root -g 1000 -m 0640 "$OKNOTIKA_NEW_COMPOSE_ENV" "$OKNOTIKA_COMPOSE_ENV.next"',
+            'sudo install -o root -g 1000 -m 0640 "$OKNOTIKA_OLD_COMPOSE_ENV" "$OKNOTIKA_COMPOSE_ENV.next"',
             "stop admin",
             "docker compose down -v ЗАПРЕЩЕНА",
             "0.0.0.0:8000, 0.0.0.0:8001",
@@ -203,6 +208,20 @@ def validate_docker_runbook_text(text: str) -> list[str]:
             errors.append(f"Docker runbook contains a user-facing checksum step: {forbidden_checksum}")
     if text.count("set -euo pipefail") < 6:
         errors.append("Docker runbook integrity-sensitive command blocks are not fail-fast")
+    for marker, minimum, message in (
+        (
+            'export OKNOTIKA_OLD_COMPOSE_ENV="$OKNOTIKA_PREVIOUS_ROOT/compose.env"',
+            2,
+            "Docker runbook must use the preserved Compose env for automatic and manual rollback",
+        ),
+        (
+            'sudo install -d -o 1000 -g 1000 -m 0750 "$OKNOTIKA_ROOT/public-app/data"',
+            2,
+            "Docker runbook must create reserved public data during setup and upgrade",
+        ),
+    ):
+        if text.count(marker) < minimum:
+            errors.append(message)
     for retired in ("/var/lib/oknotika-admin", "/opt/oknotika-docker", "/etc/oknotika/secrets"):
         if retired in text:
             errors.append(f"Docker runbook contains retired path: {retired}")

@@ -382,7 +382,7 @@ export OKNOTIKA_NEW_RELEASE=vX.Y.Z
 export OKNOTIKA_STAGE_ROOT="/var/home/oknotika-stage-$OKNOTIKA_NEW_RELEASE"
 export OKNOTIKA_PREVIOUS_ROOT="/var/home/oknotika-before-$OKNOTIKA_NEW_RELEASE"
 export OKNOTIKA_NEW_COMPOSE_ENV="$OKNOTIKA_ROOT/admin-app/data/private/compose-$OKNOTIKA_NEW_RELEASE.env"
-export OKNOTIKA_OLD_COMPOSE_ENV="$OKNOTIKA_COMPOSE_ENV"
+export OKNOTIKA_OLD_COMPOSE_ENV="$OKNOTIKA_PREVIOUS_ROOT/compose.env"
 export OKNOTIKA_BUILD_PROJECT=oknotika-upgrade-build
 export OKNOTIKA_WEEKLY_PAYLOAD=/private/path/generated-weekly-payload.json
 [[ "$OKNOTIKA_NEW_RELEASE" =~ ^v[0-9][0-9A-Za-z._-]*$ ]]
@@ -394,6 +394,7 @@ sudo test ! -e "$OKNOTIKA_STAGE_ROOT"
 sudo test ! -e "$OKNOTIKA_PREVIOUS_ROOT"
 sudo test ! -e "$OKNOTIKA_NEW_COMPOSE_ENV"
 sudo install -d -o root -g root -m 0755 "$OKNOTIKA_STAGE_ROOT" "$OKNOTIKA_PREVIOUS_ROOT"
+sudo install -o root -g root -m 0600 "$OKNOTIKA_COMPOSE_ENV" "$OKNOTIKA_OLD_COMPOSE_ENV"
 sudo unzip -q "$OKNOTIKA_NEW_ARCHIVE" -d "$OKNOTIKA_STAGE_ROOT"
 test "$(sudo find "$OKNOTIKA_STAGE_ROOT" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tr '\n' ' ')" = 'admin-app deploy public-app '
 sudo test ! -e "$OKNOTIKA_STAGE_ROOT/admin-app/data"
@@ -426,15 +427,17 @@ sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_
 for name in admin-app public-app deploy; do sudo mv "$OKNOTIKA_ROOT/$name" "$OKNOTIKA_PREVIOUS_ROOT/$name"; done
 for name in admin-app public-app deploy; do sudo mv "$OKNOTIKA_STAGE_ROOT/$name" "$OKNOTIKA_ROOT/$name"; done
 sudo mv "$OKNOTIKA_PREVIOUS_ROOT/admin-app/data" "$OKNOTIKA_ROOT/admin-app/data"
-export OKNOTIKA_COMPOSE_ENV="$OKNOTIKA_NEW_COMPOSE_ENV"
-sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --wait --wait-timeout 120
+sudo install -d -o 1000 -g 1000 -m 0750 "$OKNOTIKA_ROOT/public-app/data"
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_NEW_COMPOSE_ENV" up --detach --no-build --wait --wait-timeout 120
 curl --fail --silent --show-error https://oknotika.ru/ >/dev/null
 curl --fail --silent --show-error https://oknotika.ru/articles/ >/dev/null
 curl --fail --silent --show-error https://admin.oknotika.ru/login >/dev/null
-sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" run --rm --no-deps --volume "$OKNOTIKA_ROOT/deploy/scripts/smoke-weekly-ingestion.mjs:/run/smoke-weekly-ingestion.mjs:ro" --volume "$OKNOTIKA_WEEKLY_PAYLOAD:/run/weekly-payload.json:ro" admin node /run/smoke-weekly-ingestion.mjs --admin-url https://admin.oknotika.ru --payload-file /run/weekly-payload.json --token-file /run/secrets/weekly_ingest_token
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_NEW_COMPOSE_ENV" run --rm --no-deps --volume "$OKNOTIKA_ROOT/deploy/scripts/smoke-weekly-ingestion.mjs:/run/smoke-weekly-ingestion.mjs:ro" --volume "$OKNOTIKA_WEEKLY_PAYLOAD:/run/weekly-payload.json:ro" admin node /run/smoke-weekly-ingestion.mjs --admin-url https://admin.oknotika.ru --payload-file /run/weekly-payload.json --token-file /run/secrets/weekly_ingest_token
 read -r -p 'После проверки login/logout введите UPGRADE-PASS: ' OKNOTIKA_UPGRADE_CONFIRMATION
 test "$OKNOTIKA_UPGRADE_CONFIRMATION" = UPGRADE-PASS
 unset OKNOTIKA_UPGRADE_CONFIRMATION
+sudo install -o root -g 1000 -m 0640 "$OKNOTIKA_NEW_COMPOSE_ENV" "$OKNOTIKA_COMPOSE_ENV.next"
+sudo mv "$OKNOTIKA_COMPOSE_ENV.next" "$OKNOTIKA_COMPOSE_ENV"
 trap - EXIT
 ~~~
 
@@ -446,15 +449,17 @@ set -euo pipefail
 export OKNOTIKA_NEW_RELEASE=vX.Y.Z
 export OKNOTIKA_PREVIOUS_ROOT="/var/home/oknotika-before-$OKNOTIKA_NEW_RELEASE"
 export OKNOTIKA_FAILED_ROOT="/var/home/oknotika-failed-$OKNOTIKA_NEW_RELEASE"
-export OKNOTIKA_OLD_COMPOSE_ENV="$OKNOTIKA_ROOT/admin-app/data/private/compose.env"
+export OKNOTIKA_OLD_COMPOSE_ENV="$OKNOTIKA_PREVIOUS_ROOT/compose.env"
 sudo test -d "$OKNOTIKA_PREVIOUS_ROOT/admin-app"
+sudo test -f "$OKNOTIKA_OLD_COMPOSE_ENV"
 sudo test ! -e "$OKNOTIKA_FAILED_ROOT"
 sudo install -d -o root -g root -m 0755 "$OKNOTIKA_FAILED_ROOT"
 sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" stop
 sudo mv "$OKNOTIKA_ROOT/admin-app/data" "$OKNOTIKA_PREVIOUS_ROOT/admin-app/data"
 for name in admin-app public-app deploy; do sudo mv "$OKNOTIKA_ROOT/$name" "$OKNOTIKA_FAILED_ROOT/$name"; done
 for name in admin-app public-app deploy; do sudo mv "$OKNOTIKA_PREVIOUS_ROOT/$name" "$OKNOTIKA_ROOT/$name"; done
-export OKNOTIKA_COMPOSE_ENV="$OKNOTIKA_OLD_COMPOSE_ENV"
+sudo install -o root -g 1000 -m 0640 "$OKNOTIKA_OLD_COMPOSE_ENV" "$OKNOTIKA_COMPOSE_ENV.next"
+sudo mv "$OKNOTIKA_COMPOSE_ENV.next" "$OKNOTIKA_COMPOSE_ENV"
 sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --wait --wait-timeout 120
 curl --fail --silent --show-error https://oknotika.ru/ >/dev/null
 curl --fail --silent --show-error https://oknotika.ru/articles/ >/dev/null

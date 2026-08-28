@@ -244,6 +244,34 @@ class DockerPackageTests(unittest.TestCase):
                 runbook.replace("rollback_failed_upgrade() {", "upgrade rollback removed"),
                 "rollback_failed_upgrade() {",
             ),
+            (
+                runbook.replace(
+                    'sudo install -o root -g root -m 0600 "$OKNOTIKA_COMPOSE_ENV" "$OKNOTIKA_OLD_COMPOSE_ENV"',
+                    "previous Compose env preservation removed",
+                ),
+                'sudo install -o root -g root -m 0600 "$OKNOTIKA_COMPOSE_ENV" "$OKNOTIKA_OLD_COMPOSE_ENV"',
+            ),
+            (
+                runbook.replace(
+                    'sudo install -d -o 1000 -g 1000 -m 0750 "$OKNOTIKA_ROOT/public-app/data"',
+                    "reserved public data recreation removed",
+                ),
+                'sudo install -d -o 1000 -g 1000 -m 0750 "$OKNOTIKA_ROOT/public-app/data"',
+            ),
+            (
+                runbook.replace(
+                    'sudo install -o root -g 1000 -m 0640 "$OKNOTIKA_NEW_COMPOSE_ENV" "$OKNOTIKA_COMPOSE_ENV.next"',
+                    "active Compose env promotion removed",
+                ),
+                'sudo install -o root -g 1000 -m 0640 "$OKNOTIKA_NEW_COMPOSE_ENV" "$OKNOTIKA_COMPOSE_ENV.next"',
+            ),
+            (
+                runbook.replace(
+                    'sudo install -o root -g 1000 -m 0640 "$OKNOTIKA_OLD_COMPOSE_ENV" "$OKNOTIKA_COMPOSE_ENV.next"',
+                    "rollback Compose env promotion removed",
+                ),
+                'sudo install -o root -g 1000 -m 0640 "$OKNOTIKA_OLD_COMPOSE_ENV" "$OKNOTIKA_COMPOSE_ENV.next"',
+            ),
         )
         for changed, expected in changes:
             with self.subTest(expected=expected):
