@@ -241,6 +241,34 @@ class DockerPackageTests(unittest.TestCase):
                 "rollback_failed_restore() {",
             ),
             (
+                runbook.replace(
+                    'sudo install -o root -g root -m 0600 "$OKNOTIKA_COMPOSE_ENV" "$OKNOTIKA_ACTIVE_RESTORE_ENV"',
+                    "active restore Compose env preservation removed",
+                ),
+                "preserve and promote active image tags",
+            ),
+            (
+                runbook.replace(
+                    'sudo install -o root -g 1000 -m 0640 "$OKNOTIKA_ACTIVE_RESTORE_ENV" "$OKNOTIKA_COMPOSE_ENV.next"',
+                    "active restore Compose env promotion removed",
+                ),
+                "preserve and promote active image tags",
+            ),
+            (
+                runbook.replace(
+                    "trap cleanup_failed_upgrade_prepare EXIT",
+                    "upgrade preparation cleanup trap removed",
+                ),
+                "arm preparation cleanup before staging and image build",
+            ),
+            (
+                runbook.replace(
+                    'sudo rm -rf --one-file-system -- "$OKNOTIKA_STAGE_ROOT" "$OKNOTIKA_PREVIOUS_ROOT"',
+                    "upgrade preparation directory cleanup removed",
+                ),
+                'sudo rm -rf --one-file-system -- "$OKNOTIKA_STAGE_ROOT" "$OKNOTIKA_PREVIOUS_ROOT"',
+            ),
+            (
                 runbook.replace("rollback_failed_upgrade() {", "upgrade rollback removed"),
                 "rollback_failed_upgrade() {",
             ),

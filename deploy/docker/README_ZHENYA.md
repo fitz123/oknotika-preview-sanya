@@ -327,9 +327,12 @@ sudo docker compose --project-name "$OKNOTIKA_RESTORE_PROJECT" --file "$OKNOTIKA
 set -euo pipefail
 export OKNOTIKA_RESTORE_ROOT=/var/home/oknotika-restore-YYYYMMDD-HHMMSS
 export OKNOTIKA_FAILED_DATA="$OKNOTIKA_RESTORE_ROOT/admin-app/data.failed-production-restore"
+export OKNOTIKA_ACTIVE_RESTORE_ENV="$OKNOTIKA_RESTORE_ROOT/active-production-compose.env"
 sudo test -d "$OKNOTIKA_RESTORE_ROOT/admin-app/data"
 sudo test ! -e "$OKNOTIKA_ROOT/admin-app/data.before-restore"
 sudo test ! -e "$OKNOTIKA_FAILED_DATA"
+sudo test ! -e "$OKNOTIKA_ACTIVE_RESTORE_ENV"
+sudo install -o root -g root -m 0600 "$OKNOTIKA_COMPOSE_ENV" "$OKNOTIKA_ACTIVE_RESTORE_ENV"
 rollback_failed_restore() {
   restore_status=$?
   trap - EXIT
@@ -350,6 +353,8 @@ trap rollback_failed_restore EXIT
 sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" stop
 sudo mv "$OKNOTIKA_ROOT/admin-app/data" "$OKNOTIKA_ROOT/admin-app/data.before-restore"
 sudo mv "$OKNOTIKA_RESTORE_ROOT/admin-app/data" "$OKNOTIKA_ROOT/admin-app/data"
+sudo install -o root -g 1000 -m 0640 "$OKNOTIKA_ACTIVE_RESTORE_ENV" "$OKNOTIKA_COMPOSE_ENV.next"
+sudo mv "$OKNOTIKA_COMPOSE_ENV.next" "$OKNOTIKA_COMPOSE_ENV"
 sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --force-recreate --wait --wait-timeout 120
 curl --fail --silent --show-error https://oknotika.ru/ >/dev/null
 curl --fail --silent --show-error https://oknotika.ru/articles/ >/dev/null
@@ -393,6 +398,15 @@ sudo test -f "$OKNOTIKA_WEEKLY_PAYLOAD"
 sudo test ! -e "$OKNOTIKA_STAGE_ROOT"
 sudo test ! -e "$OKNOTIKA_PREVIOUS_ROOT"
 sudo test ! -e "$OKNOTIKA_NEW_COMPOSE_ENV"
+cleanup_failed_upgrade_prepare() {
+  prepare_status=$?
+  trap - EXIT
+  set +e
+  sudo rm -f -- "$OKNOTIKA_NEW_COMPOSE_ENV"
+  sudo rm -rf --one-file-system -- "$OKNOTIKA_STAGE_ROOT" "$OKNOTIKA_PREVIOUS_ROOT"
+  exit "$prepare_status"
+}
+trap cleanup_failed_upgrade_prepare EXIT
 sudo install -d -o root -g root -m 0755 "$OKNOTIKA_STAGE_ROOT" "$OKNOTIKA_PREVIOUS_ROOT"
 sudo install -o root -g root -m 0600 "$OKNOTIKA_COMPOSE_ENV" "$OKNOTIKA_OLD_COMPOSE_ENV"
 sudo unzip -q "$OKNOTIKA_NEW_ARCHIVE" -d "$OKNOTIKA_STAGE_ROOT"

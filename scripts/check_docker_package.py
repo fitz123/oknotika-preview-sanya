@@ -177,7 +177,14 @@ def validate_docker_runbook_text(text: str) -> list[str]:
             "OKNOTIKA_ADMIN_PORT=18000",
             "rollback_failed_restore() {",
             "data.before-restore",
+            'export OKNOTIKA_ACTIVE_RESTORE_ENV="$OKNOTIKA_RESTORE_ROOT/active-production-compose.env"',
+            'sudo install -o root -g root -m 0600 "$OKNOTIKA_COMPOSE_ENV" "$OKNOTIKA_ACTIVE_RESTORE_ENV"',
+            'sudo install -o root -g 1000 -m 0640 "$OKNOTIKA_ACTIVE_RESTORE_ENV" "$OKNOTIKA_COMPOSE_ENV.next"',
             "OKNOTIKA_HOST_ROOT=/var/home/oknotika",
+            "cleanup_failed_upgrade_prepare() {",
+            "trap cleanup_failed_upgrade_prepare EXIT",
+            'sudo rm -f -- "$OKNOTIKA_NEW_COMPOSE_ENV"',
+            'sudo rm -rf --one-file-system -- "$OKNOTIKA_STAGE_ROOT" "$OKNOTIKA_PREVIOUS_ROOT"',
             "rollback_failed_upgrade() {",
             'OKNOTIKA_PREVIOUS_ROOT="/var/home/oknotika-before-$OKNOTIKA_NEW_RELEASE"',
             'export OKNOTIKA_OLD_COMPOSE_ENV="$OKNOTIKA_PREVIOUS_ROOT/compose.env"',
@@ -208,6 +215,26 @@ def validate_docker_runbook_text(text: str) -> list[str]:
             errors.append(f"Docker runbook contains a user-facing checksum step: {forbidden_checksum}")
     if text.count("set -euo pipefail") < 6:
         errors.append("Docker runbook integrity-sensitive command blocks are not fail-fast")
+    restore_order = (
+        'sudo install -o root -g root -m 0600 "$OKNOTIKA_COMPOSE_ENV" "$OKNOTIKA_ACTIVE_RESTORE_ENV"',
+        'sudo mv "$OKNOTIKA_ROOT/admin-app/data" "$OKNOTIKA_ROOT/admin-app/data.before-restore"',
+        'sudo mv "$OKNOTIKA_RESTORE_ROOT/admin-app/data" "$OKNOTIKA_ROOT/admin-app/data"',
+        'sudo install -o root -g 1000 -m 0640 "$OKNOTIKA_ACTIVE_RESTORE_ENV" "$OKNOTIKA_COMPOSE_ENV.next"',
+        'sudo mv "$OKNOTIKA_COMPOSE_ENV.next" "$OKNOTIKA_COMPOSE_ENV"',
+        "--force-recreate --wait --wait-timeout 120",
+    )
+    restore_positions = tuple(text.find(marker) for marker in restore_order)
+    if any(position < 0 for position in restore_positions) or restore_positions != tuple(sorted(restore_positions)):
+        errors.append("Docker production restore must preserve and promote active image tags before restart")
+    upgrade_prepare_order = (
+        "trap cleanup_failed_upgrade_prepare EXIT",
+        'sudo unzip -q "$OKNOTIKA_NEW_ARCHIVE" -d "$OKNOTIKA_STAGE_ROOT"',
+        'sudo docker compose --project-name "$OKNOTIKA_BUILD_PROJECT" --file "$OKNOTIKA_STAGE_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_NEW_COMPOSE_ENV" build',
+        "trap rollback_failed_upgrade EXIT",
+    )
+    upgrade_prepare_positions = tuple(text.find(marker) for marker in upgrade_prepare_order)
+    if any(position < 0 for position in upgrade_prepare_positions) or upgrade_prepare_positions != tuple(sorted(upgrade_prepare_positions)):
+        errors.append("Docker upgrade must arm preparation cleanup before staging and image build")
     for marker, minimum, message in (
         (
             'export OKNOTIKA_OLD_COMPOSE_ENV="$OKNOTIKA_PREVIOUS_ROOT/compose.env"',
