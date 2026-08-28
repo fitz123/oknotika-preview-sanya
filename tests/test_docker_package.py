@@ -46,6 +46,44 @@ class DockerPackageTests(unittest.TestCase):
             self.assertEqual(service["build"]["context"], str(REPO))
 
     @unittest.skipUnless(shutil.which("docker"), "docker compose is unavailable")
+    def test_resolved_bind_mount_defaults_are_cross_version_safe(self) -> None:
+        model = checker.compose_model(REPO)
+        omitted = copy.deepcopy(model)
+        for service in omitted["services"].values():
+            for volume in service.get("volumes", []):
+                volume.get("bind", {}).pop("create_host_path", None)
+        self.assertEqual(checker.validate_compose_model(omitted), [])
+
+        for service_name, expected_error in (
+            ("admin", "admin persistent bind mappings are not exact"),
+            ("public", "public must mount only article_releases read-only"),
+        ):
+            with self.subTest(service=service_name, field="create_host_path"):
+                explicit_true = copy.deepcopy(model)
+                volume = explicit_true["services"][service_name]["volumes"][0]
+                volume.setdefault("bind", {})["create_host_path"] = True
+                self.assertIn(
+                    expected_error,
+                    checker.validate_compose_model(explicit_true),
+                )
+
+        regressions = (
+            ("admin", "type", "volume"),
+            ("admin", "source", "/tmp/wrong-source"),
+            ("admin", "target", "/tmp/wrong-target"),
+            ("admin", "read_only", True),
+            ("public", "type", "volume"),
+            ("public", "source", "/tmp/wrong-source"),
+            ("public", "target", "/tmp/wrong-target"),
+            ("public", "read_only", False),
+        )
+        for service_name, field, wrong_value in regressions:
+            with self.subTest(service=service_name, field=field):
+                changed = copy.deepcopy(omitted)
+                changed["services"][service_name]["volumes"][0][field] = wrong_value
+                self.assertTrue(checker.validate_compose_model(changed))
+
+    @unittest.skipUnless(shutil.which("docker"), "docker compose is unavailable")
     def test_public_private_bind_mount_or_public_port_regressions_are_rejected(self) -> None:
         model = checker.compose_model(REPO)
         private_mount = copy.deepcopy(model)

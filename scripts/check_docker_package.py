@@ -378,7 +378,7 @@ def validate_compose_model(model: dict[str, Any]) -> list[str]:
             volume.get("source"),
             volume.get("target"),
             bool(volume.get("read_only")),
-            volume.get("bind", {}).get("create_host_path"),
+            volume.get("bind", {}).get("create_host_path", False),
         )
         for volume in admin.get("volumes", [])
     }
@@ -431,7 +431,7 @@ def validate_compose_model(model: dict[str, Any]) -> list[str]:
         public_volumes[0].get("source"),
         public_volumes[0].get("target"),
         public_volumes[0].get("read_only"),
-        public_volumes[0].get("bind", {}).get("create_host_path"),
+        public_volumes[0].get("bind", {}).get("create_host_path", False),
     ) != (
         "bind",
         f"{ADMIN_DATA_ROOT}/article-releases",
