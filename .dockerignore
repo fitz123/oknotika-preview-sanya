@@ -9,6 +9,8 @@ admin-app/.env
 admin-app/node_modules
 admin-app/tests
 admin-app/var
+admin-app/data
+public-app/data
 deploy/docker/secrets/*
 !deploy/docker/secrets/README.md
 !deploy/docker/secrets/*.example

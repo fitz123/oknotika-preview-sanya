@@ -15,13 +15,8 @@ from typing import Any
 
 ADMIN_IMAGE = "oknotika-admin:v2.29.0-rc.3"
 PUBLIC_IMAGE = "oknotika-public:v2.29.0-rc.3"
-VOLUMES = {
-    "admin_database",
-    "admin_uploads",
-    "admin_previews",
-    "admin_backups",
-    "article_releases",
-}
+HOST_ROOT = "/var/home/oknotika"
+ADMIN_DATA_ROOT = f"{HOST_ROOT}/admin-app/data"
 SECRETS = {
     "telegram_oidc_client_id",
     "telegram_oidc_client_secret",
@@ -61,10 +56,18 @@ def validate_compose_text(text: str) -> list[str]:
             "TELEGRAM_OIDC_CLIENT_ID_FILE: /run/secrets/telegram_oidc_client_id",
             "TELEGRAM_OIDC_CLIENT_SECRET_FILE: /run/secrets/telegram_oidc_client_secret",
             "OKNOTIKA_WEEKLY_INGEST_TOKEN_FILE: /run/secrets/weekly_ingest_token",
-            "article_releases:/srv/oknotika/article-releases:ro",
+            "context: ${OKNOTIKA_BUILD_ROOT:-../..}",
+            "source: ${OKNOTIKA_HOST_ROOT:-/var/home/oknotika}/admin-app/data/db",
+            "source: ${OKNOTIKA_HOST_ROOT:-/var/home/oknotika}/admin-app/data/article-releases",
+            "target: /var/home/oknotika/admin-app/data/article-releases",
+            "create_host_path: false",
         ),
         errors,
     )
+    if re.search(r"^volumes:\s*$", text, re.MULTILINE):
+        errors.append("Compose must not define named volumes")
+    if "/var/lib/oknotika-admin" in text:
+        errors.append("Compose contains the retired container data root")
     return errors
 
 
@@ -129,67 +132,41 @@ def validate_docker_runbook_text(text: str) -> list[str]:
         text,
         "deploy/docker/README_ZHENYA.md",
         (
-            "DNS `A`/`AAAA`",
+            "DNS A/AAAA",
             "/etc/letsencrypt/live/oknotika.ru/{fullchain,privkey}.pem",
             "/etc/letsencrypt/live/admin.oknotika.ru/{fullchain,privkey}.pem",
             "https://admin.oknotika.ru/auth/callback",
-            "sha256sum --check oknotika-docker-v2.29.0-rc.3.zip.sha256",
+            "sha256sum --check oknotika-docker-v2.29.0-rc.4.zip.sha256",
             "set -euo pipefail",
-            'OKNOTIKA_SECRETS_DIR=/etc/oknotika/secrets',
+            "export OKNOTIKA_ROOT=/var/home/oknotika",
+            "/var/home/oknotika/admin-app/data/",
+            "/var/home/oknotika/public-app/data/",
+            "create_host_path=false",
             "for name in telegram-oidc-client-id telegram-oidc-client-secret; do",
-            '"/etc/oknotika/secrets/$name"',
-            "/etc/oknotika/secrets/weekly-ingest-token",
-            "sudo sh -c '\nset -eu\nchown root:1000 /etc/oknotika/secrets/*",
-            "chmod 0640 /etc/oknotika/secrets/*",
+            'export OKNOTIKA_SECRETS_ROOT="$OKNOTIKA_ROOT/admin-app/data/secrets"',
+            'sudo chown root:1000 "$OKNOTIKA_SECRETS_ROOT"/*',
+            'sudo chmod 0640 "$OKNOTIKA_SECRETS_ROOT"/*',
             "export OKNOTIKA_ACTIVE_PROJECT=oknotika",
-            "/etc/oknotika/active-project",
-            "sudo readlink -f /opt/oknotika-docker/current",
             '--project-name "$OKNOTIKA_ACTIVE_PROJECT"',
             'up --detach --no-build --wait --wait-timeout 120',
             "logs --no-color --tail 100 admin public",
             "npm run bootstrap-editor",
             "npm run bootstrap-content",
-            "npm run register-weekly-cover",
+            "register-weekly-cover",
             "smoke-weekly-ingestion.mjs",
-            "admin_database.tar",
-            "admin_uploads.tar",
-            "admin_previews.tar",
-            "admin_backups.tar",
-            "article_releases.tar",
-            "sha256sum admin_database.tar admin_uploads.tar admin_previews.tar admin_backups.tar article_releases.tar SOURCE_ARCHIVE_SHA256 SOURCE_RELEASE_NAME compose.env > SHA256SUMS",
-            '-exec chmod 0600 {} +',
+            "admin-data.tar",
             "restart_after_backup() {",
             "trap restart_after_backup EXIT",
             "trap - EXIT",
             "export OKNOTIKA_BACKUP_DIR=/var/backups/oknotika/YYYYMMDD-HHMMSS",
-            "OKNOTIKA_RESTORE_PROJECT",
-            "OKNOTIKA_RESTORE_ARCHIVE_SHA",
-            "SOURCE_RELEASE_NAME",
-            "OKNOTIKA_RESTORE_RELEASE_NAME",
-            "OKNOTIKA_RESTORE_RELEASE_ROOT",
-            'export OKNOTIKA_RESTORE_COMPOSE_ENV="/etc/oknotika/compose-restore-$OKNOTIKA_RESTORE_PROJECT.env"',
-            'sudo install -o root -g root -m 0600 "$OKNOTIKA_BACKUP_DIR/compose.env"',
-            "sudo sh -c 'cd \"$1\"; sha256sum --check SHA256SUMS'",
-            'export OKNOTIKA_ACTIVE_PROJECT="$OKNOTIKA_RESTORE_PROJECT"',
-            "Restore всегда делать в новый Compose project",
-            "OLD_OKNOTIKA_RELEASE_ROOT",
-            "OLD_OKNOTIKA_COMPOSE_ENV",
-            "/opt/oknotika-docker/previous",
-            "/etc/oknotika/compose-previous.env",
-            "export OKNOTIKA_NEW_ARCHIVE=/private/incoming/oknotika-docker-vX.Y.Z.zip",
-            'sha256sum --check "$OKNOTIKA_NEW_CHECKSUM_NAME"',
-            'export OKNOTIKA_NEW_RELEASE_ROOT="$OKNOTIKA_NEW_RELEASE_DIR/$OKNOTIKA_NEW_RELEASE_NAME"',
-            'export OKNOTIKA_NEW_COMPOSE_ENV="/etc/oknotika/compose-$OKNOTIKA_NEW_ARCHIVE_SHA.env"',
-            "cleanup_upgrade_staging() {",
-            "/opt/oknotika-docker/releases/.upgrade-$OKNOTIKA_NEW_ARCHIVE_SHA.XXXXXXXX",
-            'sudo cmp --silent "$OKNOTIKA_NEW_COMPOSE_STAGE" "$OKNOTIKA_NEW_COMPOSE_ENV"',
-            '--file "$OKNOTIKA_NEW_RELEASE_ROOT/deploy/docker/docker-compose.yml"',
-            "OKNOTIKA_UPGRADE_CONFIRMATION",
-            "/opt/oknotika-docker/.current-upgrade-$OKNOTIKA_NEW_ARCHIVE_SHA",
+            "Isolated restore drill",
+            "data.before-restore",
+            "OKNOTIKA_HOST_ROOT=/var/home/oknotika",
             "stop admin",
-            "`docker compose down -v` ЗАПРЕЩЕНА",
-            "`0.0.0.0:8000`, `0.0.0.0:8001`",
+            "docker compose down -v ЗАПРЕЩЕНА",
+            "0.0.0.0:8000, 0.0.0.0:8001",
             "Запрещено встраивать credentials",
+            "Единственный runtime mount public — article-releases read-only",
         ),
         errors,
     )
@@ -205,6 +182,9 @@ def validate_docker_runbook_text(text: str) -> list[str]:
         errors.append("Docker runbook hardcodes the original Compose project name")
     if text.count("set -euo pipefail") < 6:
         errors.append("Docker runbook integrity-sensitive command blocks are not fail-fast")
+    for retired in ("/var/lib/oknotika-admin", "/opt/oknotika-docker", "/etc/oknotika/secrets"):
+        if retired in text:
+            errors.append(f"Docker runbook contains retired path: {retired}")
     return errors
 
 
@@ -237,10 +217,18 @@ def validate_compose_model(model: dict[str, Any]) -> list[str]:
     services = model.get("services", {})
     if set(services) != {"admin", "public"}:
         return ["Compose must define exactly admin and public services"]
-    if set(model.get("volumes", {})) != VOLUMES:
-        errors.append("Compose named-volume set is not exact")
+    if model.get("volumes"):
+        errors.append("Compose must not define named volumes")
     if set(model.get("secrets", {})) != SECRETS:
         errors.append("Compose secret set is not exact")
+    expected_secret_files = {
+        "telegram_oidc_client_id": f"{ADMIN_DATA_ROOT}/secrets/telegram-oidc-client-id",
+        "telegram_oidc_client_secret": f"{ADMIN_DATA_ROOT}/secrets/telegram-oidc-client-secret",
+        "weekly_ingest_token": f"{ADMIN_DATA_ROOT}/secrets/weekly-ingest-token",
+    }
+    for name, expected in expected_secret_files.items():
+        if model.get("secrets", {}).get(name, {}).get("file") != expected:
+            errors.append(f"Compose secret source is not exact: {name}")
 
     expected_ports = {
         "admin": ("127.0.0.1", "8000", 8000),
@@ -279,18 +267,30 @@ def validate_compose_model(model: dict[str, Any]) -> list[str]:
 
     admin = services["admin"]
     admin_volumes = {
-        (volume.get("source"), volume.get("target"), bool(volume.get("read_only")))
+        (
+            volume.get("type"),
+            volume.get("source"),
+            volume.get("target"),
+            bool(volume.get("read_only")),
+            volume.get("bind", {}).get("create_host_path"),
+        )
         for volume in admin.get("volumes", [])
     }
     expected_admin_volumes = {
-        ("admin_database", "/var/lib/oknotika-admin/db", False),
-        ("admin_uploads", "/var/lib/oknotika-admin/uploads", False),
-        ("admin_previews", "/var/lib/oknotika-admin/previews", False),
-        ("admin_backups", "/var/lib/oknotika-admin/backups", False),
-        ("article_releases", "/var/lib/oknotika-admin/article-releases", False),
+        ("bind", f"{ADMIN_DATA_ROOT}/db", f"{ADMIN_DATA_ROOT}/db", False, False),
+        ("bind", f"{ADMIN_DATA_ROOT}/uploads", f"{ADMIN_DATA_ROOT}/uploads", False, False),
+        ("bind", f"{ADMIN_DATA_ROOT}/previews", f"{ADMIN_DATA_ROOT}/previews", False, False),
+        ("bind", f"{ADMIN_DATA_ROOT}/backups", f"{ADMIN_DATA_ROOT}/backups", False, False),
+        (
+            "bind",
+            f"{ADMIN_DATA_ROOT}/article-releases",
+            f"{ADMIN_DATA_ROOT}/article-releases",
+            False,
+            False,
+        ),
     }
     if admin_volumes != expected_admin_volumes:
-        errors.append("admin persistent-volume mappings are not exact")
+        errors.append("admin persistent bind mappings are not exact")
     admin_secrets = {secret.get("source") for secret in admin.get("secrets", [])}
     if admin_secrets != SECRETS:
         errors.append("admin must mount exactly the three file secrets")
@@ -299,6 +299,11 @@ def validate_compose_model(model: dict[str, Any]) -> list[str]:
         "OKNOTIKA_ADMIN_ORIGIN": "https://admin.oknotika.ru",
         "OKNOTIKA_PUBLIC_ORIGIN": "https://oknotika.ru",
         "TELEGRAM_OIDC_REDIRECT_URI": "https://admin.oknotika.ru/auth/callback",
+        "OKNOTIKA_DATABASE_PATH": f"{ADMIN_DATA_ROOT}/db/admin.sqlite",
+        "OKNOTIKA_UPLOADS_ROOT": f"{ADMIN_DATA_ROOT}/uploads",
+        "OKNOTIKA_PREVIEWS_ROOT": f"{ADMIN_DATA_ROOT}/previews",
+        "OKNOTIKA_ARTICLE_RELEASES_ROOT": f"{ADMIN_DATA_ROOT}/article-releases",
+        "OKNOTIKA_PUBLIC_ROOT": f"{HOST_ROOT}/public-app",
         "OKNOTIKA_LISTEN_HOST": "0.0.0.0",
         "OKNOTIKA_LISTEN_PORT": "8000",
     }
@@ -316,10 +321,18 @@ def validate_compose_model(model: dict[str, Any]) -> list[str]:
 
     public_volumes = services["public"].get("volumes", [])
     if len(public_volumes) != 1 or (
+        public_volumes[0].get("type"),
         public_volumes[0].get("source"),
         public_volumes[0].get("target"),
         public_volumes[0].get("read_only"),
-    ) != ("article_releases", "/srv/oknotika/article-releases", True):
+        public_volumes[0].get("bind", {}).get("create_host_path"),
+    ) != (
+        "bind",
+        f"{ADMIN_DATA_ROOT}/article-releases",
+        f"{ADMIN_DATA_ROOT}/article-releases",
+        True,
+        False,
+    ):
         errors.append("public must mount only article_releases read-only")
     if services["public"].get("secrets"):
         errors.append("public must not mount secrets")
@@ -338,8 +351,9 @@ def validate(root: Path) -> list[str]:
         (
             "node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d",
             "npm ci --omit=dev",
-            "COPY --chown=node:node style.css /opt/oknotika/style.css",
-            "COPY --chown=node:node img/logo-oknotika.svg /opt/oknotika/img/logo-oknotika.svg",
+            "WORKDIR /var/home/oknotika/admin-app",
+            "COPY --chown=node:node public-app/style.css /var/home/oknotika/style.css",
+            "COPY --chown=node:node public-app/img/logo-oknotika.svg /var/home/oknotika/img/logo-oknotika.svg",
             "USER node:node",
             'ENTRYPOINT ["/usr/local/bin/oknotika-admin-entrypoint"]',
         ),
@@ -351,8 +365,8 @@ def validate(root: Path) -> list[str]:
         "deploy/docker/public.Dockerfile",
         (
             "nginx:1.29.1-alpine@sha256:42a516af16b852e33b7682d5ef8acbd5d13fe08fecadc7ed98605ba5e3b26ab8",
-            "COPY articles /srv/oknotika/public/articles",
-            "RUN install -d -o 1000 -g 1000 -m 0750 /srv/oknotika/article-releases",
+            "COPY public-app/articles /var/home/oknotika/public-app/articles",
+            "/var/home/oknotika/admin-app/data/article-releases",
             "USER 101:1000",
             'ENTRYPOINT ["nginx", "-g", "daemon off;"]',
         ),
@@ -364,8 +378,9 @@ def validate(root: Path) -> list[str]:
         "deploy/docker/admin-entrypoint.sh",
         (
             "umask 0027",
-            "prepare_private_directory /var/lib/oknotika-admin/db",
-            "prepare_shared_directory /var/lib/oknotika-admin/article-releases/releases",
+            "data_root=/var/home/oknotika/admin-app/data",
+            'prepare_private_directory "$data_root/db"',
+            'prepare_shared_directory "$data_root/article-releases/releases"',
             'exec "$@"',
         ),
         errors,
@@ -376,8 +391,8 @@ def validate(root: Path) -> list[str]:
         "deploy/docker/public-nginx.conf",
         (
             "listen 8001;",
-            "root /srv/oknotika/public;",
-            "root /srv/oknotika/article-releases/active;",
+            "root /var/home/oknotika/public-app;",
+            "root /var/home/oknotika/admin-app/data/article-releases/active;",
             "article-releases/active/withdrawn/$article_slug",
             "try_files $uri/index.html @bundled_article_page;",
         ),
@@ -396,11 +411,33 @@ def validate(root: Path) -> list[str]:
     require_markers(
         dockerignore,
         ".dockerignore",
-        (".git", "admin-app/node_modules", "admin-app/var", "deploy/docker/secrets/*", "release-evidence", "var"),
+        (
+            ".git",
+            "admin-app/node_modules",
+            "admin-app/var",
+            "admin-app/data",
+            "public-app/data",
+            "deploy/docker/secrets/*",
+            "release-evidence",
+            "var",
+        ),
         errors,
     )
+    for name in ("admin.Dockerfile.dockerignore", "public.Dockerfile.dockerignore"):
+        scoped_ignore = read_required(root, f"deploy/docker/{name}", errors)
+        require_markers(
+            scoped_ignore,
+            f"deploy/docker/{name}",
+            ("**/data", "**/node_modules"),
+            errors,
+        )
     gitignore = read_required(root, ".gitignore", errors)
-    require_markers(gitignore, ".gitignore", ("deploy/docker/secrets/*",), errors)
+    require_markers(
+        gitignore,
+        ".gitignore",
+        ("admin-app/data/", "public-app/data/", "deploy/docker/secrets/*"),
+        errors,
+    )
     read_required(root, "deploy/docker/compose.env.example", errors)
     read_required(root, "deploy/docker/README.md", errors)
     secrets_readme = read_required(root, "deploy/docker/secrets/README.md", errors)
@@ -414,7 +451,14 @@ def validate(root: Path) -> list[str]:
     require_markers(
         smoke_test,
         "deploy/docker/smoke-test.sh",
-        ("test -r /opt/oknotika/style.css", "test -r /opt/oknotika/img/logo-oknotika.svg"),
+        (
+            "test -r /var/home/oknotika/style.css",
+            "test -r /var/home/oknotika/img/logo-oknotika.svg",
+            'export OKNOTIKA_BUILD_ROOT="$build_root"',
+            'export OKNOTIKA_HOST_ROOT="$host_root"',
+            "bind-mounted marker did not survive container recreation",
+            "public-write",
+        ),
         errors,
     )
     for name in (
@@ -445,7 +489,7 @@ def main() -> int:
             print(f"docker package check failed: {error}", file=sys.stderr)
         return 1
     print(
-        "docker package check passed: two hardened services, five volumes, "
+        "docker package check passed: two hardened services, exact bind mounts, "
         "three file secrets, host nginx and operations runbook"
     )
     return 0

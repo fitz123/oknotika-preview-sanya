@@ -1,6 +1,7 @@
 # Compose secret files
 
-Create three extensionless files on the deployment host, beside this README:
+Create three extensionless files on the deployment host under
+`/var/home/oknotika/admin-app/data/secrets/`:
 
 - `telegram-oidc-client-id`
 - `telegram-oidc-client-secret`

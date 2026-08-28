@@ -57,11 +57,11 @@ Also build the archive twice from the same commit and compare bytes internally; 
 
 **Serves:** Zhenya’s exact requested folder and server-path layout.
 
-- [ ] Update Compose build contexts/Dockerfiles so app sources come from sibling `admin-app/` and `public-app/`, while every deployment artifact stays under sibling `deploy/`.
-- [ ] Replace named data volumes with bind mounts rooted under `/var/home/oknotika/admin-app/data/`; mount only article releases read-only into the public service. Reserve/create `/var/home/oknotika/public-app/data/` but do not mount unnecessary static state.
-- [ ] Move secret-file expectations under the admin data hierarchy or another documented private subdirectory that does not add a fourth archive root; archive only safe setup instructions/examples.
-- [ ] Update internal/host nginx, Dockerfile-specific ignore files, entrypoint, smoke test and runbook for the new paths without public port exposure or credential leakage.
-- [ ] Add focused static and live tests for exact layout, paths, permissions, restart persistence and public/private volume separation.
+- [x] Update Compose build contexts/Dockerfiles so app sources come from sibling `admin-app/` and `public-app/`, while every deployment artifact stays under sibling `deploy/`.
+- [x] Replace named data volumes with bind mounts rooted under `/var/home/oknotika/admin-app/data/`; mount only article releases read-only into the public service. Reserve/create `/var/home/oknotika/public-app/data/` but do not mount unnecessary static state.
+- [x] Move secret-file expectations under the admin data hierarchy or another documented private subdirectory that does not add a fourth archive root; archive only safe setup instructions/examples.
+- [x] Update internal/host nginx, Dockerfile-specific ignore files, entrypoint, smoke test and runbook for the new paths without public port exposure or credential leakage.
+- [x] Add focused static and live tests for exact layout, paths, permissions, restart persistence and public/private volume separation.
 
 ### Task 2: Produce a simple archive without user-facing checksums
 

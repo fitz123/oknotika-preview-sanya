@@ -3,6 +3,8 @@ __pycache__/
 admin-app/node_modules/
 admin-app/var/
 admin-app/.env
+admin-app/data/
+public-app/data/
 .env
 .env.*
 !.env.example

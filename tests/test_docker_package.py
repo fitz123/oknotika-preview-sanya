@@ -29,12 +29,12 @@ class DockerPackageTests(unittest.TestCase):
         self.assertEqual(checker.validate_compose_model(model), [])
 
     @unittest.skipUnless(shutil.which("docker"), "docker compose is unavailable")
-    def test_public_private_volume_or_public_port_regressions_are_rejected(self) -> None:
+    def test_public_private_bind_mount_or_public_port_regressions_are_rejected(self) -> None:
         model = checker.compose_model(REPO)
         private_mount = copy.deepcopy(model)
         private_mount["services"]["public"]["volumes"].append({
-            "type": "volume",
-            "source": "admin_uploads",
+            "type": "bind",
+            "source": "/var/home/oknotika/admin-app/data/uploads",
             "target": "/srv/private",
         })
         self.assertTrue(any(
@@ -45,9 +45,42 @@ class DockerPackageTests(unittest.TestCase):
         public_port = copy.deepcopy(model)
         public_port["services"]["admin"]["ports"][0]["host_ip"] = "0.0.0.0"
         self.assertTrue(any(
-            "port binding is not exact" in error
-            for error in checker.validate_compose_model(public_port)
-        ))
+                "port binding is not exact" in error
+                for error in checker.validate_compose_model(public_port)
+            ))
+
+    def test_archive_sibling_source_layout_and_scoped_dockerignores(self) -> None:
+        admin = (REPO / "deploy/docker/admin.Dockerfile").read_text(encoding="utf-8")
+        public = (REPO / "deploy/docker/public.Dockerfile").read_text(encoding="utf-8")
+        compose = (REPO / "deploy/docker/docker-compose.yml").read_text(encoding="utf-8")
+
+        self.assertIn("context: ${OKNOTIKA_BUILD_ROOT:-../..}", compose)
+        self.assertIn("COPY admin-app/package.json admin-app/package-lock.json ./", admin)
+        self.assertIn("COPY --chown=node:node public-app/style.css", admin)
+        self.assertIn("COPY public-app/index.html public-app/style.css public-app/script.js", public)
+        self.assertNotIn("\nCOPY index.html", public)
+
+        for name in ("admin.Dockerfile.dockerignore", "public.Dockerfile.dockerignore"):
+            ignore = REPO / "deploy/docker" / name
+            self.assertTrue(ignore.is_file(), name)
+            contents = ignore.read_text(encoding="utf-8")
+            self.assertIn("**/data", contents)
+
+    def test_exact_host_data_layout_is_documented_and_reserved(self) -> None:
+        compose = (REPO / "deploy/docker/docker-compose.yml").read_text(encoding="utf-8")
+        runbook = (REPO / "deploy/docker/README_ZHENYA.md").read_text(encoding="utf-8")
+        for path in (
+            "/var/home/oknotika/admin-app",
+            "/var/home/oknotika/public-app",
+            "/var/home/oknotika/admin-app/data",
+            "/var/home/oknotika/public-app/data",
+        ):
+            with self.subTest(path=path):
+                self.assertIn(path, runbook)
+        self.assertIn("${OKNOTIKA_HOST_ROOT:-/var/home/oknotika}/admin-app/data/db", compose)
+        self.assertIn("${OKNOTIKA_HOST_ROOT:-/var/home/oknotika}/admin-app/data/secrets", compose)
+        self.assertNotIn("\nvolumes:\n", compose)
+        self.assertNotIn("/var/lib/oknotika-admin", compose)
 
     def test_direct_compose_credentials_are_rejected(self) -> None:
         compose = (REPO / "deploy/docker/docker-compose.yml").read_text(encoding="utf-8")
@@ -110,13 +143,13 @@ class DockerPackageTests(unittest.TestCase):
                 "https://admin.oknotika.ru/auth/callback",
             ),
             (
-                runbook.replace("`docker compose down -v` ЗАПРЕЩЕНА", "volume warning removed"),
+                runbook.replace("docker compose down -v ЗАПРЕЩЕНА", "volume warning removed"),
                 "docker compose down -v",
             ),
             (
                 runbook.replace(
-                    'chown root:1000 /etc/oknotika/secrets/*',
-                    'chown root:root /etc/oknotika/secrets/*',
+                    'sudo chown root:1000 "$OKNOTIKA_SECRETS_ROOT"/*',
+                    'sudo chown root:root "$OKNOTIKA_SECRETS_ROOT"/*',
                 ),
                 "root:1000",
             ),
@@ -137,12 +170,18 @@ class DockerPackageTests(unittest.TestCase):
                 "not fail-fast",
             ),
             (
-                runbook.replace("/etc/oknotika/active-project", "/tmp/active-project"),
-                "/etc/oknotika/active-project",
+                runbook.replace(
+                    "export OKNOTIKA_ROOT=/var/home/oknotika",
+                    "export OKNOTIKA_ROOT=/tmp/oknotika",
+                ),
+                "OKNOTIKA_ROOT",
             ),
             (
-                runbook.replace("OKNOTIKA_RESTORE_ARCHIVE_SHA", "IGNORED_ARCHIVE_SHA"),
-                "OKNOTIKA_RESTORE_ARCHIVE_SHA",
+                runbook.replace(
+                    "Единственный runtime mount public — article-releases read-only",
+                    "public mount policy removed",
+                ),
+                "article-releases read-only",
             ),
             (
                 runbook.replace(
@@ -154,36 +193,21 @@ class DockerPackageTests(unittest.TestCase):
             ),
             (
                 runbook.replace(
-                    'export OKNOTIKA_RESTORE_COMPOSE_ENV="/etc/oknotika/compose-restore-$OKNOTIKA_RESTORE_PROJECT.env"',
-                    'export OKNOTIKA_RESTORE_COMPOSE_ENV="$OKNOTIKA_BACKUP_DIR/compose.env"',
+                    "data.before-restore",
+                    "restore staging removed",
                 ),
-                "compose-restore-$OKNOTIKA_RESTORE_PROJECT.env",
+                "data.before-restore",
             ),
             (
-                runbook.replace("/opt/oknotika-docker/previous", "/tmp/previous"),
-                "/opt/oknotika-docker/previous",
+                runbook.replace(
+                    "OKNOTIKA_HOST_ROOT=/var/home/oknotika",
+                    "OKNOTIKA_HOST_ROOT=/tmp/oknotika",
+                ),
+                "OKNOTIKA_HOST_ROOT",
             ),
             (
                 runbook.replace("trap restart_after_backup EXIT", "backup restart trap removed"),
                 "trap restart_after_backup EXIT",
-            ),
-            (
-                runbook.replace(
-                    "export OKNOTIKA_NEW_ARCHIVE=/private/incoming/oknotika-docker-vX.Y.Z.zip",
-                    "upgrade archive input removed",
-                ),
-                "OKNOTIKA_NEW_ARCHIVE",
-            ),
-            (
-                runbook.replace("cleanup_upgrade_staging() {", "upgrade cleanup removed"),
-                "cleanup_upgrade_staging() {",
-            ),
-            (
-                runbook.replace(
-                    'sudo cmp --silent "$OKNOTIKA_NEW_COMPOSE_STAGE" "$OKNOTIKA_NEW_COMPOSE_ENV"',
-                    "upgrade env reuse check removed",
-                ),
-                "sudo cmp --silent",
             ),
         )
         for changed, expected in changes:
@@ -216,7 +240,7 @@ class DockerPackageTests(unittest.TestCase):
 
     def test_runbook_bash_blocks_have_valid_syntax(self) -> None:
         runbook = (REPO / "deploy/docker/README_ZHENYA.md").read_text(encoding="utf-8")
-        blocks = re.findall(r"```bash\n(.*?)\n```", runbook, flags=re.DOTALL)
+        blocks = re.findall(r"~~~bash\n(.*?)\n~~~", runbook, flags=re.DOTALL)
         self.assertGreater(len(blocks), 0)
         for index, block in enumerate(blocks, start=1):
             with self.subTest(block=index):

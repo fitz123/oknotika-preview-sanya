@@ -2,7 +2,7 @@ services:
   admin:
     image: ${OKNOTIKA_ADMIN_IMAGE:-oknotika-admin:v2.29.0-rc.3}
     build:
-      context: ../..
+      context: ${OKNOTIKA_BUILD_ROOT:-../..}
       dockerfile: deploy/docker/admin.Dockerfile
     init: true
     restart: unless-stopped
@@ -21,11 +21,11 @@ services:
       TELEGRAM_OIDC_CLIENT_ID_FILE: /run/secrets/telegram_oidc_client_id
       TELEGRAM_OIDC_CLIENT_SECRET_FILE: /run/secrets/telegram_oidc_client_secret
       OKNOTIKA_WEEKLY_INGEST_TOKEN_FILE: /run/secrets/weekly_ingest_token
-      OKNOTIKA_DATABASE_PATH: /var/lib/oknotika-admin/db/admin.sqlite
-      OKNOTIKA_UPLOADS_ROOT: /var/lib/oknotika-admin/uploads
-      OKNOTIKA_PREVIEWS_ROOT: /var/lib/oknotika-admin/previews
-      OKNOTIKA_ARTICLE_RELEASES_ROOT: /var/lib/oknotika-admin/article-releases
-      OKNOTIKA_PUBLIC_ROOT: /srv/oknotika/public
+      OKNOTIKA_DATABASE_PATH: /var/home/oknotika/admin-app/data/db/admin.sqlite
+      OKNOTIKA_UPLOADS_ROOT: /var/home/oknotika/admin-app/data/uploads
+      OKNOTIKA_PREVIEWS_ROOT: /var/home/oknotika/admin-app/data/previews
+      OKNOTIKA_ARTICLE_RELEASES_ROOT: /var/home/oknotika/admin-app/data/article-releases
+      OKNOTIKA_PUBLIC_ROOT: /var/home/oknotika/public-app
       OKNOTIKA_LISTEN_HOST: 0.0.0.0
       OKNOTIKA_LISTEN_PORT: "8000"
     secrets:
@@ -35,11 +35,31 @@ services:
     ports:
       - "127.0.0.1:${OKNOTIKA_ADMIN_PORT:-8000}:8000"
     volumes:
-      - admin_database:/var/lib/oknotika-admin/db
-      - admin_uploads:/var/lib/oknotika-admin/uploads
-      - admin_previews:/var/lib/oknotika-admin/previews
-      - admin_backups:/var/lib/oknotika-admin/backups
-      - article_releases:/var/lib/oknotika-admin/article-releases
+      - type: bind
+        source: ${OKNOTIKA_HOST_ROOT:-/var/home/oknotika}/admin-app/data/db
+        target: /var/home/oknotika/admin-app/data/db
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${OKNOTIKA_HOST_ROOT:-/var/home/oknotika}/admin-app/data/uploads
+        target: /var/home/oknotika/admin-app/data/uploads
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${OKNOTIKA_HOST_ROOT:-/var/home/oknotika}/admin-app/data/previews
+        target: /var/home/oknotika/admin-app/data/previews
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${OKNOTIKA_HOST_ROOT:-/var/home/oknotika}/admin-app/data/backups
+        target: /var/home/oknotika/admin-app/data/backups
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${OKNOTIKA_HOST_ROOT:-/var/home/oknotika}/admin-app/data/article-releases
+        target: /var/home/oknotika/admin-app/data/article-releases
+        bind:
+          create_host_path: false
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
     healthcheck:
@@ -66,7 +86,7 @@ services:
   public:
     image: ${OKNOTIKA_PUBLIC_IMAGE:-oknotika-public:v2.29.0-rc.3}
     build:
-      context: ../..
+      context: ${OKNOTIKA_BUILD_ROOT:-../..}
       dockerfile: deploy/docker/public.Dockerfile
     init: true
     restart: unless-stopped
@@ -79,7 +99,12 @@ services:
     ports:
       - "127.0.0.1:${OKNOTIKA_PUBLIC_PORT:-8001}:8001"
     volumes:
-      - article_releases:/srv/oknotika/article-releases:ro
+      - type: bind
+        source: ${OKNOTIKA_HOST_ROOT:-/var/home/oknotika}/admin-app/data/article-releases
+        target: /var/home/oknotika/admin-app/data/article-releases
+        read_only: true
+        bind:
+          create_host_path: false
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=32m,mode=1777
     healthcheck:
@@ -105,15 +130,8 @@ services:
 
 secrets:
   telegram_oidc_client_id:
-    file: ${OKNOTIKA_SECRETS_DIR:-./secrets}/telegram-oidc-client-id
+    file: ${OKNOTIKA_HOST_ROOT:-/var/home/oknotika}/admin-app/data/secrets/telegram-oidc-client-id
   telegram_oidc_client_secret:
-    file: ${OKNOTIKA_SECRETS_DIR:-./secrets}/telegram-oidc-client-secret
+    file: ${OKNOTIKA_HOST_ROOT:-/var/home/oknotika}/admin-app/data/secrets/telegram-oidc-client-secret
   weekly_ingest_token:
-    file: ${OKNOTIKA_SECRETS_DIR:-./secrets}/weekly-ingest-token
-
-volumes:
-  admin_database:
-  admin_uploads:
-  admin_previews:
-  admin_backups:
-  article_releases:
+    file: ${OKNOTIKA_HOST_ROOT:-/var/home/oknotika}/admin-app/data/secrets/weekly-ingest-token
