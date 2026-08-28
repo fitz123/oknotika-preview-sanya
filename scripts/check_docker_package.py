@@ -270,6 +270,8 @@ def validate_standalone_instruction_text(text: str) -> list[str]:
             "127.0.0.1:8000",
             "127.0.0.1:8001",
             "article-releases</code> read-only",
+            "overflow-wrap: anywhere",
+            "white-space: pre-wrap",
         ),
         errors,
     )
