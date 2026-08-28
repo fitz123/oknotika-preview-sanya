@@ -93,6 +93,20 @@ class DockerPackageTests(unittest.TestCase):
             checker.validate_compose_text(changed),
         )
 
+    def test_credential_examples_allow_only_the_exact_invalid_placeholder(self) -> None:
+        name = "telegram-oidc-client-secret"
+        relative = f"deploy/docker/secrets/{name}.example"
+        placeholder = checker.SECRET_EXAMPLE_PLACEHOLDERS[name]
+        self.assertEqual(
+            checker.validate_secret_example_text(placeholder, relative, placeholder),
+            [],
+        )
+        self.assertTrue(checker.validate_secret_example_text(
+            placeholder + "opaque-production-value\n",
+            relative,
+            placeholder,
+        ))
+
     def test_host_nginx_domains_ports_and_proxy_headers_are_enforced(self) -> None:
         nginx = (REPO / "deploy/docker/host-nginx.conf").read_text(encoding="utf-8")
         changes = (
@@ -187,7 +201,6 @@ class DockerPackageTests(unittest.TestCase):
                 runbook.replace(
                     "export OKNOTIKA_BACKUP_DIR=/var/backups/oknotika/YYYYMMDD-HHMMSS",
                     "restore backup input removed",
-                    1,
                 ),
                 "OKNOTIKA_BACKUP_DIR",
             ),
@@ -208,6 +221,28 @@ class DockerPackageTests(unittest.TestCase):
             (
                 runbook.replace("trap restart_after_backup EXIT", "backup restart trap removed"),
                 "trap restart_after_backup EXIT",
+            ),
+            (
+                runbook.replace(
+                    "admin npm run register-weekly-cover --",
+                    "weekly cover command removed",
+                ),
+                "admin npm run register-weekly-cover --",
+            ),
+            (
+                runbook.replace(
+                    "admin node /run/smoke-weekly-ingestion.mjs",
+                    "weekly smoke command removed",
+                ),
+                "admin node /run/smoke-weekly-ingestion.mjs",
+            ),
+            (
+                runbook.replace("rollback_failed_restore() {", "restore rollback removed"),
+                "rollback_failed_restore() {",
+            ),
+            (
+                runbook.replace("rollback_failed_upgrade() {", "upgrade rollback removed"),
+                "rollback_failed_upgrade() {",
             ),
         )
         for changed, expected in changes:

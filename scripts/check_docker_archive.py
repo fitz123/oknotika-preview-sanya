@@ -17,6 +17,13 @@ from typing import Any
 
 PACKAGE_VERSION = "v2.29.0-rc.4"
 ARCHIVE_ROOTS = {"admin-app", "public-app", "deploy"}
+SECRET_EXAMPLE_PLACEHOLDERS = {
+    "deploy/docker/secrets/telegram-oidc-client-id.example": b"replace-on-deployment-host\n",
+    "deploy/docker/secrets/telegram-oidc-client-secret.example": b"replace-on-deployment-host\n",
+    "deploy/docker/secrets/weekly-ingest-token.example": (
+        b"replace-on-deployment-host-with-at-least-32-random-characters\n"
+    ),
+}
 COMMIT_RE = re.compile(r"^[a-f0-9]{40}(?:[a-f0-9]{24})?$")
 PUBLIC_SOURCE_FILES = {"index.html", "script.js", "style.css"}
 PUBLIC_SOURCE_DIRECTORIES = {
@@ -346,6 +353,11 @@ def inspect_archive(
                 errors.append(f"Docker package file mode must be 0644 or 0755: {path}")
             for label in sorted(secrets):
                 errors.append(f"{label} detected in {path}")
+            if expected_example := SECRET_EXAMPLE_PLACEHOLDERS.get(path):
+                if size != len(expected_example) or digest != sha256(expected_example):
+                    errors.append(
+                        f"credential example must contain only the invalid deployment placeholder: {path}"
+                    )
             if committed_payload is not None and path in committed_payload:
                 expected_data = committed_payload[path]
                 if digest != sha256(expected_data) or size != len(expected_data):

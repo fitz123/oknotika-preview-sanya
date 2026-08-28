@@ -24,6 +24,11 @@ SECRETS = {
 }
 REJECTED_ADMIN_DOMAIN = "admin." + "okntoika.ru"
 STANDALONE_INSTRUCTION = "release/oknotika-docker-v2.29.0-rc.4-instruction.html"
+SECRET_EXAMPLE_PLACEHOLDERS = {
+    "telegram-oidc-client-id": "replace-on-deployment-host\n",
+    "telegram-oidc-client-secret": "replace-on-deployment-host\n",
+    "weekly-ingest-token": "replace-on-deployment-host-with-at-least-32-random-characters\n",
+}
 
 
 def read_required(root: Path, relative: str, errors: list[str]) -> str:
@@ -38,6 +43,12 @@ def require_markers(text: str, relative: str, markers: tuple[str, ...], errors: 
     for marker in markers:
         if marker not in text:
             errors.append(f"{relative} does not contain {marker!r}")
+
+
+def validate_secret_example_text(text: str, relative: str, expected: str) -> list[str]:
+    if text == expected:
+        return []
+    return [f"{relative} must contain only the invalid deployment placeholder"]
 
 
 def validate_compose_text(text: str) -> list[str]:
@@ -154,16 +165,21 @@ def validate_docker_runbook_text(text: str) -> list[str]:
             "logs --no-color --tail 100 admin public",
             "npm run bootstrap-editor",
             "npm run bootstrap-content",
-            "register-weekly-cover",
-            "smoke-weekly-ingestion.mjs",
+            "admin npm run register-weekly-cover --",
+            "admin node /run/smoke-weekly-ingestion.mjs",
+            "--token-file /run/secrets/weekly_ingest_token",
             "admin-data.tar",
             "restart_after_backup() {",
             "trap restart_after_backup EXIT",
             "trap - EXIT",
             "export OKNOTIKA_BACKUP_DIR=/var/backups/oknotika/YYYYMMDD-HHMMSS",
             "Isolated restore drill",
+            "OKNOTIKA_ADMIN_PORT=18000",
+            "rollback_failed_restore() {",
             "data.before-restore",
             "OKNOTIKA_HOST_ROOT=/var/home/oknotika",
+            "rollback_failed_upgrade() {",
+            'OKNOTIKA_PREVIOUS_ROOT="/var/home/oknotika-before-$OKNOTIKA_NEW_RELEASE"',
             "stop admin",
             "docker compose down -v ЗАПРЕЩЕНА",
             "0.0.0.0:8000, 0.0.0.0:8001",
@@ -503,9 +519,13 @@ def validate(root: Path) -> list[str]:
     ):
         if (root / "deploy/docker/secrets" / name).exists():
             errors.append(f"tracked/runtime secret path exists: deploy/docker/secrets/{name}")
-        example = read_required(root, f"deploy/docker/secrets/{name}.example", errors)
-        if not example.startswith("replace-on-deployment-host"):
-            errors.append(f"secret example is not an invalid placeholder: {name}.example")
+        relative = f"deploy/docker/secrets/{name}.example"
+        example = read_required(root, relative, errors)
+        errors.extend(validate_secret_example_text(
+            example,
+            relative,
+            SECRET_EXAMPLE_PLACEHOLDERS[name],
+        ))
     return errors
 
 

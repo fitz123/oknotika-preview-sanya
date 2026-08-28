@@ -31,6 +31,7 @@ BUILD_SPEC.loader.exec_module(builder)
 FIXTURE_FILES = {
     path: f"fixture for {path}\n".encode() for path in checker.REQUIRED_SOURCE_FILES
 }
+FIXTURE_FILES.update(checker.SECRET_EXAMPLE_PLACEHOLDERS)
 EXECUTABLES = {
     "deploy/docker/admin-entrypoint.sh",
     "deploy/docker/smoke-test.sh",
@@ -189,6 +190,22 @@ class DockerArchiveTests(unittest.TestCase):
         runtime_errors = checker.inspect_archive(runtime)["errors"]
         self.assertTrue(any("secret/runtime path is forbidden" in error for error in runtime_errors), runtime_errors)
         self.assertTrue(any("secret/runtime file suffix is forbidden" in error for error in runtime_errors), runtime_errors)
+
+    def test_credential_examples_allow_only_the_exact_invalid_placeholder(self) -> None:
+        tampered = self.root / "credential-example.zip"
+        example_path = "deploy/docker/secrets/telegram-oidc-client-secret.example"
+        rewrite_payload_file(
+            self.archive,
+            tampered,
+            example_path,
+            checker.SECRET_EXAMPLE_PLACEHOLDERS[example_path] + b"opaque-production-value\n",
+        )
+
+        errors = checker.inspect_archive(tampered)["errors"]
+        self.assertTrue(any(
+            "credential example must contain only the invalid deployment placeholder" in error
+            for error in errors
+        ), errors)
 
     def test_traversal_symlink_duplicates_and_excluded_content_are_rejected(self) -> None:
         cases: list[tuple[str, zipfile.ZipInfo, bytes, str]] = [
