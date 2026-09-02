@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+set +x
 
 if [[ "$(id -u)" -ne 0 ]]; then
   echo "configure-local-credentials.sh must run as root" >&2

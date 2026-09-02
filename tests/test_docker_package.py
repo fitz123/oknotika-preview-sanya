@@ -165,6 +165,7 @@ class DockerPackageTests(unittest.TestCase):
     def test_root_credential_helper_keeps_plaintext_out_of_process_configuration(self) -> None:
         helper = (REPO / "deploy/docker/configure-local-credentials.sh").read_text(encoding="utf-8")
         self.assertIn('[[ "$(id -u)" -ne 0 ]]', helper)
+        self.assertLess(helper.index("set +x"), helper.index('IFS= read -r -p "Локальный логин: "'))
         self.assertIn('IFS= read -r -s -p "Пароль (минимум 14 символов): "', helper)
         self.assertIn('| "${container_command[@]}"', helper)
         self.assertIn("--network none", helper)
@@ -177,6 +178,25 @@ class DockerPackageTests(unittest.TestCase):
         )
         self.assertNotRegex(helper, r"--password(?:=|\s)")
         self.assertNotRegex(helper, r"export\s+[^\n]*PASSWORD")
+
+    def test_root_credential_helper_does_not_trace_plaintext_password(self) -> None:
+        helper = (REPO / "deploy/docker/configure-local-credentials.sh").read_text(encoding="utf-8")
+        preamble = helper.split('\nif [[ "$(id -u)" -ne 0 ]]', 1)[0]
+        password = "never-log-this-password-2026"
+        traced = subprocess.run(
+            ["/bin/bash", "-x"],
+            input=(
+                f"{preamble}\n"
+                f"local_password={password}\n"
+                f"local_password_confirmation={password}\n"
+                '[[ "$local_password" == "$local_password_confirmation" ]]\n'
+            ),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(traced.returncode, 0, traced.stderr)
+        self.assertNotIn(password, traced.stderr)
 
     def test_host_nginx_domains_ports_proxy_headers_and_login_limit_are_enforced(self) -> None:
         nginx = (REPO / "deploy/docker/host-nginx.conf").read_text(encoding="utf-8")

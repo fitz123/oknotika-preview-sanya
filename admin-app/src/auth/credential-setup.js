@@ -159,7 +159,15 @@ export async function rollbackLocalCredentials({
   }, { backupOwner, backupGroup });
 
   try {
-    if (previousCredential) {
+    const requiresDatabaseRestore = !previousCredential || metadata.appliedGeneration === null;
+    if (requiresDatabaseRestore) {
+      restoreDatabase(paths.databasePath, targetSnapshot, {
+        databaseWasPresent: metadata.databaseWasPresent,
+        databaseOwner,
+        databaseGroup,
+      });
+      revokeRestoredSessions(paths.databasePath, createdAt, databaseOwner, databaseGroup);
+    } else {
       restoreCredentialFingerprint(
         paths.databasePath,
         previousCredential,
@@ -167,13 +175,6 @@ export async function rollbackLocalCredentials({
         databaseOwner,
         databaseGroup,
       );
-    } else {
-      restoreDatabase(paths.databasePath, targetSnapshot, {
-        databaseWasPresent: metadata.databaseWasPresent,
-        databaseOwner,
-        databaseGroup,
-      });
-      revokeRestoredSessions(paths.databasePath, createdAt, databaseOwner, databaseGroup);
     }
     switchGeneration(paths.credentialsRoot, metadata.previousGeneration);
     return Object.freeze({

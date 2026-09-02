@@ -202,6 +202,95 @@ test('local credential setup rotates atomically and rolls credentials back witho
   );
 });
 
+test('initial credential rollback safety snapshot restores post-setup data on roll-forward', async (t) => {
+  const root = mkdtempSync(resolve(tmpdir(), 'oknotika-initial-credential-rollback-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const databasePath = resolve(root, 'db/admin.sqlite');
+  const credentialsRoot = resolve(root, 'credentials');
+  const backupsRoot = resolve(root, 'backups');
+  mkdirSync(resolve(root, 'db'), { recursive: true });
+  mkdirSync(credentialsRoot);
+  mkdirSync(backupsRoot);
+  openDatabase(databasePath).close();
+  const owner = process.getuid();
+  const group = process.getgid();
+  const common = {
+    databasePath,
+    credentialsRoot,
+    backupsRoot,
+    credentialOwner: owner,
+    credentialGroup: group,
+    databaseOwner: owner,
+    databaseGroup: group,
+    backupOwner: owner,
+    backupGroup: group,
+  };
+
+  const initial = await configureLocalCredentials({
+    ...common,
+    username: 'zhenya.editor',
+    password: 'initial-local-password-2026',
+    passwordConfirmation: 'initial-local-password-2026',
+    clock: () => new Date('2026-09-02T10:00:00.000Z'),
+    random: () => Buffer.alloc(6, 5),
+  });
+  const active = openDatabase(databasePath);
+  const editor = active.prepare('SELECT id FROM configured_editors').get();
+  active.prepare(`
+    INSERT INTO audit_events (editor_id, event_type, details_json, created_at)
+    VALUES (?, 'credential.initial-rollback-preservation-test', '{}', ?)
+  `).run(editor.id, '2026-09-02T10:30:00.000Z');
+  active.prepare(`
+    INSERT INTO admin_sessions
+      (token_hash, csrf_hash, editor_id, created_at, last_seen_at,
+       idle_expires_at, absolute_expires_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    'e'.repeat(64),
+    'f'.repeat(64),
+    editor.id,
+    '2026-09-02T10:31:00.000Z',
+    '2026-09-02T10:31:00.000Z',
+    '2026-09-02T11:01:00.000Z',
+    '2026-09-03T10:31:00.000Z',
+  );
+  active.close();
+
+  const rollback = await rollbackLocalCredentials({
+    ...common,
+    snapshotName: initial.snapshotName,
+    clock: () => new Date('2026-09-02T11:00:00.000Z'),
+    random: () => Buffer.alloc(6, 6),
+  });
+  assert.equal(rollback.generation, null);
+  assert.equal(existsSync(resolve(credentialsRoot, 'current')), false);
+  const rolledBack = new DatabaseSync(databasePath, { readOnly: true });
+  assert.equal(
+    rolledBack.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE event_type = 'credential.initial-rollback-preservation-test'").get().count,
+    0,
+  );
+  rolledBack.close();
+
+  const rollForward = await rollbackLocalCredentials({
+    ...common,
+    snapshotName: rollback.safetySnapshotName,
+    clock: () => new Date('2026-09-02T12:00:00.000Z'),
+    random: () => Buffer.alloc(6, 7),
+  });
+  assert.equal(rollForward.generation, initial.generation);
+  assert.equal(readlinkSync(resolve(credentialsRoot, 'current')), initial.generation);
+  const restored = new DatabaseSync(databasePath, { readOnly: true });
+  assert.equal(
+    restored.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE event_type = 'credential.initial-rollback-preservation-test'").get().count,
+    1,
+  );
+  assert.equal(
+    restored.prepare("SELECT revocation_reason FROM admin_sessions WHERE token_hash = ?").get('e'.repeat(64)).revocation_reason,
+    'credential-rollback',
+  );
+  restored.close();
+});
+
 test('local credential setup rejects mismatched confirmation and conflicting identities without writes', async (t) => {
   const root = mkdtempSync(resolve(tmpdir(), 'oknotika-local-credential-conflict-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
