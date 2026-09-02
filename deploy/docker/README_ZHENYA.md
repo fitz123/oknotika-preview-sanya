@@ -195,7 +195,7 @@ snapshot в закрытом operational evidence.
 set -euo pipefail
 sudo --preserve-env=OKNOTIKA_ROOT,OKNOTIKA_ACTIVE_PROJECT,OKNOTIKA_COMPOSE_ENV \
   "$OKNOTIKA_ROOT/deploy/docker/configure-local-credentials.sh"
-sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --wait admin
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --force-recreate --wait admin
 ~~~
 
 Если новый вход не прошёл, не подбирать snapshot автоматически. Остановить
@@ -215,7 +215,7 @@ sudo --preserve-env=OKNOTIKA_ROOT,OKNOTIKA_ACTIVE_PROJECT,OKNOTIKA_COMPOSE_ENV \
   "$OKNOTIKA_ROOT/deploy/docker/configure-local-credentials.sh" \
   --rollback "$OKNOTIKA_CREDENTIAL_SNAPSHOT"
 if sudo test -L "$OKNOTIKA_ROOT/admin-app/data/secrets/local-credentials/current"; then
-  sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --wait admin
+  sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --force-recreate --wait admin
 else
   echo 'Предыдущего local credential generation нет; admin оставлен остановленным.' >&2
 fi

@@ -229,6 +229,8 @@ class DockerPackageTests(unittest.TestCase):
         )
         self.assertIn(initial_rollback_restart_guard, runbook)
         self.assertIn('JSON-результат rollback содержит `"generation":null`', runbook)
+        credential_recreate = "up --detach --no-build --force-recreate --wait admin"
+        self.assertEqual(runbook.count(credential_recreate), 2)
         changes = (
             (
                 runbook.replace(
