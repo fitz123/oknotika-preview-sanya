@@ -201,9 +201,11 @@ sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_
 Если новый вход не прошёл, не подбирать snapshot автоматически. Остановить
 admin, взять точное `snapshotName` из успешного запуска helper и выполнить
 guarded rollback. Команда разрешает только snapshot активного generation,
-проверяет SQLite integrity, возвращает прежний хеш и DB и отзывает все
-восстановленные sessions с причиной `credential-rollback`. Она также создаёт
-новый `rollback-safety-*` snapshot,
+проверяет SQLite integrity, возвращает прежний credential fingerprint без замены
+live editorial DB и отзывает действующие sessions с причиной
+`credential-rollback`. Только rollback первичной настройки без предыдущего
+generation восстанавливает исходный SQLite snapshot. Команда также создаёт новый
+`rollback-safety-*` snapshot,
 поэтому откат можно отменить без plaintext:
 
 ~~~bash

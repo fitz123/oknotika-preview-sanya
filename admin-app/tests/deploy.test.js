@@ -37,7 +37,7 @@ import { runWeeklyIngestionSmoke } from '../../deploy/scripts/smoke-weekly-inges
 
 const REPO_ROOT = resolve(import.meta.dirname, '../..');
 
-test('local credential setup rotates atomically, snapshots SQLite and supports hash-only rollback', async (t) => {
+test('local credential setup rotates atomically and rolls credentials back without replacing live data', async (t) => {
   const root = mkdtempSync(resolve(tmpdir(), 'oknotika-local-credential-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const databasePath = resolve(root, 'db/admin.sqlite');
@@ -139,6 +139,27 @@ test('local credential setup rotates atomically, snapshots SQLite and supports h
   );
   rotated.close();
 
+  const afterRotation = openDatabase(databasePath);
+  afterRotation.prepare(`
+    INSERT INTO audit_events (editor_id, event_type, details_json, created_at)
+    VALUES (?, 'credential.rollback-preservation-test', '{}', ?)
+  `).run(editor.id, '2026-09-02T11:30:00.000Z');
+  afterRotation.prepare(`
+    INSERT INTO admin_sessions
+      (token_hash, csrf_hash, editor_id, created_at, last_seen_at,
+       idle_expires_at, absolute_expires_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    'c'.repeat(64),
+    'd'.repeat(64),
+    editor.id,
+    '2026-09-02T11:31:00.000Z',
+    '2026-09-02T11:31:00.000Z',
+    '2026-09-02T12:01:00.000Z',
+    '2026-09-03T11:31:00.000Z',
+  );
+  afterRotation.close();
+
   const rollback = await rollbackLocalCredentials({
     ...common,
     snapshotName: rotation.snapshotName,
@@ -154,8 +175,16 @@ test('local credential setup rotates atomically, snapshots SQLite and supports h
     editor.credential_fingerprint,
   );
   assert.equal(
-    restored.prepare('SELECT revocation_reason FROM admin_sessions').get().revocation_reason,
+    restored.prepare("SELECT revocation_reason FROM admin_sessions WHERE token_hash = ?").get('a'.repeat(64)).revocation_reason,
+    'credential-rotated',
+  );
+  assert.equal(
+    restored.prepare("SELECT revocation_reason FROM admin_sessions WHERE token_hash = ?").get('c'.repeat(64)).revocation_reason,
     'credential-rollback',
+  );
+  assert.equal(
+    restored.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE event_type = 'credential.rollback-preservation-test'").get().count,
+    1,
   );
   restored.close();
 

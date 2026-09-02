@@ -402,6 +402,24 @@ class DockerPackageTests(unittest.TestCase):
         self.assertNotIn('docker stop "$OKNOTIKA_TELEGRAM_RELAY_SERVICE"', instruction)
         self.assertNotIn('docker rm "$OKNOTIKA_TELEGRAM_RELAY_SERVICE"', instruction)
 
+    def test_incremental_handoff_preserves_relay_override_for_full_rollback(self) -> None:
+        instruction = (REPO / "release/oknotika-local-password-auth-20260902-instruction.html").read_text(
+            encoding="utf-8"
+        )
+        preserved_override = (
+            'sudo install -o root -g root -m 0600 "$OKNOTIKA_TELEGRAM_OVERRIDE" '
+            '"$OKNOTIKA_BACKUP/telegram-override.before.yml"'
+        )
+        candidate_recreate = '--force-recreate --wait --wait-timeout 120 admin'
+        rollback_recreate = (
+            '--file "$OKNOTIKA_ROLLBACK_TELEGRAM_OVERRIDE" --env-file "$OKNOTIKA_COMPOSE_ENV" '
+            'up --detach --no-build --wait --wait-timeout 120'
+        )
+        self.assertIn(preserved_override, instruction)
+        self.assertIn(rollback_recreate, instruction)
+        self.assertLess(instruction.index(preserved_override), instruction.index(candidate_recreate))
+        self.assertLess(instruction.index(candidate_recreate), instruction.index(rollback_recreate))
+
     def test_admin_image_and_smoke_include_preview_assets(self) -> None:
         dockerfile = (REPO / "deploy/docker/admin.Dockerfile").read_text(encoding="utf-8")
         smoke = (REPO / "deploy/docker/smoke-test.sh").read_text(encoding="utf-8")

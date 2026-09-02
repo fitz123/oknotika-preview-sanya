@@ -142,7 +142,9 @@ export async function rollbackLocalCredentials({
   if (metadata.appliedGeneration !== currentGeneration) {
     throw new Error('Credential rollback snapshot does not match the active generation');
   }
-  if (metadata.previousGeneration) validateGeneration(paths.credentialsRoot, metadata.previousGeneration);
+  const previousCredential = metadata.previousGeneration
+    ? validateGeneration(paths.credentialsRoot, metadata.previousGeneration)
+    : null;
 
   const createdAt = clock().toISOString();
   const safetySnapshotName = `rollback-safety-${timestamp(createdAt)}-${random(6).toString('hex')}`;
@@ -157,12 +159,22 @@ export async function rollbackLocalCredentials({
   }, { backupOwner, backupGroup });
 
   try {
-    restoreDatabase(paths.databasePath, targetSnapshot, {
-      databaseWasPresent: metadata.databaseWasPresent,
-      databaseOwner,
-      databaseGroup,
-    });
-    revokeRestoredSessions(paths.databasePath, createdAt, databaseOwner, databaseGroup);
+    if (previousCredential) {
+      restoreCredentialFingerprint(
+        paths.databasePath,
+        previousCredential,
+        createdAt,
+        databaseOwner,
+        databaseGroup,
+      );
+    } else {
+      restoreDatabase(paths.databasePath, targetSnapshot, {
+        databaseWasPresent: metadata.databaseWasPresent,
+        databaseOwner,
+        databaseGroup,
+      });
+      revokeRestoredSessions(paths.databasePath, createdAt, databaseOwner, databaseGroup);
+    }
     switchGeneration(paths.credentialsRoot, metadata.previousGeneration);
     return Object.freeze({
       operation: 'rollback',
@@ -316,7 +328,7 @@ function validateGeneration(credentialsRoot, generation) {
   assertDirectory(directory, 'Credential generation');
   const username = readCredentialRecord(resolve(directory, 'username'));
   const passwordHash = readCredentialRecord(resolve(directory, 'password-hash'));
-  createLocalCredential({ username, passwordHash });
+  return createLocalCredential({ username, passwordHash });
 }
 
 function readCredentialRecord(path) {
@@ -408,6 +420,19 @@ function revokeRestoredSessions(databasePath, timestampValue, owner, group) {
       SET revoked_at = ?, revocation_reason = 'credential-rollback'
       WHERE revoked_at IS NULL
     `).run(timestampValue);
+  } finally {
+    database.close();
+  }
+  setDatabaseOwnership(databasePath, owner, group);
+}
+
+function restoreCredentialFingerprint(databasePath, credential, timestampValue, owner, group) {
+  const database = openDatabase(databasePath);
+  try {
+    initializeLocalEditor(database, credential, {
+      clock: () => new Date(timestampValue),
+      revocationReason: 'credential-rollback',
+    });
   } finally {
     database.close();
   }

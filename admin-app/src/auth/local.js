@@ -121,6 +121,7 @@ export function createLocalAuthenticator(db, credential, {
 
 export function initializeLocalEditor(db, credential, {
   clock = () => new Date(),
+  revocationReason = 'credential-rotated',
 } = {}) {
   assertCredential(credential);
   return transaction(db, () => {
@@ -152,9 +153,9 @@ export function initializeLocalEditor(db, credential, {
     if (rotated) {
       db.prepare(`
         UPDATE admin_sessions
-        SET revoked_at = ?, revocation_reason = 'credential-rotated'
+        SET revoked_at = ?, revocation_reason = ?
         WHERE editor_id = ? AND revoked_at IS NULL
-      `).run(timestamp, editor.id);
+      `).run(timestamp, revocationReason, editor.id);
     }
     return Number(editor.id);
   });

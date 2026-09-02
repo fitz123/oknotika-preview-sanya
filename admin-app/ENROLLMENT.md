@@ -33,9 +33,11 @@ sessions получают `credential-rotated`. Другой username, Telegram/
 
 Если live login новым паролем не прошёл, использовать только точный
 `snapshotName`, выданный успешным helper run. Guarded `--rollback` принимает
-snapshot активного generation, проверяет SQLite integrity, возвращает прежнюю
-DB/credential pair и отзывает восстановленные sessions с причиной
-`credential-rollback`. Plaintext при rollback не нужен и не восстанавливается.
+snapshot активного generation, проверяет SQLite integrity, возвращает прежний
+credential fingerprint без замены live editorial DB и отзывает действующие
+sessions с причиной `credential-rollback`. Для первичной настройки без
+предыдущего generation восстанавливается исходный SQLite snapshot. Plaintext при
+rollback не нужен и не восстанавливается.
 
 До pass не удалять предыдущий generation, SQLite snapshot или автоматически
 созданный `rollback-safety-*` snapshot. Не править credential files, `current`
