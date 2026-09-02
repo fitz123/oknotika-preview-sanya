@@ -76,10 +76,10 @@ python3 scripts/build_docker_package.py --help
 
 **Serves:** Sanya's explicit instruction that Zhenya sets the login/password on the VPS and receives exact operational steps.
 
-- [ ] Replace Telegram Compose secrets with local username/password-hash secrets; keep files outside images and bind mounts/public roots.
-- [ ] Add a root-run helper that prompts interactively for username/password twice, enforces a reasonable minimum, hashes through stdin without plaintext arguments/environment/history, writes files atomically with exact ownership/mode, backs up the database before identity migration, configures the local singleton editor and revokes old sessions.
-- [ ] Make the helper safe for initial setup and password rotation, fail closed on conflicting identities or incomplete writes, and leave a recoverable rollback path that never restores plaintext.
-- [ ] Update Docker health/smoke and deployment docs for start, login, password rotation and rollback; after successful local-login verification, explicitly remove/decommission obsolete Telegram secret files and the production-only Docker-to-Xray relay/override without changing Xray itself.
+- [x] Replace Telegram Compose secrets with local username/password-hash secrets; keep files outside images and bind mounts/public roots.
+- [x] Add a root-run helper that prompts interactively for username/password twice, enforces a reasonable minimum, hashes through stdin without plaintext arguments/environment/history, writes files atomically with exact ownership/mode, backs up the database before identity migration, configures the local singleton editor and revokes old sessions.
+- [x] Make the helper safe for initial setup and password rotation, fail closed on conflicting identities or incomplete writes, and leave a recoverable rollback path that never restores plaintext.
+- [x] Update Docker health/smoke and deployment docs for start, login, password rotation and rollback; after successful local-login verification, explicitly remove/decommission obsolete Telegram secret files and the production-only Docker-to-Xray relay/override without changing Xray itself.
 
 ### Task 4: Produce a verified incremental handoff for Zhenya
 

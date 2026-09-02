@@ -308,6 +308,7 @@ forbidden_components = {
     "uploads", "previews", "article-releases", "release", "var",
 }
 forbidden_credential_names = {
+    "local-username", "local-password-hash",
     "telegram-oidc-client-id", "telegram-oidc-client-secret",
     "weekly-ingest-token", "restic-repository", "restic-password",
 }

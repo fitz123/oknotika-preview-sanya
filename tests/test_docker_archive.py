@@ -34,6 +34,7 @@ FIXTURE_FILES = {
 FIXTURE_FILES.update(checker.SECRET_EXAMPLE_PLACEHOLDERS)
 EXECUTABLES = {
     "deploy/docker/admin-entrypoint.sh",
+    "deploy/docker/configure-local-credentials.sh",
     "deploy/docker/smoke-test.sh",
     "deploy/scripts/smoke-weekly-ingestion.mjs",
 }
@@ -193,7 +194,7 @@ class DockerArchiveTests(unittest.TestCase):
 
     def test_credential_examples_allow_only_the_exact_invalid_placeholder(self) -> None:
         tampered = self.root / "credential-example.zip"
-        example_path = "deploy/docker/secrets/telegram-oidc-client-secret.example"
+        example_path = "deploy/docker/secrets/local-password-hash.example"
         rewrite_payload_file(
             self.archive,
             tampered,
@@ -235,7 +236,7 @@ class DockerArchiveTests(unittest.TestCase):
             ),
             (
                 "credential",
-                regular_info("deploy/docker/secrets/telegram-oidc-client-secret"),
+                regular_info("deploy/docker/secrets/local-password-hash"),
                 b"assigned credential",
                 "credential file is forbidden",
             ),

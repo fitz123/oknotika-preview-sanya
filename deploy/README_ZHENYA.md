@@ -1,6 +1,6 @@
 # Развёртывание ОКНОТИКИ для Жени
 
-Этот пакет разворачивает статический публичный сайт с разделом «Новости» и отдельный закрытый редактор «Дайджеста недели». Публичный nginx не зависит от доступности Node.js: `/articles/` читается из одного immutable release через symlink `active`. В репозитории и release ZIP нет production credentials, Telegram subject, SQLite, uploads, previews, Tuesday payloads или restic password.
+Этот пакет разворачивает статический публичный сайт с разделом «Новости» и отдельный закрытый редактор «Дайджеста недели». Публичный nginx не зависит от доступности Node.js: `/articles/` читается из одного immutable release через symlink `active`. В репозитории и release ZIP нет production credentials, локального password hash, SQLite, uploads, previews, Tuesday payloads или restic password.
 
 ## Зафиксированный runtime
 
@@ -69,7 +69,7 @@ oknotika-deploy ALL=(root) NOPASSWD: /usr/local/sbin/oknotika-deploy *
 - `OKNOTIKA_DEPLOY_SSH_PRIVATE_KEY` — private half отдельного restricted deploy key;
 - `OKNOTIKA_DEPLOY_SSH_KNOWN_HOSTS` — заранее независимо сверенная exact host-key line; `ssh-keyscan` в workflow запрещён.
 
-Telegram OIDC, `weekly-ingest-token`, restic credentials, editor identity и runtime data в GitHub не переносятся: они остаются encrypted systemd credentials на сервере. Secret values не вставлять в repository variables, Actions logs, workflow inputs или release evidence.
+Локальные `local-username`/`local-password-hash`, `weekly-ingest-token`, restic credentials и runtime data в GitHub не переносятся: они остаются encrypted systemd credentials на сервере. Secret values не вставлять в repository variables, Actions logs, workflow inputs или release evidence.
 
 Миграция с текущего `master` выполняется оператором только после merge утверждённых feature PR и не входит в этот пакет:
 
@@ -112,24 +112,24 @@ deploy/scripts/install-marketing.sh \
 
 Скрипт fail-closed проверяет обязательные public paths и отсутствие symlinks, копирует только HTML/CSS/JS/images/product/article fallback в новый root-owned immutable `/srv/oknotika/releases/<sha>`, выставляет `0755/0644` и атомарно переключает относительный `current`. До и после switch выполнить локальный `curl --resolve` для `/`, `/aluminum/` и `/articles/`; при ошибке вернуть предыдущий marketing symlink по процедуре rollback.
 
-Для production используются ровно `https://oknotika.ru`, `https://admin.oknotika.ru` и `https://admin.oknotika.ru/auth/callback`. Приложение повторно валидирует origins и callback; nginx перезаписывает `Host`, `X-Forwarded-Host`, `X-Forwarded-Proto` и `X-Forwarded-For`. Backend принимает эти заголовки только в точном single-value виде, а доступ к socket ограничен локальными правами.
+Для production используются ровно `https://oknotika.ru` и `https://admin.oknotika.ru`. Приложение повторно валидирует origins; nginx перезаписывает `Host`, `X-Forwarded-Host`, `X-Forwarded-Proto` и `X-Forwarded-For`. Backend принимает эти заголовки только в точном single-value виде, а доступ к socket ограничен локальными правами.
 
 ## Секреты и rotation
 
 Создать encrypted credentials в `/etc/credstore.encrypted/` с помощью `systemd-creds encrypt --name=<name> - /etc/credstore.encrypted/<name>.cred`:
 
-- `telegram-oidc-client-id`;
-- `telegram-oidc-client-secret`;
+- `local-username` — единственный локальный editor login;
+- `local-password-hash` — versioned scrypt record, никогда не plaintext;
 - `weekly-ingest-token` — общий bearer token сервера и Tuesday caller, минимум 32 случайных печатных ASCII-символа без пробелов и запятых;
 - `restic-repository` — строка encrypted off-host repository;
 - `restic-password` — отдельный сильный пароль репозитория.
 
-Исходные значения принимать только по согласованному секретному каналу, не вставлять в shell history, ticket, Telegram или journal. Файлы credentials — `root:root 0600`. Units используют `LoadCredentialEncrypted`; Node читает временные файлы из `%d`, а restic получает `RESTIC_PASSWORD_FILE` и repository file.
+Логин и пароль вводить только в локальном root terminal; пароль не вставлять в shell history, ticket, Telegram или journal. Файлы credentials — `root:root 0600`. Units используют `LoadCredentialEncrypted`; Node читает временные файлы из `%d`, а restic получает `RESTIC_PASSWORD_FILE` и repository file.
 
-Rotation Telegram: создать новые credential-файлы под временными именами, проверить ownership/mode, остановить admin, атомарно заменить `.cred`, запустить сервис и выполнить login/logout/revocation gate. Старый client secret отозвать только после успешной проверки. Rotation restic: сначала создать и проверить новый repository/password и полный backup/restore drill; старый repository сохранять до подтверждённого restore и истечения retention.
+Rotation local password: сначала сделать verified SQLite backup, создать новый scrypt record через stdin, остановить admin, атомарно заменить encrypted `local-password-hash`, запустить сервис и выполнить login/logout/revocation gate. Прежний hash и DB snapshot сохранять в encrypted rollback storage до успешной проверки. Rotation restic: сначала создать и проверить новый repository/password и полный backup/restore drill; старый repository сохранять до подтверждённого restore и истечения retention.
 
 Weekly ingestion использует отдельный `weekly-ingest-token`, который не даёт
-Telegram-сессию и принимается только на draft-only endpoint. Server unit читает
+editor-сессию и принимается только на draft-only endpoint. Server unit читает
 его из `%d/weekly-ingest-token`; cron-side research unit должен загрузить то же
 значение как собственный encrypted systemd credential и собрать Authorization
 header только в памяти. Контракт, version/conflict rule, rotation и запрет
@@ -137,7 +137,7 @@ header только в памяти. Контракт, version/conflict rule, ro
 
 ## Tuesday ingestion и draft-only smoke
 
-Tuesday research unit запускается в 12:00 MSK после генерации presenter PDF. Он передаёт тот же проверенный пакет в `POST /api/ingestion/weekly-drafts`, но не получает Telegram-сессию и не может публиковать. В пятницу к 18:00 MSK Саня входит через Telegram, проверяет источники и preview, при необходимости редактирует черновик и сам нажимает publish.
+Tuesday research unit запускается в 12:00 MSK после генерации presenter PDF. Он передаёт тот же проверенный пакет в `POST /api/ingestion/weekly-drafts`, но не получает editor-сессию и не может публиковать. В пятницу к 18:00 MSK Саня входит локальным логином/паролем, проверяет источники и preview, при необходимости редактирует черновик и сам нажимает publish.
 
 До первого live smoke должны существовать: enrolled editor Сани, зарегистрированный reusable private cover asset, encrypted `weekly-ingest-token` одновременно у admin service и Tuesday caller, а также закрытый JSON payload по контракту `docs/WEEKLY_INGESTION.md`. Payload, cover и response body не сохранять в release evidence или journal.
 
@@ -247,29 +247,14 @@ Target обязан быть пустым и изолированным. Скр�
 
 ## Первичное подключение редактора
 
-1. Создать отдельное corporate Telegram Web Login приложение с exact production origin/callback, подготовить DNS/TLS и encrypted credentials. Admin vhost ещё не включать.
-2. Один раз выполнить `systemctl start oknotika-admin.service`, проверить `systemctl is-active oknotika-admin.service` и journal, затем `systemctl stop oknotika-admin.service`. Это создаёт runtime layout, выполняет preflight/migrations и pre-migration backup без включения admin vhost.
-3. На root terminal запустить интерактивный verified bootstrap с теми же credentials:
+1. Подготовить DNS/TLS, но admin vhost ещё не включать. Создать ровно два encrypted credentials: `local-username` и versioned scrypt `local-password-hash`; plaintext password разрешён только в скрытом интерактивном prompt и передаётся hasher через stdin.
+2. До первой identity migration сделать verified SQLite backup. Для действующего Docker production использовать только root-helper `deploy/docker/configure-local-credentials.sh` по точной процедуре из `deploy/docker/README_ZHENYA.md`: он выполняет backup, singleton check, atomic generation switch и session revocation. Не копировать Docker credential files в systemd credstore.
+3. Для systemd deployment загрузить тот же проверенный username/hash как отдельные `LoadCredentialEncrypted` records, выполнить `systemd-analyze verify`, затем запустить service. Startup fail-closed отклонит malformed hash или конфликтующую existing identity и отзовёт sessions при смене fingerprint.
+4. После включения admin vhost Саня входит в «Новости», выходит и подтверждает, что закрытый URL снова требует login. Старый пароль и sessions после rotation должны быть отклонены общей ошибкой. Сверить четыре точных non-secret default: Telegram `https://t.me/oknotika`, YouTube `https://youtube.com/@oknotika`, VK `https://vk.ru/oknotika` и FUTUCHAT `https://t.me/FUTU_CHAT`.
+   При upgrade pending defaults активируются только новым immutable article release; database-only состояние не считается применённым.
+5. В evidence сохранять только timestamp, результат gates и имя encrypted rollback snapshot; логин, пароль и hash не сохранять. Подробная процедура: `admin-app/ENROLLMENT.md`.
 
-```bash
-systemd-run --pty --wait --collect --unit=oknotika-bootstrap-editor \
-  --property=User=oknotika-admin --property=Group=www-data \
-  --property=WorkingDirectory=/opt/oknotika-admin/current/admin-app \
-  --property=EnvironmentFile=/etc/oknotika-admin/oknotika-admin.env \
-  --property=Environment=PATH=/opt/node-v24.18.0/bin:/usr/bin:/bin \
-  --property=Environment=TELEGRAM_OIDC_CLIENT_ID_FILE=%d/telegram-oidc-client-id \
-  --property=Environment=TELEGRAM_OIDC_CLIENT_SECRET_FILE=%d/telegram-oidc-client-secret \
-  --property=LoadCredentialEncrypted=telegram-oidc-client-id \
-  --property=LoadCredentialEncrypted=telegram-oidc-client-secret \
-  --property=ReadWritePaths=/var/lib/oknotika-admin \
-  /opt/node-v24.18.0/bin/npm run bootstrap-editor
-```
-
-4. Открыть выданный one-time authorization URL в браузере Сани. После redirect вставить полный callback URL только в prompt, не в shell command/history. Скрипт выполняет code+PKCE exchange и полную проверку ID token, затем показывает локально verified `sub`/fingerprint. Сверить identity с Саней отдельным каналом и ввести `ENROLL-<fingerprint>`.
-5. Сохранить в evidence только timestamp, approvers и fingerprint, не callback/code/token/subject. Процедура подробно описана в `admin-app/ENROLLMENT.md`.
-6. После включения admin vhost Саня входит в «Новости» и сверяет четыре точных non-secret default: Telegram `https://t.me/oknotika`, YouTube `https://youtube.com/@oknotika`, VK `https://vk.ru/oknotika` и отдельный FUTUCHAT `https://t.me/FUTU_CHAT`. При upgrade с active schema-3 release startup сначала reconciles прежний manifest, затем один раз атомарно активирует pending defaults в новом schema-4 release; database-only состояние не считается применённым. Telegram должен быть readonly; очищенная optional-площадка не должна показываться публично. Затем выполнить draft-only ingestion smoke из предыдущего раздела.
-
-Удаление доступа: остановить admin, сделать verified backup, выполнить `npm run disable-editor -- --database /var/lib/oknotika-admin/db/admin.sqlite`, запустить service и убедиться, что старые sessions отозваны и вход запрещён. Для нового subject требуется reviewed maintenance change; автоматической замены editor/RBAC нет.
+Удаление доступа: остановить admin, сделать verified backup, выполнить `npm run disable-editor -- --database /var/lib/oknotika-admin/db/admin.sqlite`, запустить service и убедиться, что старые sessions отозваны и вход запрещён. Смена username намеренно не автоматизирована; singleton/RBAC не расширять.
 
 ## Инициализация первой article release
 
@@ -298,8 +283,8 @@ sudo systemd-run --pty --wait --collect --unit=oknotika-bootstrap-content \
 
 1. `systemctl stop oknotika-admin.service` и отключить admin vhost symlink; после `nginx -t` reload nginx.
 2. Публичный vhost и `article-releases/active` не переключать: сайт и текущие «Новости» продолжают работать статически.
-3. Сохранить journal/audit evidence в защищённое хранилище, отозвать Telegram credentials, отключить editor и его sessions.
-4. Сделать forensic copy, восстановить доверенный application release и DB/uploads из проверенного snapshot, затем повторить enrollment и все security gates.
+3. Сохранить journal/audit evidence в защищённое хранилище, вывести local credentials из active credstore, отключить editor и его sessions.
+4. Сделать forensic copy, восстановить доверенный application release и DB/uploads из проверенного snapshot, затем повторить local credential setup и все security gates.
 
 ## Раздельные rollback procedures
 
@@ -361,12 +346,12 @@ npm run render:fixture
 
 Обязательные deferred production gates принадлежат Жене; credential-free package не является доказательством их выполнения:
 
-- [ ] DNS/TLS: направить `oknotika.ru` и `admin.oknotika.ru` на production, выпустить валидные сертификаты и зарегистрировать единственный callback `https://admin.oknotika.ru/auth/callback`; admin vhost не открывать раньше.
+- [ ] DNS/TLS: направить `oknotika.ru` и `admin.oknotika.ru` на production и выпустить валидные сертификаты; admin vhost не открывать раньше.
 - [ ] Pinned runtime: установить проверенный Node.js `24.18.0`, подтвердить bundled SQLite `3.53.1`, lockfile SHA-256 из `deploy/release-manifest.json` и выполнить `preflight.sh`.
-- [ ] Encrypted credentials: загрузить отдельные OIDC client ID/secret, общий для admin/Tuesday caller `weekly-ingest-token`, off-host `restic-repository` и `restic-password` через `LoadCredentialEncrypted`; прямых secret values в env, argv и evidence быть не должно.
-- [ ] Enrollment Сани: выполнить verified PKCE bootstrap из `admin-app/ENROLLMENT.md`, независимо сверить identity и сохранить только fingerprint/approvers/timestamp.
+- [ ] Encrypted credentials: загрузить `local-username`, versioned scrypt `local-password-hash`, общий для admin/Tuesday caller `weekly-ingest-token`, off-host `restic-repository` и `restic-password` через `LoadCredentialEncrypted`; plaintext/direct values в env, argv и evidence быть не должно.
+- [ ] Enrollment Сани: выполнить singleton local setup из `admin-app/ENROLLMENT.md`, сохранив только timestamp и результат gates.
 - [ ] Linux config: выполнить `nginx -t` и все четыре `systemd-analyze verify`, затем проверить enabled/active units, file ownership/modes и journal без credentials.
-- [ ] Live auth: пройти реальный Telegram login, logout, replay rejection, non-allowlisted rejection, session revocation и credential rotation по `release-evidence/qa/PRODUCTION_OIDC_REHEARSAL.md`.
+- [ ] Live auth: пройти local login, logout, wrong-password rejection, session revocation, password rotation и guarded rollback.
 - [ ] Weekly ingestion: из credential-scoped Tuesday unit выполнить `smoke-weekly-ingestion.mjs` с реальным private payload, подтвердить identical retry, draft-only статус в «Новости» и отсутствие публичного изменения.
 - [ ] Public smoke: выполнить `smoke-test.sh` на двух canonical HTTPS origins; для опубликованного weekly digest передать `--weekly-path` вместе с exact active `manifest.json`, проверить configured CTA и отсутствие очищенных optional CTA, после первого withdrawal повторить его с HTTP 410 path.
 - [ ] Restore: настроить реальный encrypted off-host restic repository, сделать backup и isolated restore drill, проверить SQLite/releases/active symlink и уложиться в RPO 24 часа / RTO 2 часа.

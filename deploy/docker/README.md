@@ -12,9 +12,11 @@ configuration is `host-nginx.conf`.
   sees only `admin-app/data/article-releases`, read-only. The reserved
   `/var/home/oknotika/public-app/data/` directory is not mounted.
 - Both application processes run as non-root users with read-only root filesystems.
-- OIDC and weekly-ingestion values are sourced from private files under
+- The local username/password hash and weekly-ingestion value are sourced from private files under
   `/var/home/oknotika/admin-app/data/secrets/` and exposed only to `admin`
   under `/run/secrets`.
 
-The files in `secrets/` are setup examples only. Never put real values there,
-in an image, `compose.env`, a build argument or a Compose `environment` value.
+The files in `secrets/` are format examples only. The root-only interactive
+`configure-local-credentials.sh` helper creates the real local credential
+generation. Never put real values in the source tree, an image, `compose.env`,
+a build argument or a Compose `environment` value.

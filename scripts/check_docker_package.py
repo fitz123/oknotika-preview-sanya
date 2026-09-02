@@ -7,6 +7,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -18,15 +19,15 @@ PUBLIC_IMAGE = "oknotika-public:v2.29.0-rc.4"
 HOST_ROOT = "/var/home/oknotika"
 ADMIN_DATA_ROOT = f"{HOST_ROOT}/admin-app/data"
 SECRETS = {
-    "telegram_oidc_client_id",
-    "telegram_oidc_client_secret",
+    "local_username",
+    "local_password_hash",
     "weekly_ingest_token",
 }
 REJECTED_ADMIN_DOMAIN = "admin." + "okntoika.ru"
 STANDALONE_INSTRUCTION = "release/oknotika-docker-v2.29.0-rc.4-instruction.html"
 SECRET_EXAMPLE_PLACEHOLDERS = {
-    "telegram-oidc-client-id": "replace-on-deployment-host\n",
-    "telegram-oidc-client-secret": "replace-on-deployment-host\n",
+    "local-username": "replace-on-deployment-host\n",
+    "local-password-hash": "replace-on-deployment-host-with-a-versioned-scrypt-record\n",
     "weekly-ingest-token": "replace-on-deployment-host-with-at-least-32-random-characters\n",
 }
 
@@ -54,7 +55,7 @@ def validate_secret_example_text(text: str, relative: str, expected: str) -> lis
 def validate_compose_text(text: str) -> list[str]:
     errors: list[str] = []
     direct_secret = re.compile(
-        r"^\s+(?:TELEGRAM_OIDC_CLIENT_ID|TELEGRAM_OIDC_CLIENT_SECRET|OKNOTIKA_WEEKLY_INGEST_TOKEN):",
+        r"^\s+(?:TELEGRAM_OIDC_CLIENT_ID|TELEGRAM_OIDC_CLIENT_SECRET|OKNOTIKA_LOCAL_USERNAME|OKNOTIKA_LOCAL_PASSWORD(?:_HASH)?|OKNOTIKA_WEEKLY_INGEST_TOKEN):",
         re.MULTILINE,
     )
     if direct_secret.search(text):
@@ -65,8 +66,8 @@ def validate_compose_text(text: str) -> list[str]:
         (
             '"127.0.0.1:${OKNOTIKA_ADMIN_PORT:-8000}:8000"',
             '"127.0.0.1:${OKNOTIKA_PUBLIC_PORT:-8001}:8001"',
-            "TELEGRAM_OIDC_CLIENT_ID_FILE: /run/secrets/telegram_oidc_client_id",
-            "TELEGRAM_OIDC_CLIENT_SECRET_FILE: /run/secrets/telegram_oidc_client_secret",
+            "OKNOTIKA_LOCAL_USERNAME_FILE: /run/secrets/local_username",
+            "OKNOTIKA_LOCAL_PASSWORD_HASH_FILE: /run/secrets/local_password_hash",
             "OKNOTIKA_WEEKLY_INGEST_TOKEN_FILE: /run/secrets/weekly_ingest_token",
             "context: ${OKNOTIKA_BUILD_ROOT:-../..}",
             "source: ${OKNOTIKA_HOST_ROOT:-/var/home/oknotika}/admin-app/data/db",
@@ -145,7 +146,6 @@ def validate_docker_runbook_text(text: str) -> list[str]:
             "DNS A/AAAA",
             "/etc/letsencrypt/live/oknotika.ru/{fullchain,privkey}.pem",
             "/etc/letsencrypt/live/admin.oknotika.ru/{fullchain,privkey}.pem",
-            "https://admin.oknotika.ru/auth/callback",
             "sudo unzip -q oknotika-docker-v2.29.0-rc.4.zip -d \"$OKNOTIKA_ROOT\"",
             "export OKNOTIKA_RELEASE=v2.29.0-rc.4",
             "set -euo pipefail",
@@ -153,15 +153,16 @@ def validate_docker_runbook_text(text: str) -> list[str]:
             "/var/home/oknotika/admin-app/data/",
             "/var/home/oknotika/public-app/data/",
             "create_host_path=false",
-            "for name in telegram-oidc-client-id telegram-oidc-client-secret; do",
             'export OKNOTIKA_SECRETS_ROOT="$OKNOTIKA_ROOT/admin-app/data/secrets"',
-            'sudo chown root:1000 "$OKNOTIKA_SECRETS_ROOT"/*',
-            'sudo chmod 0640 "$OKNOTIKA_SECRETS_ROOT"/*',
+            "configure-local-credentials.sh",
+            "--rollback \"$OKNOTIKA_CREDENTIAL_SNAPSHOT\"",
+            "credential-rollback",
+            "OKNOTIKA_TELEGRAM_RELAY_SERVICE",
+            "Xray",
             "export OKNOTIKA_ACTIVE_PROJECT=oknotika",
             '--project-name "$OKNOTIKA_ACTIVE_PROJECT"',
             'up --detach --no-build --wait --wait-timeout 120',
             "logs --no-color --tail 100 admin public",
-            "npm run bootstrap-editor",
             "npm run bootstrap-content",
             "admin npm run register-weekly-cover --",
             "admin node /run/smoke-weekly-ingestion.mjs",
@@ -201,7 +202,7 @@ def validate_docker_runbook_text(text: str) -> list[str]:
     if REJECTED_ADMIN_DOMAIN in text:
         errors.append("Docker runbook contains the rejected typo admin domain")
     direct_secret = re.compile(
-        r"^\s*(?:TELEGRAM_OIDC_CLIENT_ID|TELEGRAM_OIDC_CLIENT_SECRET|OKNOTIKA_WEEKLY_INGEST_TOKEN)\s*=\s*\S+",
+        r"^\s*(?:TELEGRAM_OIDC_CLIENT_ID|TELEGRAM_OIDC_CLIENT_SECRET|OKNOTIKA_LOCAL_USERNAME|OKNOTIKA_LOCAL_PASSWORD(?:_HASH)?|OKNOTIKA_WEEKLY_INGEST_TOKEN)\s*=\s*\S+",
         re.MULTILINE,
     )
     if direct_secret.search(text):
@@ -326,8 +327,8 @@ def validate_compose_model(model: dict[str, Any]) -> list[str]:
     if set(model.get("secrets", {})) != SECRETS:
         errors.append("Compose secret set is not exact")
     expected_secret_files = {
-        "telegram_oidc_client_id": f"{ADMIN_DATA_ROOT}/secrets/telegram-oidc-client-id",
-        "telegram_oidc_client_secret": f"{ADMIN_DATA_ROOT}/secrets/telegram-oidc-client-secret",
+        "local_username": f"{ADMIN_DATA_ROOT}/secrets/local-credentials/current/username",
+        "local_password_hash": f"{ADMIN_DATA_ROOT}/secrets/local-credentials/current/password-hash",
         "weekly_ingest_token": f"{ADMIN_DATA_ROOT}/secrets/weekly-ingest-token",
     }
     for name, expected in expected_secret_files.items():
@@ -402,7 +403,8 @@ def validate_compose_model(model: dict[str, Any]) -> list[str]:
     expected_environment = {
         "OKNOTIKA_ADMIN_ORIGIN": "https://admin.oknotika.ru",
         "OKNOTIKA_PUBLIC_ORIGIN": "https://oknotika.ru",
-        "TELEGRAM_OIDC_REDIRECT_URI": "https://admin.oknotika.ru/auth/callback",
+        "OKNOTIKA_LOCAL_USERNAME_FILE": "/run/secrets/local_username",
+        "OKNOTIKA_LOCAL_PASSWORD_HASH_FILE": "/run/secrets/local_password_hash",
         "OKNOTIKA_DATABASE_PATH": f"{ADMIN_DATA_ROOT}/db/admin.sqlite",
         "OKNOTIKA_UPLOADS_ROOT": f"{ADMIN_DATA_ROOT}/uploads",
         "OKNOTIKA_PREVIEWS_ROOT": f"{ADMIN_DATA_ROOT}/previews",
@@ -417,6 +419,9 @@ def validate_compose_model(model: dict[str, Any]) -> list[str]:
     for forbidden in (
         "TELEGRAM_OIDC_CLIENT_ID",
         "TELEGRAM_OIDC_CLIENT_SECRET",
+        "OKNOTIKA_LOCAL_USERNAME",
+        "OKNOTIKA_LOCAL_PASSWORD",
+        "OKNOTIKA_LOCAL_PASSWORD_HASH",
         "OKNOTIKA_WEEKLY_INGEST_TOKEN",
         "OKNOTIKA_LISTEN_SOCKET",
     ):
@@ -489,6 +494,33 @@ def validate(root: Path) -> list[str]:
         ),
         errors,
     )
+    credential_helper_path = root / "deploy/docker/configure-local-credentials.sh"
+    credential_helper = read_required(root, "deploy/docker/configure-local-credentials.sh", errors)
+    require_markers(
+        credential_helper,
+        "deploy/docker/configure-local-credentials.sh",
+        (
+            '[[ "$(id -u)" -ne 0 ]]',
+            'IFS= read -r -s -p "Пароль (минимум 14 символов): "',
+            '| "${container_command[@]}"',
+            "--rollback SNAPSHOT_NAME",
+            '"${compose[@]}" stop admin',
+            "flock -n 9",
+            "admin remains stopped until login verification",
+        ),
+        errors,
+    )
+    helper_syntax = subprocess.run(
+        ["bash", "-n", credential_helper_path], capture_output=True, text=True, check=False
+    )
+    if helper_syntax.returncode:
+        errors.append(
+            "bash syntax error in deploy/docker/configure-local-credentials.sh: "
+            f"{helper_syntax.stderr.strip()}"
+        )
+    if credential_helper_path.is_file() \
+            and not stat.S_IMODE(credential_helper_path.stat().st_mode) & stat.S_IXUSR:
+        errors.append("Docker credential helper is not executable")
     nginx = read_required(root, "deploy/docker/public-nginx.conf", errors)
     require_markers(
         nginx,
@@ -564,12 +596,15 @@ def validate(root: Path) -> list[str]:
             'export OKNOTIKA_HOST_ROOT="$host_root"',
             "bind-mounted marker did not survive container recreation",
             "public-write",
+            "scripts/configure-local-credentials.js",
+            "--credentials-root /runtime/credentials",
+            'name=\"password\"',
         ),
         errors,
     )
     for name in (
-        "telegram-oidc-client-id",
-        "telegram-oidc-client-secret",
+        "local-username",
+        "local-password-hash",
         "weekly-ingest-token",
     ):
         if (root / "deploy/docker/secrets" / name).exists():

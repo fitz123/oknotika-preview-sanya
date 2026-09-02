@@ -73,8 +73,6 @@ for listener in sockets:
 PY
 )
 
-printf '%s\n' "smoke-client-$project_name" > "$secrets_root/telegram-oidc-client-id"
-printf '%s\n' "smoke-secret-$project_name" > "$secrets_root/telegram-oidc-client-secret"
 printf '%s\n' "smoke-weekly-token-$project_name-0123456789" > "$secrets_root/weekly-ingest-token"
 chmod 0600 "$secrets_root"/*
 
@@ -106,6 +104,26 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 "${compose[@]}" build
+credentials_root="$secrets_root/local-credentials"
+credential_backups_root="$admin_data/backups/local-credentials"
+mkdir -p "$credentials_root" "$credential_backups_root"
+smoke_password="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+printf '%s\n%s\n%s\n' "smoke-editor" "$smoke_password" "$smoke_password" \
+  | docker run --rm -i --user 0:0 --read-only --network none \
+    --tmpfs /tmp:rw,noexec,nosuid,nodev,size=32m,mode=1777 \
+    --cap-drop ALL --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add FOWNER \
+    --security-opt no-new-privileges:true \
+    --volume "$admin_data/db:/runtime/db" \
+    --volume "$credentials_root:/runtime/credentials" \
+    --volume "$credential_backups_root:/runtime/backups" \
+    --entrypoint node "$admin_image" scripts/configure-local-credentials.js \
+    --database /runtime/db/admin.sqlite \
+    --credentials-root /runtime/credentials \
+    --backups-root /runtime/backups >/dev/null
+unset smoke_password
+test -L "$credentials_root/current"
+test -f "$credentials_root/current/username"
+test -f "$credentials_root/current/password-hash"
 "${compose[@]}" run --rm --no-deps \
   --user 0:0 \
   --cap-add CHOWN \
@@ -138,7 +156,8 @@ curl --fail --silent --show-error \
   --header 'X-Forwarded-Host: admin.oknotika.ru' \
   --header 'X-Forwarded-Proto: https' \
   --header 'X-Forwarded-For: 127.0.0.1' \
-  "http://127.0.0.1:$admin_port/login" >/dev/null
+  "http://127.0.0.1:$admin_port/login" \
+  | grep --fixed-strings 'name="password"' >/dev/null
 
 "${compose[@]}" exec --no-TTY admin node -e \
   "const fs=require('node:fs');fs.writeFileSync('/var/home/oknotika/admin-app/data/uploads/.compose-smoke',process.argv[1])" \
@@ -166,4 +185,4 @@ curl --fail --silent --show-error "http://127.0.0.1:$public_port/articles/smoke-
 curl --fail --silent --show-error "http://127.0.0.1:$public_port/articles/smoke-persistence/" \
   | grep --fixed-strings "$project_name" >/dev/null
 
-echo "Docker Compose smoke passed: sibling builds, loopback ports, bind persistence, permissions and public/private separation verified."
+echo "Docker Compose smoke passed: local credential setup, login health, loopback ports, bind persistence, permissions and public/private separation verified."

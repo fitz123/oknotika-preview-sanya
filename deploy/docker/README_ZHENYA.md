@@ -11,13 +11,13 @@ admin-app/, public-app/ и deploy/. Контейнер admin доступен н
 /var/home/oknotika/public-app/data/ зарезервирован, но не используется и не
 подключается к контейнеру public.
 
-Production-адреса зафиксированы: https://oknotika.ru,
-https://admin.oknotika.ru и exact Telegram callback
-https://admin.oknotika.ru/auth/callback.
+Production-адреса зафиксированы: https://oknotika.ru и
+https://admin.oknotika.ru. Вход в редактор выполняется одним локальным
+логином/паролем и не требует внешней сети.
 
 ## Что должно быть готово
 
-- Linux-хост с Docker Engine, Compose v2, nginx, bash, curl, openssl, tar и
+- Linux-хост с Docker Engine, Compose v2, nginx, bash, curl, openssl, flock, tar и
   unzip.
 - DNS A/AAAA для oknotika.ru, www.oknotika.ru и admin.oknotika.ru указывает на
   этот хост.
@@ -26,14 +26,14 @@ https://admin.oknotika.ru/auth/callback.
   /etc/letsencrypt/live/oknotika.ru/{fullchain,privkey}.pem и
   /etc/letsencrypt/live/admin.oknotika.ru/{fullchain,privkey}.pem уже выпущены
   и настроены на продление.
-- В Telegram Web Login зарегистрирован только callback
-  https://admin.oknotika.ru/auth/callback с алгоритмом RS256.
+- Женя выбрал один локальный логин; пароль будет введён только в скрытые prompt
+  root-helper на VPS.
 
 Проверка инструментов:
 
 ~~~bash
 set -euo pipefail
-command -v docker nginx bash curl openssl tar unzip
+command -v docker nginx bash curl openssl flock tar unzip
 sudo docker info
 sudo docker compose version
 sudo nginx -t
@@ -76,6 +76,8 @@ export OKNOTIKA_ROOT=/var/home/oknotika
 sudo install -d -o 1000 -g 1000 -m 0700 "$OKNOTIKA_ROOT/admin-app/data/db" "$OKNOTIKA_ROOT/admin-app/data/uploads" "$OKNOTIKA_ROOT/admin-app/data/previews" "$OKNOTIKA_ROOT/admin-app/data/backups" "$OKNOTIKA_ROOT/admin-app/data/private"
 sudo install -d -o 1000 -g 1000 -m 0750 "$OKNOTIKA_ROOT/admin-app/data/article-releases"
 sudo install -d -o root -g 1000 -m 0750 "$OKNOTIKA_ROOT/admin-app/data/secrets"
+sudo install -d -o root -g 1000 -m 0750 "$OKNOTIKA_ROOT/admin-app/data/secrets/local-credentials"
+sudo install -d -o root -g root -m 0700 "$OKNOTIKA_ROOT/admin-app/data/backups/local-credentials"
 sudo install -d -o 1000 -g 1000 -m 0750 "$OKNOTIKA_ROOT/public-app/data"
 ~~~
 
@@ -85,38 +87,24 @@ backups, private и secrets контейнеру public недоступны.
 
 ## Secret-файлы и non-secret Compose env
 
-Compose читает ровно три файла из admin-app/data/secrets. Ввод OIDC credentials
-скрыт и не попадает в shell history; weekly token генерируется на хосте.
+Compose читает локальный логин, стойкий scrypt-хеш пароля и weekly token из
+трёх file secrets. Пароль создаёт отдельный root-helper после сборки image; он
+никогда не попадает в argv, environment, shell history или файл. Здесь создаётся
+только независимый weekly token.
 
 ~~~bash
 set -euo pipefail
 export OKNOTIKA_ROOT=/var/home/oknotika
 export OKNOTIKA_SECRETS_ROOT="$OKNOTIKA_ROOT/admin-app/data/secrets"
-sudo bash -c '
-set -eu
-umask 077
-secrets_root="$1"
-for name in telegram-oidc-client-id telegram-oidc-client-secret; do
-  read -r -s -p "$name: " value
-  printf "\n"
-  test -n "$value"
-  printf "%s\n" "$value" > "$secrets_root/$name"
-  unset value
-done
-' _ "$OKNOTIKA_SECRETS_ROOT"
 sudo install -o root -g 1000 -m 0640 /dev/null "$OKNOTIKA_SECRETS_ROOT/weekly-ingest-token"
 openssl rand -hex 32 | sudo tee "$OKNOTIKA_SECRETS_ROOT/weekly-ingest-token" >/dev/null
-sudo chown root:1000 "$OKNOTIKA_SECRETS_ROOT"/*
-sudo chmod 0640 "$OKNOTIKA_SECRETS_ROOT"/*
-for name in telegram-oidc-client-id telegram-oidc-client-secret weekly-ingest-token; do
-  test "$(sudo stat -c %u:%g "$OKNOTIKA_SECRETS_ROOT/$name")" = 0:1000
-  test "$(sudo stat -c %a "$OKNOTIKA_SECRETS_ROOT/$name")" = 640
-done
+test "$(sudo stat -c %u:%g "$OKNOTIKA_SECRETS_ROOT/weekly-ingest-token")" = 0:1000
+test "$(sudo stat -c %a "$OKNOTIKA_SECRETS_ROOT/weekly-ingest-token")" = 640
 ~~~
 
-Не выводить содержимое файлов и не сохранять callback URL, authorization code,
-Telegram sub, weekly payload или response body в журнал. Example-файлы из ZIP
-заведомо невалидны и не заменяют production credentials.
+Не выводить содержимое файлов и не сохранять пароль, хеш, weekly payload или
+response body в журнал. Example-файлы из ZIP заведомо невалидны и не заменяют
+production credentials.
 
 Создать private non-secret env с versioned image tags. Для следующего handoff
 значение OKNOTIKA_RELEASE меняется на его новую версию. Credential в этот файл,
@@ -170,6 +158,8 @@ sudo test -f "$OKNOTIKA_COMPOSE_ENV"
 set -euo pipefail
 sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" config --quiet
 sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" build
+sudo --preserve-env=OKNOTIKA_ROOT,OKNOTIKA_ACTIVE_PROJECT,OKNOTIKA_COMPOSE_ENV \
+  "$OKNOTIKA_ROOT/deploy/docker/configure-local-credentials.sh"
 sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --wait --wait-timeout 120
 sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" ps
 sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" logs --no-color --tail 100 admin public
@@ -182,20 +172,95 @@ sudo ss -ltnp | grep -E '127\.0\.0\.1:(8000|8001)'
 Оба container health должны стать healthy. В ss допустимы только
 127.0.0.1:8000 и 127.0.0.1:8001, не 0.0.0.0 и не [::].
 
-## Первичное подключение редактора
+## Первичный вход, rotation и rollback пароля
 
-Остановить обычный admin, чтобы bootstrap был единственным писателем SQLite:
+Root-helper из предыдущего раздела сам остановил admin, создал verified SQLite
+snapshot до миграции identity, записал полный immutable generation из двух
+файлов `root:1000 0640`, атомарно переключил `local-credentials/current` и
+настроил единственного local editor. В stdout есть только JSON с именами
+generation и rollback snapshot, без логина, пароля или хеша. Сохранить имя
+snapshot в закрытом operational evidence.
+
+После запуска открыть `https://admin.oknotika.ru/login`, войти новым логином и
+паролем, открыть список новостей, затем выйти и убедиться, что возврат на
+закрытый URL требует нового входа. Ошибка логина должна быть общей и не должна
+показывать, какое поле неверно.
+
+Для rotation повторить helper с тем же логином и новым паролем. Другой логин или
+существующая Telegram/OIDC identity отклоняются без изменения credentials/DB.
+После запуска старый пароль и все старые sessions должны перестать работать, а
+новый login/logout — пройти:
 
 ~~~bash
 set -euo pipefail
-sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" stop admin
-sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" run --rm --no-deps admin npm run bootstrap-editor
+sudo --preserve-env=OKNOTIKA_ROOT,OKNOTIKA_ACTIVE_PROJECT,OKNOTIKA_COMPOSE_ENV \
+  "$OKNOTIKA_ROOT/deploy/docker/configure-local-credentials.sh"
 sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --wait admin
 ~~~
 
-Открыть one-time URL в браузере Сани. После cryptographic verification сверить
-identity с Саней по отдельному каналу и ввести ENROLL-<fingerprint>. Не
-сохранять sub/code/token. Повторный bootstrap-editor запрещён.
+Если новый вход не прошёл, не подбирать snapshot автоматически. Остановить
+admin, взять точное `snapshotName` из успешного запуска helper и выполнить
+guarded rollback. Команда разрешает только snapshot активного generation,
+проверяет SQLite integrity, возвращает прежний хеш и DB и отзывает все
+восстановленные sessions с причиной `credential-rollback`. Она также создаёт
+новый `rollback-safety-*` snapshot,
+поэтому откат можно отменить без plaintext:
+
+~~~bash
+set -euo pipefail
+export OKNOTIKA_CREDENTIAL_SNAPSHOT=local-credential-YYYYMMDDTHHMMSSZ-XXXXXXXXXXXX
+sudo --preserve-env=OKNOTIKA_ROOT,OKNOTIKA_ACTIVE_PROJECT,OKNOTIKA_COMPOSE_ENV \
+  "$OKNOTIKA_ROOT/deploy/docker/configure-local-credentials.sh" \
+  --rollback "$OKNOTIKA_CREDENTIAL_SNAPSHOT"
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --wait admin
+~~~
+
+Для отмены уже выполненного rollback повторить ту же команду с точным
+`rollback-safety-*` именем из его JSON-результата.
+
+До успешного login/logout не удалять предыдущий credential generation или
+snapshot. Никогда не редактировать `current`, `username`, `password-hash` или
+SQLite вручную.
+
+## Вывод Telegram relay после проверки local login
+
+Только после успешного local login/logout перенести старые OIDC secrets и
+production-only Compose override/relay из active topology в закрытый rollback
+каталог. Сначала подставить точные существующие production path и service name;
+если они не совпадают с фактическим host, остановиться. Базовый stack и Xray не
+изменять:
+
+~~~bash
+set -euo pipefail
+export OKNOTIKA_TELEGRAM_OVERRIDE=/root-controlled/exact-production-telegram-override.yml
+export OKNOTIKA_TELEGRAM_RELAY_SERVICE=exact-production-telegram-relay-service
+export OKNOTIKA_TELEGRAM_RETIRED="$OKNOTIKA_ROOT/admin-app/data/backups/retired-telegram-$(date -u +%Y%m%dT%H%M%SZ)"
+sudo test -f "$OKNOTIKA_TELEGRAM_OVERRIDE"
+[[ "$OKNOTIKA_TELEGRAM_RELAY_SERVICE" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]+$ ]]
+sudo install -d -o root -g root -m 0700 "$OKNOTIKA_TELEGRAM_RETIRED"
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
+  --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" \
+  --file "$OKNOTIKA_TELEGRAM_OVERRIDE" --env-file "$OKNOTIKA_COMPOSE_ENV" \
+  stop "$OKNOTIKA_TELEGRAM_RELAY_SERVICE"
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
+  --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" \
+  --file "$OKNOTIKA_TELEGRAM_OVERRIDE" --env-file "$OKNOTIKA_COMPOSE_ENV" \
+  rm --force "$OKNOTIKA_TELEGRAM_RELAY_SERVICE"
+for name in telegram-oidc-client-id telegram-oidc-client-secret; do
+  if sudo test -f "$OKNOTIKA_ROOT/admin-app/data/secrets/$name"; then
+    sudo mv "$OKNOTIKA_ROOT/admin-app/data/secrets/$name" "$OKNOTIKA_TELEGRAM_RETIRED/$name"
+  fi
+done
+sudo mv "$OKNOTIKA_TELEGRAM_OVERRIDE" "$OKNOTIKA_TELEGRAM_RETIRED/"
+sudo test ! -e "$OKNOTIKA_ROOT/admin-app/data/secrets/telegram-oidc-client-id"
+sudo test ! -e "$OKNOTIKA_ROOT/admin-app/data/secrets/telegram-oidc-client-secret"
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --wait
+~~~
+
+Проверить, что active Compose запускается без override, local login работает,
+публичный сайт доступен, а Xray продолжает работать без изменений. Retired
+каталог хранить зашифрованно до конца rollback window, затем удалить целиком по
+утверждённой процедуре уничтожения credentials.
 
 ## Начальный материал и weekly cover
 

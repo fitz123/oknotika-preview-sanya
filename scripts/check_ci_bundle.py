@@ -63,6 +63,8 @@ FORBIDDEN_COMPONENTS = {
     "var",
 }
 FORBIDDEN_CREDENTIAL_FILENAMES = {
+    "local-username",
+    "local-password-hash",
     "telegram-oidc-client-id",
     "telegram-oidc-client-secret",
     "weekly-ingest-token",
@@ -85,6 +87,7 @@ SECRET_PATTERNS = {
     "GitHub token": re.compile(rb"\bgh[ps]_[A-Za-z0-9]{30,}\b"),
     "AWS access key": re.compile(rb"\bAKIA[0-9A-Z]{16}\b"),
     "assigned OIDC secret": re.compile(rb"TELEGRAM_OIDC_CLIENT_SECRET\s*=\s*[^\s<#${][^\r\n]*"),
+    "assigned local password": re.compile(rb"OKNOTIKA_LOCAL_PASSWORD(?:_HASH)?\s*=\s*[^\s<#${][^\r\n]*"),
     "assigned weekly ingestion token": re.compile(
         rb"OKNOTIKA_WEEKLY_INGEST_TOKEN\s*=\s*[^\s<#${][^\r\n]*"
     ),

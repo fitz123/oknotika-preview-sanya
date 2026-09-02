@@ -140,8 +140,8 @@ class DockerPackageTests(unittest.TestCase):
     def test_direct_compose_credentials_are_rejected(self) -> None:
         compose = (REPO / "deploy/docker/docker-compose.yml").read_text(encoding="utf-8")
         changed = compose.replace(
-            "TELEGRAM_OIDC_CLIENT_ID_FILE: /run/secrets/telegram_oidc_client_id",
-            "TELEGRAM_OIDC_CLIENT_ID: assigned-value",
+            "OKNOTIKA_LOCAL_PASSWORD_HASH_FILE: /run/secrets/local_password_hash",
+            "OKNOTIKA_LOCAL_PASSWORD: assigned-value",
         )
         self.assertIn(
             "Compose environment contains a direct credential value",
@@ -149,7 +149,7 @@ class DockerPackageTests(unittest.TestCase):
         )
 
     def test_credential_examples_allow_only_the_exact_invalid_placeholder(self) -> None:
-        name = "telegram-oidc-client-secret"
+        name = "local-password-hash"
         relative = f"deploy/docker/secrets/{name}.example"
         placeholder = checker.SECRET_EXAMPLE_PLACEHOLDERS[name]
         self.assertEqual(
@@ -161,6 +161,16 @@ class DockerPackageTests(unittest.TestCase):
             relative,
             placeholder,
         ))
+
+    def test_root_credential_helper_keeps_plaintext_out_of_process_configuration(self) -> None:
+        helper = (REPO / "deploy/docker/configure-local-credentials.sh").read_text(encoding="utf-8")
+        self.assertIn('[[ "$(id -u)" -ne 0 ]]', helper)
+        self.assertIn('IFS= read -r -s -p "Пароль (минимум 14 символов): "', helper)
+        self.assertIn('| "${container_command[@]}"', helper)
+        self.assertIn("--network none", helper)
+        self.assertIn('"${compose[@]}" stop admin', helper)
+        self.assertNotRegex(helper, r"--password(?:=|\s)")
+        self.assertNotRegex(helper, r"export\s+[^\n]*PASSWORD")
 
     def test_host_nginx_domains_ports_proxy_headers_and_login_limit_are_enforced(self) -> None:
         nginx = (REPO / "deploy/docker/host-nginx.conf").read_text(encoding="utf-8")
@@ -205,15 +215,15 @@ class DockerPackageTests(unittest.TestCase):
                     for error in checker.validate_host_nginx_text(changed)
                 ))
 
-    def test_runbook_callback_safety_and_no_secret_boundary_are_enforced(self) -> None:
+    def test_runbook_local_credential_safety_and_no_secret_boundary_are_enforced(self) -> None:
         runbook = (REPO / "deploy/docker/README_ZHENYA.md").read_text(encoding="utf-8")
         changes = (
             (
                 runbook.replace(
-                    "https://admin.oknotika.ru/auth/callback",
-                    "https://admin.oknotika.ru/callback",
+                    "configure-local-credentials.sh",
+                    "manual-password-file-edit.sh",
                 ),
-                "https://admin.oknotika.ru/auth/callback",
+                "configure-local-credentials.sh",
             ),
             (
                 runbook.replace("docker compose down -v ЗАПРЕЩЕНА", "volume warning removed"),
@@ -221,10 +231,10 @@ class DockerPackageTests(unittest.TestCase):
             ),
             (
                 runbook.replace(
-                    'sudo chown root:1000 "$OKNOTIKA_SECRETS_ROOT"/*',
-                    'sudo chown root:root "$OKNOTIKA_SECRETS_ROOT"/*',
+                    "credential-rollback",
+                    "rollback reason removed",
                 ),
-                "root:1000",
+                "credential-rollback",
             ),
             (
                 runbook.replace(
@@ -235,7 +245,7 @@ class DockerPackageTests(unittest.TestCase):
                 "hardcodes the original Compose project name",
             ),
             (
-                runbook + "\nTELEGRAM_OIDC_CLIENT_" + "SECRET=assigned-production-value\n",
+                runbook + "\nOKNOTIKA_LOCAL_" + "PASSWORD=assigned-production-value\n",
                 "embeds a credential",
             ),
             (

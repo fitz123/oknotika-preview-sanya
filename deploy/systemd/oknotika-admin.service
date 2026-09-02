@@ -12,11 +12,11 @@ UMask=0027
 WorkingDirectory=/opt/oknotika-admin/current/admin-app
 EnvironmentFile=/etc/oknotika-admin/oknotika-admin.env
 Environment=PATH=/opt/node-v24.18.0/bin:/usr/bin:/bin
-Environment=TELEGRAM_OIDC_CLIENT_ID_FILE=%d/telegram-oidc-client-id
-Environment=TELEGRAM_OIDC_CLIENT_SECRET_FILE=%d/telegram-oidc-client-secret
+Environment=OKNOTIKA_LOCAL_USERNAME_FILE=%d/local-username
+Environment=OKNOTIKA_LOCAL_PASSWORD_HASH_FILE=%d/local-password-hash
 Environment=OKNOTIKA_WEEKLY_INGEST_TOKEN_FILE=%d/weekly-ingest-token
-LoadCredentialEncrypted=telegram-oidc-client-id
-LoadCredentialEncrypted=telegram-oidc-client-secret
+LoadCredentialEncrypted=local-username
+LoadCredentialEncrypted=local-password-hash
 LoadCredentialEncrypted=weekly-ingest-token
 StateDirectory=oknotika-admin
 StateDirectoryMode=0750

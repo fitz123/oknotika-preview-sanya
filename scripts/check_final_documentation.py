@@ -85,7 +85,7 @@ def validate_readme_text(text: str) -> list[str]:
     require(text, "README.md", (
         "# ОКНОТИКА — production-candidate handoff сайта",
         "## Content model «Новости» / «Дайджест недели»",
-        "## Telegram enrollment и доступ",
+        "## Локальный аккаунт и доступ",
         "## Editor flow",
         "## Полная локальная валидация",
         "## Release и эксплуатация",
@@ -176,12 +176,13 @@ def validate(root: Path) -> list[str]:
 
     enrollment = (root / "admin-app/ENROLLMENT.md").read_text(encoding="utf-8")
     require(enrollment, "admin-app/ENROLLMENT.md", (
-        "issuer` + `sub",
-        "npm run enroll",
-        "не используются как идентификатор доступа",
-        "редактор «Новости»",
-        "draft-only smoke",
-        "npm run register-weekly-cover",
+        "versioned scrypt password",
+        "configure-local-credentials.sh",
+        "root:1000 0640",
+        "SQLite snapshot",
+        "credential-rotated",
+        "credential-rollback",
+        "bearer token не является editor session",
         "https://t.me/FUTU_CHAT",
     ), errors)
 

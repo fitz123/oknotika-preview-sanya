@@ -18,8 +18,10 @@ from typing import Any
 PACKAGE_VERSION = "v2.29.0-rc.4"
 ARCHIVE_ROOTS = {"admin-app", "public-app", "deploy"}
 SECRET_EXAMPLE_PLACEHOLDERS = {
-    "deploy/docker/secrets/telegram-oidc-client-id.example": b"replace-on-deployment-host\n",
-    "deploy/docker/secrets/telegram-oidc-client-secret.example": b"replace-on-deployment-host\n",
+    "deploy/docker/secrets/local-username.example": b"replace-on-deployment-host\n",
+    "deploy/docker/secrets/local-password-hash.example": (
+        b"replace-on-deployment-host-with-a-versioned-scrypt-record\n"
+    ),
     "deploy/docker/secrets/weekly-ingest-token.example": (
         b"replace-on-deployment-host-with-at-least-32-random-characters\n"
     ),
@@ -63,13 +65,14 @@ REQUIRED_SOURCE_FILES = {
     "deploy/docker/admin-entrypoint.sh",
     "deploy/docker/admin.Dockerfile",
     "deploy/docker/compose.env.example",
+    "deploy/docker/configure-local-credentials.sh",
     "deploy/docker/docker-compose.yml",
     "deploy/docker/host-nginx.conf",
     "deploy/docker/public-nginx.conf",
     "deploy/docker/public.Dockerfile",
     "deploy/docker/secrets/README.md",
-    "deploy/docker/secrets/telegram-oidc-client-id.example",
-    "deploy/docker/secrets/telegram-oidc-client-secret.example",
+    "deploy/docker/secrets/local-username.example",
+    "deploy/docker/secrets/local-password-hash.example",
     "deploy/docker/secrets/weekly-ingest-token.example",
     "deploy/docker/smoke-test.sh",
     *DEPLOY_SOURCE_MAP,
@@ -90,6 +93,8 @@ FORBIDDEN_COMPONENTS = {
     "var",
 }
 FORBIDDEN_CREDENTIAL_FILENAMES = {
+    "local-username",
+    "local-password-hash",
     "telegram-oidc-client-id",
     "telegram-oidc-client-secret",
     "weekly-ingest-token",
@@ -116,6 +121,9 @@ SECRET_PATTERNS = {
     "AWS access key": re.compile(rb"\bAKIA[0-9A-Z]{16}\b"),
     "assigned OIDC secret": re.compile(
         rb"TELEGRAM_OIDC_CLIENT_SECRET\s*=\s*[^\s<#${][^\r\n]*"
+    ),
+    "assigned local password": re.compile(
+        rb"OKNOTIKA_LOCAL_PASSWORD(?:_HASH)?\s*=\s*[^\s<#${][^\r\n]*"
     ),
     "assigned weekly ingestion token": re.compile(
         rb"OKNOTIKA_WEEKLY_INGEST_TOKEN\s*=\s*[^\s<#${][^\r\n]*"

@@ -1,15 +1,16 @@
 # Compose secret files
 
-Create three extensionless files on the deployment host under
+The deployment host has three effective secret records under
 `/var/home/oknotika/admin-app/data/secrets/`:
 
-- `telegram-oidc-client-id`
-- `telegram-oidc-client-secret`
+- `local-credentials/current/username`
+- `local-credentials/current/password-hash`
 - `weekly-ingest-token`
 
-Each file must contain exactly one production value followed by a newline. On
-the Linux deployment host, use owner/group `root:1000` and mode `0640` so the
-non-root admin container (`1000:1000`) can read the bind-mounted Compose secret.
-Do not commit the files, and do not rename any `.example` file into place until
-the real value is written on the deployment host. The examples are deliberately
-invalid placeholders and are never mounted by Compose.
+The root-only interactive helper creates immutable local-credential generation
+directories and atomically switches `current`; never create or edit those two
+files by hand. Every record contains exactly one value followed by a newline.
+On Linux, credential records use owner/group `root:1000` and mode `0640` so the
+non-root admin container (`1000:1000`) can read the mounted Compose secrets.
+Do not commit runtime files or copy `.example` placeholders into place. The
+examples are deliberately invalid and are never mounted by Compose.

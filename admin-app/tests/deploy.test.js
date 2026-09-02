@@ -4,12 +4,15 @@ import { createHash, randomBytes } from 'node:crypto';
 import {
   chmodSync,
   copyFileSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
+  readlinkSync,
   rmSync,
   statSync,
+  symlinkSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -18,6 +21,11 @@ import { resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { openDatabase } from '../src/content/database.js';
+import {
+  configureLocalCredentials,
+  rollbackLocalCredentials,
+} from '../src/auth/credential-setup.js';
+import { LOCAL_AUTH_ISSUER } from '../src/auth/local.js';
 import { createContentService } from '../src/content/service.js';
 import {
   acquirePublisherLock,
@@ -28,6 +36,237 @@ import { articleInput } from './helpers.js';
 import { runWeeklyIngestionSmoke } from '../../deploy/scripts/smoke-weekly-ingestion.mjs';
 
 const REPO_ROOT = resolve(import.meta.dirname, '../..');
+
+test('local credential setup rotates atomically, snapshots SQLite and supports hash-only rollback', async (t) => {
+  const root = mkdtempSync(resolve(tmpdir(), 'oknotika-local-credential-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const databasePath = resolve(root, 'db/admin.sqlite');
+  const credentialsRoot = resolve(root, 'credentials');
+  const backupsRoot = resolve(root, 'backups');
+  mkdirSync(resolve(root, 'db'), { recursive: true });
+  mkdirSync(credentialsRoot);
+  mkdirSync(backupsRoot);
+  openDatabase(databasePath).close();
+  const owner = process.getuid();
+  const group = process.getgid();
+  const common = {
+    databasePath,
+    credentialsRoot,
+    backupsRoot,
+    credentialOwner: owner,
+    credentialGroup: group,
+    databaseOwner: owner,
+    databaseGroup: group,
+    backupOwner: owner,
+    backupGroup: group,
+  };
+
+  const initial = await configureLocalCredentials({
+    ...common,
+    username: 'zhenya.editor',
+    password: 'initial-local-password-2026',
+    passwordConfirmation: 'initial-local-password-2026',
+    clock: () => new Date('2026-09-02T10:00:00.000Z'),
+    random: () => Buffer.alloc(6, 1),
+  });
+  assert.equal(readlinkSync(resolve(credentialsRoot, 'current')), initial.generation);
+  for (const name of ['username', 'password-hash']) {
+    const metadata = statSync(resolve(credentialsRoot, initial.generation, name));
+    assert.equal(metadata.mode & 0o777, 0o640);
+    assert.equal(metadata.uid, owner);
+    assert.equal(metadata.gid, group);
+  }
+  assert.equal(
+    readFileSync(resolve(credentialsRoot, initial.generation, 'username'), 'utf8'),
+    'zhenya.editor\n',
+  );
+  assert.doesNotMatch(
+    readFileSync(resolve(credentialsRoot, initial.generation, 'password-hash'), 'utf8'),
+    /initial-local-password/,
+  );
+  const initialBackup = new DatabaseSync(resolve(backupsRoot, initial.snapshotName, 'admin.sqlite'), {
+    readOnly: true,
+  });
+  assert.equal(initialBackup.prepare('SELECT COUNT(*) AS count FROM configured_editors').get().count, 0);
+  initialBackup.close();
+
+  const beforeRotation = openDatabase(databasePath);
+  const editor = beforeRotation.prepare(`
+    SELECT id, credential_fingerprint FROM configured_editors
+  `).get();
+  beforeRotation.prepare(`
+    INSERT INTO admin_sessions
+      (token_hash, csrf_hash, editor_id, created_at, last_seen_at,
+       idle_expires_at, absolute_expires_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    'a'.repeat(64),
+    'b'.repeat(64),
+    editor.id,
+    '2026-09-02T10:01:00.000Z',
+    '2026-09-02T10:01:00.000Z',
+    '2026-09-02T10:31:00.000Z',
+    '2026-09-03T10:01:00.000Z',
+  );
+  beforeRotation.close();
+
+  const rotation = await configureLocalCredentials({
+    ...common,
+    username: 'zhenya.editor',
+    password: 'rotated-local-password-2026',
+    passwordConfirmation: 'rotated-local-password-2026',
+    clock: () => new Date('2026-09-02T11:00:00.000Z'),
+    random: () => Buffer.alloc(6, 2),
+  });
+  assert.equal(readlinkSync(resolve(credentialsRoot, 'current')), rotation.generation);
+  const rotationBackup = new DatabaseSync(resolve(backupsRoot, rotation.snapshotName, 'admin.sqlite'), {
+    readOnly: true,
+  });
+  assert.equal(
+    rotationBackup.prepare('SELECT credential_fingerprint FROM configured_editors').get().credential_fingerprint,
+    editor.credential_fingerprint,
+  );
+  assert.equal(rotationBackup.prepare('SELECT revoked_at FROM admin_sessions').get().revoked_at, null);
+  rotationBackup.close();
+  const rotated = new DatabaseSync(databasePath, { readOnly: true });
+  assert.notEqual(
+    rotated.prepare('SELECT credential_fingerprint FROM configured_editors').get().credential_fingerprint,
+    editor.credential_fingerprint,
+  );
+  assert.equal(
+    rotated.prepare('SELECT revocation_reason FROM admin_sessions').get().revocation_reason,
+    'credential-rotated',
+  );
+  rotated.close();
+
+  const rollback = await rollbackLocalCredentials({
+    ...common,
+    snapshotName: rotation.snapshotName,
+    clock: () => new Date('2026-09-02T12:00:00.000Z'),
+    random: () => Buffer.alloc(6, 3),
+  });
+  assert.equal(readlinkSync(resolve(credentialsRoot, 'current')), initial.generation);
+  assert.equal(rollback.generation, initial.generation);
+  assert.ok(existsSync(resolve(backupsRoot, rollback.safetySnapshotName, 'admin.sqlite')));
+  const restored = new DatabaseSync(databasePath, { readOnly: true });
+  assert.equal(
+    restored.prepare('SELECT credential_fingerprint FROM configured_editors').get().credential_fingerprint,
+    editor.credential_fingerprint,
+  );
+  assert.equal(
+    restored.prepare('SELECT revocation_reason FROM admin_sessions').get().revocation_reason,
+    'credential-rollback',
+  );
+  restored.close();
+
+  const rollForward = await rollbackLocalCredentials({
+    ...common,
+    snapshotName: rollback.safetySnapshotName,
+    clock: () => new Date('2026-09-02T13:00:00.000Z'),
+    random: () => Buffer.alloc(6, 4),
+  });
+  assert.equal(rollForward.generation, rotation.generation);
+  assert.equal(readlinkSync(resolve(credentialsRoot, 'current')), rotation.generation);
+  await assert.rejects(
+    rollbackLocalCredentials({ ...common, snapshotName: initial.snapshotName }),
+    /does not match the active generation/,
+  );
+});
+
+test('local credential setup rejects mismatched confirmation and conflicting identities without writes', async (t) => {
+  const root = mkdtempSync(resolve(tmpdir(), 'oknotika-local-credential-conflict-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const databasePath = resolve(root, 'db/admin.sqlite');
+  const credentialsRoot = resolve(root, 'credentials');
+  const backupsRoot = resolve(root, 'backups');
+  mkdirSync(resolve(root, 'db'), { recursive: true });
+  mkdirSync(credentialsRoot);
+  mkdirSync(backupsRoot);
+  const database = openDatabase(databasePath);
+  database.prepare(`
+    INSERT INTO configured_editors (issuer, subject, enabled, created_at)
+    VALUES ('https://oauth.telegram.org', '1234567', 1, '2026-09-02T10:00:00.000Z')
+  `).run();
+  database.close();
+  const owner = process.getuid();
+  const group = process.getgid();
+  const common = {
+    databasePath,
+    credentialsRoot,
+    backupsRoot,
+    credentialOwner: owner,
+    credentialGroup: group,
+    databaseOwner: owner,
+    databaseGroup: group,
+    backupOwner: owner,
+    backupGroup: group,
+  };
+
+  await assert.rejects(configureLocalCredentials({
+    ...common,
+    username: 'zhenya.editor',
+    password: 'too-short',
+    passwordConfirmation: 'too-short',
+  }), /at least 14 characters/);
+  await assert.rejects(configureLocalCredentials({
+    ...common,
+    username: 'zhenya.editor',
+    password: 'strong-local-password-2026',
+    passwordConfirmation: 'different-password-2026',
+  }), /confirmation does not match/);
+  await assert.rejects(configureLocalCredentials({
+    ...common,
+    username: 'zhenya.editor',
+    password: 'strong-local-password-2026',
+    passwordConfirmation: 'strong-local-password-2026',
+  }), /conflicts with the requested local identity/);
+  assert.deepEqual(readdirSync(credentialsRoot), []);
+  assert.deepEqual(readdirSync(backupsRoot), []);
+  const unchanged = new DatabaseSync(databasePath, { readOnly: true });
+  assert.deepEqual({ ...unchanged.prepare('SELECT issuer, subject FROM configured_editors').get() }, {
+    issuer: 'https://oauth.telegram.org',
+    subject: '1234567',
+  });
+  assert.notEqual(unchanged.prepare('SELECT issuer FROM configured_editors').get().issuer, LOCAL_AUTH_ISSUER);
+  unchanged.close();
+});
+
+test('local credential setup fails closed on an incomplete active generation', async (t) => {
+  const root = mkdtempSync(resolve(tmpdir(), 'oknotika-local-credential-incomplete-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const databasePath = resolve(root, 'db/admin.sqlite');
+  const credentialsRoot = resolve(root, 'credentials');
+  const backupsRoot = resolve(root, 'backups');
+  const generation = 'credential-20260902T100000Z-010101010101';
+  mkdirSync(resolve(root, 'db'), { recursive: true });
+  mkdirSync(resolve(credentialsRoot, generation), { recursive: true });
+  mkdirSync(backupsRoot);
+  writeFileSync(resolve(credentialsRoot, generation, 'username'), 'zhenya.editor\n', { mode: 0o640 });
+  symlinkSync(generation, resolve(credentialsRoot, 'current'));
+  openDatabase(databasePath).close();
+  const owner = process.getuid();
+  const group = process.getgid();
+
+  await assert.rejects(configureLocalCredentials({
+    databasePath,
+    credentialsRoot,
+    backupsRoot,
+    username: 'zhenya.editor',
+    password: 'strong-local-password-2026',
+    passwordConfirmation: 'strong-local-password-2026',
+    credentialOwner: owner,
+    credentialGroup: group,
+    databaseOwner: owner,
+    databaseGroup: group,
+    backupOwner: owner,
+    backupGroup: group,
+  }));
+  assert.equal(readlinkSync(resolve(credentialsRoot, 'current')), generation);
+  assert.deepEqual(readdirSync(backupsRoot), []);
+  const database = new DatabaseSync(databasePath, { readOnly: true });
+  assert.equal(database.prepare('SELECT COUNT(*) AS count FROM configured_editors').get().count, 0);
+  database.close();
+});
 
 test('online deployment backup is a mode-0600 consistent SQLite snapshot', (t) => {
   const root = mkdtempSync(resolve(tmpdir(), 'oknotika-deploy-'));
@@ -116,6 +355,12 @@ test('deployment manifest pins Node 24, bundled SQLite and the exact npm lockfil
   assert.match(manifest.runtime.sqliteVersion, /^3\.\d+\.\d+$/);
   assert.equal(manifest.runtime.packageLockVersion, 3);
   assert.match(manifest.runtime.packageLockSha256, /^[a-f0-9]{64}$/);
+  assert.equal(manifest.editorial.weeklySchedule.publicationAuthority, 'singleton-local-password-editor-only');
+  assert.deepEqual(manifest.credentials.adminService, [
+    'local-username',
+    'local-password-hash',
+    'weekly-ingest-token',
+  ]);
   assert.deepEqual(manifest.editorial.socialDestinations, {
     telegram: 'https://t.me/oknotika',
     youtube: 'https://youtube.com/@oknotika',
@@ -590,6 +835,12 @@ test('production preflight pins every path shared by the app, nginx, systemd and
   ]) {
     assert.match(script, new RegExp(`require_exact ${name}`));
   }
+  assert.match(script, /OKNOTIKA_LOCAL_USERNAME_FILE OKNOTIKA_LOCAL_PASSWORD_HASH_FILE/);
+  assert.doesNotMatch(script, /TELEGRAM_OIDC/);
+  const unit = readFileSync(resolve(REPO_ROOT, 'deploy/systemd/oknotika-admin.service'), 'utf8');
+  assert.match(unit, /LoadCredentialEncrypted=local-username/);
+  assert.match(unit, /LoadCredentialEncrypted=local-password-hash/);
+  assert.doesNotMatch(unit, /telegram-oidc/);
 });
 
 test('backup reconciliation repairs public pointers while holding the publisher lock', async (t) => {

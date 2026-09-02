@@ -67,8 +67,8 @@ if $service_start; then
     "${OKNOTIKA_ARTICLE_RELEASES_ROOT:-}" "$expected_article_releases"
   require_exact OKNOTIKA_PUBLIC_ROOT "${OKNOTIKA_PUBLIC_ROOT:-}" "$expected_public_root"
   require_exact OKNOTIKA_LISTEN_SOCKET "${OKNOTIKA_LISTEN_SOCKET:-$expected_socket}" "$expected_socket"
-  for name in OKNOTIKA_ADMIN_ORIGIN OKNOTIKA_PUBLIC_ORIGIN TELEGRAM_OIDC_REDIRECT_URI \
-    TELEGRAM_OIDC_CLIENT_ID_FILE TELEGRAM_OIDC_CLIENT_SECRET_FILE \
+  for name in OKNOTIKA_ADMIN_ORIGIN OKNOTIKA_PUBLIC_ORIGIN \
+    OKNOTIKA_LOCAL_USERNAME_FILE OKNOTIKA_LOCAL_PASSWORD_HASH_FILE \
     OKNOTIKA_WEEKLY_INGEST_TOKEN_FILE; do
     [[ -n "${!name:-}" ]] || { echo "$name is required" >&2; exit 1; }
   done
@@ -80,12 +80,8 @@ if $service_start; then
     echo "public canonical origin mismatch" >&2
     exit 1
   }
-  [[ "$TELEGRAM_OIDC_REDIRECT_URI" == "$OKNOTIKA_ADMIN_ORIGIN/auth/callback" ]] || {
-    echo "OIDC redirect URI is not exact" >&2
-    exit 1
-  }
-  [[ -r "$TELEGRAM_OIDC_CLIENT_ID_FILE" && -r "$TELEGRAM_OIDC_CLIENT_SECRET_FILE" ]] || {
-    echo "systemd OIDC credentials are not readable" >&2
+  [[ -r "$OKNOTIKA_LOCAL_USERNAME_FILE" && -r "$OKNOTIKA_LOCAL_PASSWORD_HASH_FILE" ]] || {
+    echo "systemd local credentials are not readable" >&2
     exit 1
   }
   [[ -r "$OKNOTIKA_WEEKLY_INGEST_TOKEN_FILE" ]] || {

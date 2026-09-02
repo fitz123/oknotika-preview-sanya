@@ -17,8 +17,8 @@
 
 ## Security invariants
 
-- Telegram auth uses official discovery, Authorization Code Flow, PKCE S256, exact callback, server-side one-use state/nonce/browser binding, pinned RS256, bounded JWKS refresh, and allowlist by verified `(issuer, sub)` only.
-- First enrollment uses `npm run bootstrap-editor`; never authorize from username, phone, an unverified JWT payload, or a subject pasted into project files.
+- Admin auth uses one exact local username and a versioned bounded-scrypt password record loaded only from protected credential files. Login has one-use pre-auth CSRF and generic failures.
+- Initial setup and rotation use the root-only Docker credential helper; never put plaintext passwords or direct credential values in source, environment, argv, logs, SQLite, or evidence.
 - SQLite, credentials, sessions, uploads, previews, raw portraits, staging, and generated runtime releases stay outside Git, the ZIP, and nginx public root.
 - The weekly bearer token is a mandatory systemd encrypted credential and is validated both when configuration loads and at the authenticator boundary. It cannot list assets or use editor capabilities.
 - Preview is authenticated, unguessable, self-contained on the admin origin, `no-store`, and `noindex`.
@@ -43,4 +43,4 @@ python3 scripts/check_final_documentation.py .
 python3 scripts/scan_release_zip.py release/oknotika-final.zip
 ```
 
-Production-only gates remain on Linux: `nginx -t`, `systemd-analyze verify`, live public/admin/weekly-ingestion smoke tests, real Telegram login/logout/revocation, reusable weekly-cover registration, and encrypted off-host backup/restore. See `README.md`, `admin-app/ENROLLMENT.md`, `docs/WEEKLY_INGESTION.md`, and `deploy/README_ZHENYA.md` before changing deployment or auth behavior.
+Production-only gates remain on Linux: `nginx -t`, `systemd-analyze verify`, live public/admin/weekly-ingestion smoke tests, local login/logout/rotation/revocation, reusable weekly-cover registration, and encrypted off-host backup/restore. See `README.md`, `admin-app/ENROLLMENT.md`, `docs/WEEKLY_INGESTION.md`, and `deploy/README_ZHENYA.md` before changing deployment or auth behavior.

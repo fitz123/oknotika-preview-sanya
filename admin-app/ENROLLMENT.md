@@ -1,22 +1,55 @@
-# Первичное подключение редактора
+# Первичное подключение локального редактора
 
-Доверенная identity — только точная пара проверенных OIDC claims `issuer` + `sub`. Username, телефон и display name не используются как идентификатор доступа; декодированный без проверки JWT payload также не даёт доступ.
+Доступ имеет один local identity: точный username и versioned scrypt password
+record. Пароль не хранится в Git, ZIP, Compose environment, argv, shell history,
+logs, SQLite или документации. Редактор по-прежнему управляет только новостями
+и статьями; регистрации, второго пользователя, ролей и reset UI нет.
 
-## Поддерживаемый bootstrap
+## Поддерживаемая настройка Docker production
 
-1. Создать отдельное Telegram Web Login приложение, зарегистрировать exact callback `https://admin.oknotika.ru/auth/callback`, закрепить RS256 и загрузить client ID/secret как systemd encrypted credentials.
-2. Подготовить production environment file и runtime-каталоги. Admin vhost пока не включать, обычный сервис остановить. DNS/TLS callback должны быть готовы; страница callback может вернуть ошибку, потому что URL нужен локальной bootstrap-команде.
-3. Запустить `npm run bootstrap-editor` через transient systemd unit с теми же environment и encrypted credentials, как показано в `deploy/README_ZHENYA.md`. Команда создаёт server-side `state`, `nonce`, browser binding и PKCE S256 verifier, выдаёт одноразовый authorization URL, принимает полный callback URL через интерактивный prompt, обменивает code и проверяет discovery, подпись, `iss`, `aud`, `exp`, `iat`, `nonce`, exact redirect и signing algorithm.
-4. После успешной проверки команда показывает `sub` и SHA-256 fingerprint только в локальном root terminal. Женя сверяет identity с Саней по отдельному согласованному каналу и вводит требуемую строку `ENROLL-<fingerprint>`. Скрипт сам записывает проверенную пару в SQLite; subject не попадает в shell history.
-5. В release evidence сохраняют только timestamp, approvers и fingerprint. Callback URL, authorization code, ID token, client secret и subject не сохраняют и не пересылают.
-6. После включения admin vhost Саня входит в редактор «Новости» и проверяет состояние `Черновик`, preview и ручной publish без публикации тестового материала. В social form должны быть четыре точных non-secret default: Telegram `https://t.me/oknotika`, YouTube `https://youtube.com/@oknotika`, VK `https://vk.ru/oknotika` и отдельный FUTUCHAT `https://t.me/FUTU_CHAT`. Telegram остаётся фиксированным; очищенное optional-поле не должно создавать пустую публичную ссылку.
-7. Женя регистрирует утверждённую reusable weekly cover через root-controlled `npm run register-weekly-cover` из `deploy/README_ZHENYA.md` и передаёт выданный numeric `assetId` только в private configuration Tuesday payload generator.
-8. Только после verified enrollment и cover registration Женя запускает draft-only smoke из `deploy/README_ZHENYA.md`: weekly ingestion требует enabled editor-владельца, но его bearer token не является editor session и не получает upload/list/preview/publish/withdraw/restore/rollback authority.
+1. Подготовить root-controlled runtime directories и weekly token, затем собрать
+   admin image по `deploy/docker/README_ZHENYA.md`. Admin должен быть остановлен.
+2. Из локального root terminal запустить только
+   `deploy/docker/configure-local-credentials.sh`. Helper отдельно спрашивает
+   username и пароль дважды; пароль передаётся Node hasher только через stdin.
+3. Helper требует минимум 14 символов, создаёт стойкий scrypt record, проверяет
+   отсутствие конфликтующей identity, делает SQLite snapshot до миграции,
+   настраивает singleton editor и отзывает sessions при rotation.
+4. Два credential record получают `root:1000 0640` внутри immutable generation;
+   symlink `local-credentials/current` переключается атомарно. В stdout нет
+   username, password или hash — только generation и snapshot names.
+5. Запустить admin, выполнить local login/logout и проверить закрытый список
+   новостей. Неверный username и пароль должны давать одну общую ошибку.
 
-Bootstrap откажется работать, если configured editor уже существует. Обычный `/auth/callback` также не может обойти allowlist: он создаёт сессию только для заранее enrolled пары.
+Точные команды initial setup, rotation, guarded rollback и вывод старого
+Telegram relay/override находятся в `deploy/docker/README_ZHENYA.md`.
 
-## Повторное обслуживание
+## Rotation и rollback
 
-Команда `npm run enroll -- --database /var/lib/oknotika-admin/db/admin.sqlite --issuer https://oauth.telegram.org --subject "$VERIFIED_TELEGRAM_SUBJECT"` разрешена только для повторного включения той же уже проверенной пары в локальном maintenance-сеансе. Она не является способом извлечения или проверки `sub`.
+Rotation разрешена только для того же username. Helper сначала сохраняет
+verified SQLite snapshot, затем меняет credential fingerprint; все действующие
+sessions получают `credential-rotated`. Другой username, Telegram/OIDC identity,
+несовпавшее повторение пароля или неполный generation отклоняются без promotion.
 
-Смена identity намеренно не автоматизирована: сначала остановить admin, сделать verified backup, выполнить `npm run disable-editor -- --database /var/lib/oknotika-admin/db/admin.sqlite`, проверить немедленный отзыв сессий, затем провести отдельное reviewed bootstrap-изменение. До завершения процедуры admin vhost остаётся выключенным; editor CRUD и RBAC отсутствуют намеренно.
+Если live login новым паролем не прошёл, использовать только точный
+`snapshotName`, выданный успешным helper run. Guarded `--rollback` принимает
+snapshot активного generation, проверяет SQLite integrity, возвращает прежнюю
+DB/credential pair и отзывает восстановленные sessions с причиной
+`credential-rollback`. Plaintext при rollback не нужен и не восстанавливается.
+
+До pass не удалять предыдущий generation, SQLite snapshot или автоматически
+созданный `rollback-safety-*` snapshot. Не править credential files, `current`
+или SQLite вручную.
+
+## Проверка редактора
+
+После входа проверить состояния «Черновик», preview и ручной publish без
+публикации тестового материала. В social form должны быть четыре точных
+non-secret default: Telegram `https://t.me/oknotika`, YouTube
+`https://youtube.com/@oknotika`, VK `https://vk.ru/oknotika` и FUTUCHAT
+`https://t.me/FUTU_CHAT`. Telegram destination остаётся фиксированным;
+очищенное optional-поле не должно создавать пустую публичную ссылку.
+
+Weekly ingestion требует enabled singleton editor-владельца, но отдельный
+bearer token не является editor session и не получает upload/list/preview/
+publish/withdraw/restore/rollback authority.

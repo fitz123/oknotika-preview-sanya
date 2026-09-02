@@ -9,7 +9,7 @@ Content-Type: application/json
 ```
 
 The endpoint accepts at most 128 KiB. It can create or revise only the private
-draft associated with one ISO week. The bearer token is not a Telegram editor
+draft associated with one ISO week. The bearer token is not a local editor
 session and is rejected by article listing, preview, upload, publish, withdraw,
 revision restore, social-link configuration, release rollback and
 editor-management paths.
@@ -60,7 +60,7 @@ created or updated; it cannot upload or list assets or other private content.
   The editor's work is never silently replaced.
 
 All accepted machine changes remain drafts. Publication is always a separate
-Telegram-authenticated editor action.
+locally authenticated editor action.
 
 Social destinations are not part of the ingestion payload. Each immutable
 publication snapshots the separately editor-controlled global values:

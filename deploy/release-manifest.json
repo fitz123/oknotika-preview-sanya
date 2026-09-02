@@ -35,7 +35,7 @@
     "weeklySchedule": {
       "draftCreation": "Tuesday 12:00 Europe/Moscow",
       "publicationTarget": "Friday 18:00 Europe/Moscow",
-      "publicationAuthority": "telegram-oidc-editor-only"
+      "publicationAuthority": "singleton-local-password-editor-only"
     },
     "weeklyIngestion": {
       "path": "/api/ingestion/weekly-drafts",
@@ -56,8 +56,8 @@
   "credentials": {
     "provider": "systemd LoadCredentialEncrypted",
     "adminService": [
-      "telegram-oidc-client-id",
-      "telegram-oidc-client-secret",
+      "local-username",
+      "local-password-hash",
       "weekly-ingest-token"
     ],
     "weeklyCaller": [

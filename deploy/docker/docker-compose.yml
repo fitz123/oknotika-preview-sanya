@@ -16,10 +16,8 @@ services:
       NODE_ENV: production
       OKNOTIKA_ADMIN_ORIGIN: https://admin.oknotika.ru
       OKNOTIKA_PUBLIC_ORIGIN: https://oknotika.ru
-      TELEGRAM_OIDC_REDIRECT_URI: https://admin.oknotika.ru/auth/callback
-      TELEGRAM_OIDC_SIGNING_ALG: RS256
-      TELEGRAM_OIDC_CLIENT_ID_FILE: /run/secrets/telegram_oidc_client_id
-      TELEGRAM_OIDC_CLIENT_SECRET_FILE: /run/secrets/telegram_oidc_client_secret
+      OKNOTIKA_LOCAL_USERNAME_FILE: /run/secrets/local_username
+      OKNOTIKA_LOCAL_PASSWORD_HASH_FILE: /run/secrets/local_password_hash
       OKNOTIKA_WEEKLY_INGEST_TOKEN_FILE: /run/secrets/weekly_ingest_token
       OKNOTIKA_DATABASE_PATH: /var/home/oknotika/admin-app/data/db/admin.sqlite
       OKNOTIKA_UPLOADS_ROOT: /var/home/oknotika/admin-app/data/uploads
@@ -29,8 +27,8 @@ services:
       OKNOTIKA_LISTEN_HOST: 0.0.0.0
       OKNOTIKA_LISTEN_PORT: "8000"
     secrets:
-      - telegram_oidc_client_id
-      - telegram_oidc_client_secret
+      - local_username
+      - local_password_hash
       - weekly_ingest_token
     ports:
       - "127.0.0.1:${OKNOTIKA_ADMIN_PORT:-8000}:8000"
@@ -129,9 +127,9 @@ services:
         max-file: "3"
 
 secrets:
-  telegram_oidc_client_id:
-    file: ${OKNOTIKA_HOST_ROOT:-/var/home/oknotika}/admin-app/data/secrets/telegram-oidc-client-id
-  telegram_oidc_client_secret:
-    file: ${OKNOTIKA_HOST_ROOT:-/var/home/oknotika}/admin-app/data/secrets/telegram-oidc-client-secret
+  local_username:
+    file: ${OKNOTIKA_HOST_ROOT:-/var/home/oknotika}/admin-app/data/secrets/local-credentials/current/username
+  local_password_hash:
+    file: ${OKNOTIKA_HOST_ROOT:-/var/home/oknotika}/admin-app/data/secrets/local-credentials/current/password-hash
   weekly_ingest_token:
     file: ${OKNOTIKA_HOST_ROOT:-/var/home/oknotika}/admin-app/data/secrets/weekly-ingest-token

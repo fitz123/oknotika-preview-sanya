@@ -64,6 +64,9 @@ def main() -> None:
     credentials = manifest.get("credentials", {})
     if credentials.get("provider") != "systemd LoadCredentialEncrypted" \
             or credentials.get("environmentValuesForbidden") is not True \
+            or credentials.get("adminService") != [
+                "local-username", "local-password-hash", "weekly-ingest-token"
+            ] \
             or "weekly-ingest-token" not in credentials.get("weeklyCaller", []):
         fail("encrypted weekly caller credential contract is missing")
     if manifest.get("packageBoundaries", {}).get("marketing") \
@@ -96,7 +99,10 @@ def main() -> None:
         "OKNOTIKA_PUBLIC_ROOT=/srv/oknotika/current",
         "OKNOTIKA_LISTEN_SOCKET=/run/oknotika-admin/app.sock",
     )
-    if re.search(r"(?:TELEGRAM_OIDC_CLIENT_(?:ID|SECRET)|OKNOTIKA_WEEKLY_INGEST_TOKEN)=", config):
+    if re.search(
+        r"(?:TELEGRAM_OIDC_CLIENT_(?:ID|SECRET)|OKNOTIKA_LOCAL_(?:USERNAME|PASSWORD(?:_HASH)?)|OKNOTIKA_WEEKLY_INGEST_TOKEN)=",
+        config,
+    ):
         fail("sample environment must not contain direct credential values")
 
     require_text(
@@ -135,7 +141,8 @@ def main() -> None:
         "User=oknotika-admin",
         "Group=www-data",
         "UMask=0027",
-        "LoadCredentialEncrypted=telegram-oidc-client-secret",
+        "LoadCredentialEncrypted=local-username",
+        "LoadCredentialEncrypted=local-password-hash",
         "LoadCredentialEncrypted=weekly-ingest-token",
         "NoNewPrivileges=yes",
         "ProtectSystem=strict",
@@ -325,7 +332,7 @@ def main() -> None:
         "Application rollback",
         "nginx -t",
         "systemd-analyze verify",
-        "npm run bootstrap-editor",
+        "local-password-hash",
         "--unit=oknotika-bootstrap-content",
         "--property=User=oknotika-admin --property=Group=www-data --property=UMask=0027",
         "run bootstrap-content",

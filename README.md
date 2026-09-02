@@ -1,16 +1,16 @@
 # ОКНОТИКА — production-candidate handoff сайта
 
-Версия `v2.29.0-rc.1` включает актуальный многостраничный публичный сайт, финальную команду из девяти человек с шестью подтверждёнными августовскими портретами, продуктовые страницы, сравнение версий АР, раздел «Новости» и закрытый Telegram OIDC-редактор еженедельного «Дайджеста недели».
+Версия включает актуальный многостраничный публичный сайт, финальную команду из девяти человек с шестью подтверждёнными августовскими портретами, продуктовые страницы, сравнение версий АР, раздел «Новости» и закрытый редактор еженедельного «Дайджеста недели» с одним локальным аккаунтом.
 
 Публичный сайт остаётся статическим. Node.js-сервис нужен только авторизованному редактору: он хранит черновики в SQLite, генерирует immutable article release и атомарно переключает symlink. Остановка админки не останавливает сайт и не скрывает уже опубликованные статьи.
 
-RC-пакет передаётся Жене для развёртывания, но сам production не активирует. Реальный Telegram login, Tuesday ingestion smoke, Linux-проверки nginx/systemd, DNS/TLS и encrypted off-host backup остаются обязательными gates из `deploy/README_ZHENYA.md`.
+RC-пакет передаётся Жене для развёртывания, но сам production не активирует. Реальный local login/rotation, Tuesday ingestion smoke, Linux-проверки nginx/systemd, DNS/TLS и encrypted off-host backup остаются обязательными gates из `deploy/README_ZHENYA.md`.
 
 ## Состав проекта
 
 - `index.html` и продуктовые каталоги — статический публичный сайт;
 - `articles/` — статический fallback рубрики, detail-страница Al Bahr и `latest.json` для главной;
-- `admin-app/` — Node.js 24 / SQLite редактор, Telegram OIDC, preview и publisher;
+- `admin-app/` — Node.js 24 / SQLite редактор, local password auth, preview и publisher;
 - `deploy/` — nginx, hardened systemd units, backup/restore scripts и runbook для Жени;
 - `release-evidence/` — baseline, approval sheets и результаты beta-rehearsal;
 - `release/` — versioned secret-free ZIP, checksums, manifest, release notes и inventory изменений;
@@ -33,7 +33,7 @@ python3 -m http.server 8080
 
 Раздел фиксирован как «Новости», а weekly material помечается «Дайджест недели». У статьи обязательны title, publication date, lead, ограниченный Markdown body из 3–5 редакционных пунктов, cover и alt; список из 1–20 уникальных источников допускает только точные `https:` URL и никогда не загружается сервером. Время хранится в UTC и показывается в `Europe/Moscow`.
 
-Tuesday research run в 12:00 MSK создаёт или обновляет один private draft через отдельный draft-only bearer credential. `issueId` и монотонный `contentVersion` делают retry идемпотентным; ручная правка, публикация или withdrawal блокирует машинную перезапись конфликтом. В пятницу к 18:00 MSK Саня проверяет draft и публикует его только явным Telegram-authenticated действием. Точный contract и encrypted caller path описаны в `docs/WEEKLY_INGESTION.md`.
+Tuesday research run в 12:00 MSK создаёт или обновляет один private draft через отдельный draft-only bearer credential. `issueId` и монотонный `contentVersion` делают retry идемпотентным; ручная правка, публикация или withdrawal блокирует машинную перезапись конфликтом. В пятницу к 18:00 MSK Саня проверяет draft и публикует его только явным действием из локально аутентифицированной editor session. Точный contract и encrypted caller path описаны в `docs/WEEKLY_INGESTION.md`.
 
 Финальный CTA использует четыре глобальных validated destinations с точными non-secret defaults: Telegram `https://t.me/oknotika`, YouTube `https://youtube.com/@oknotika`, VK `https://vk.ru/oknotika` и отдельный FUTUCHAT `https://t.me/FUTU_CHAT`. Telegram зафиксирован; остальные три поля можно независимо изменить или очистить в редакторе без code edit. Явно подтверждённое сохранение строит и атомарно активирует новый immutable article release, поэтому уже опубликованные дайджесты обновляются сразу; очищенная optional-площадка публично не рендерится.
 
@@ -45,18 +45,18 @@ Cover принимается только как фактический JPEG, PN
 
 SQLite schema находится в `admin-app/migrations/`; renderer и publisher — в `admin-app/src/render/`. На чистом production старый Al Bahr идемпотентно импортируется командой `npm run bootstrap-content` как первая опубликованная revision и active release; exact procedure находится в deploy runbook. Golden-render test защищает прежний URL и видимый контент.
 
-## Telegram enrollment и доступ
+## Локальный аккаунт и доступ
 
-В MVP настроен один editor без CRUD/RBAC. Доступ определяется только точной allowlist-парой проверенных OIDC `issuer` + `sub`; username, телефон и display name не дают права входа.
+В MVP настроен один editor без CRUD/RBAC. Доступ определяется точным локальным username и стойким versioned scrypt password record из root-controlled файлов.
 
-Перед включением admin vhost Женя создаёт отдельное corporate Telegram Web Login приложение и запускает интерактивный `npm run bootstrap-editor` через transient systemd unit с production credentials. Команда сама выполняет Authorization Code + PKCE, exact callback и полную ID-token verification до показа локального `sub`/fingerprint; обычный callback не может bootstrap-ить не-enrolled identity. Credentials и subject не записываются в Git, ZIP, Telegram, shell history или открытые evidence. Пошаговая процедура: `admin-app/ENROLLMENT.md`; production-порядок, rotation и removal: `deploy/README_ZHENYA.md`.
+Перед включением admin vhost Женя запускает root-only `deploy/docker/configure-local-credentials.sh`. Helper скрыто спрашивает пароль дважды, передаёт его hasher только через stdin, делает SQLite snapshot, атомарно переключает username/hash generation и отзывает sessions при rotation. Пароль и hash не записываются в Git, ZIP, Compose environment, shell history, SQLite, logs или открытые evidence. Пошаговая процедура: `admin-app/ENROLLMENT.md`; production-порядок, rotation, rollback и вывод старого relay: `deploy/docker/README_ZHENYA.md`.
 
 Авторизация использует Authorization Code Flow, PKCE S256, одноразовые server-side `state`, `nonce` и verifier, pinned signing algorithm и bounded JWKS refresh. Сессия opaque и server-side; cookie — `__Host-`, Secure, HttpOnly, SameSite=Lax. Изменяющие запросы требуют CSRF, exact Origin и Fetch Metadata checks.
 
 ## Editor flow
 
 1. Tuesday ingestion автоматически создаёт private draft weekly issue; его credential не может читать private listing, preview, publish, withdraw, restore или rollback.
-2. Редактор входит через Telegram, проверяет «Дайджест недели» и при необходимости создаёт или редактирует материал с обязательными полями, cover, источниками и social destinations.
+2. Редактор входит локальным логином/паролем, проверяет «Дайджест недели» и при необходимости создаёт или редактирует материал с обязательными полями, cover, источниками и social destinations.
 3. Сохранение создаёт новый draft/revision; optimistic revision check не даёт затереть параллельную или машинную правку.
 4. Preview открывается только в текущей authenticated session по unguessable URL, с `no-store` и `noindex`.
 5. Publish требует явного подтверждения. Publisher сначала получает crash-recoverable single lock, строит один immutable prospective snapshot, рендерит и валидирует staging release, затем атомарно переключает `article-releases/active` и только после switch синхронизирует public state/audit в DB. Ошибка до switch не меняет editorial/public state; startup reconciliation завершает post-switch crash.
@@ -79,7 +79,7 @@ npm run build
 npm run render:fixture
 ```
 
-Production-конфигурация обязательна и fail-closed. `admin-app/.env.example` содержит только non-secret paths/origins; OIDC, weekly-ingestion и backup secrets передаются через encrypted systemd credentials. Runtime DB, uploads, previews, sessions, Tuesday payloads и generated releases не должны находиться в Git или публичном document root.
+Production-конфигурация обязательна и fail-closed. `admin-app/.env.example` содержит только non-secret paths/origins; local username/password hash, weekly-ingestion и backup secrets передаются только через защищённые credential files. Runtime DB, uploads, previews, sessions, Tuesday payloads и generated releases не должны находиться в Git или публичном document root.
 
 ## Полная локальная валидация
 
@@ -129,6 +129,6 @@ cd release
 sha256sum -c SHA256SUMS
 ```
 
-Установка, activation будущего protected `main` и GitHub Environment `production`, exact deploy secret names, runtime layout, routine deploy/evidence, secrets rotation, миграции, backup/restore, first manual bootstrap, emergency rollback и отдельные content/marketing/application rollback описаны в `deploy/README_ZHENYA.md`. Реальный OIDC rehearsal — в `release-evidence/qa/PRODUCTION_OIDC_REHEARSAL.md`; результаты локальной проверки — в остальных файлах `release-evidence/qa/`.
+Установка, activation будущего protected `main` и GitHub Environment `production`, exact deploy secret names, runtime layout, routine deploy/evidence, password rotation, миграции, backup/restore, first local setup, emergency rollback и отдельные content/marketing/application rollback описаны в `deploy/README_ZHENYA.md`. Результаты локальной проверки находятся в `release-evidence/qa/`; live local-login gate выполняется на VPS по Docker runbook.
 
 Архитектурный ADR намеренно не создан: план требует отдельного подтверждения пользователя до фиксации решения в `docs/adr/`.
