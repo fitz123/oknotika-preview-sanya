@@ -112,6 +112,43 @@ test('Node adapter authenticates before buffering and applies route-specific bod
   assert.deepEqual(Buffer.from(await acceptedLogin.arrayBuffer()), loginBody);
   assert.equal(login.iterated, true);
 
+  const originNullLogin = fakeIncoming({
+    url: '/login',
+    body: loginBody,
+    headers: loginHeaders(loginBody.length, {
+      origin: 'null',
+      cookie: `${LOGIN_CSRF_COOKIE}=browser-binding-for-test`,
+    }),
+  });
+  const acceptedOriginNullLogin = await createProxiedRequest(originNullLogin, {
+    adminOrigin: ADMIN_ORIGIN,
+    sessionService: { authenticate: () => null },
+  });
+  assert.deepEqual(Buffer.from(await acceptedOriginNullLogin.arrayBuffer()), loginBody);
+  assert.equal(originNullLogin.iterated, true);
+
+  for (const [label, overrides] of [
+    ['cross-site Origin null login', { origin: 'null', 'sec-fetch-site': 'cross-site' }],
+    ['none-site Origin null login', { origin: 'null', 'sec-fetch-site': 'none' }],
+    ['missing-site Origin null login', { origin: 'null', 'sec-fetch-site': null }],
+    ['wrong-mode Origin null login', { origin: 'null', 'sec-fetch-mode': 'cors' }],
+    ['missing-mode Origin null login', { origin: 'null', 'sec-fetch-mode': null }],
+    ['arbitrary-origin login', { origin: 'https://evil.example' }],
+  ]) {
+    const blockedLogin = fakeIncoming({
+      url: '/login',
+      body: loginBody,
+      headers: loginHeaders(loginBody.length, overrides),
+    });
+    const discardedOriginNullLogin = await createProxiedRequest(blockedLogin, {
+      adminOrigin: ADMIN_ORIGIN,
+      sessionService: { authenticate: () => null },
+    });
+    assert.equal(discardedOriginNullLogin.body, null, label);
+    assert.equal(blockedLogin.iterated, false, label);
+    assert.equal(blockedLogin.resumed, true, label);
+  }
+
   const crossSiteLogin = fakeIncoming({
     url: '/login',
     body: loginBody,
@@ -248,6 +285,48 @@ test('local login form creates an authenticated session that can use the API and
   assert.equal((await fixture.handler(new Request(`${ADMIN_ORIGIN}/api/articles`, {
     headers: { cookie: secondCookie },
   }))).status, 401);
+});
+
+test('local login accepts Origin null only for same-origin navigate and still consumes CSRF', async (t) => {
+  const fixture = await createLocalLoginFixture(t);
+  const challenge = await requestLoginChallenge(fixture.handler);
+  const loggedIn = await submitLogin(fixture.handler, challenge, {
+    username: fixture.username,
+    password: fixture.password,
+  }, { origin: 'null' });
+  assert.equal(loggedIn.status, 303);
+  assert.equal(loggedIn.headers.get('location'), '/');
+  assert.ok(loggedIn.headers.getSetCookie().some(value => value.startsWith('__Host-oknotika_session=')));
+
+  const replay = await submitLogin(fixture.handler, challenge, {
+    username: fixture.username,
+    password: fixture.password,
+  }, { origin: 'null' });
+  assert.equal(replay.status, 403);
+
+  const missingCookie = await requestLoginChallenge(fixture.handler);
+  const missingCookieResponse = await submitLogin(fixture.handler, {
+    ...missingCookie,
+    cookie: '',
+  }, { username: fixture.username, password: fixture.password }, { origin: 'null' });
+  assert.equal(missingCookieResponse.status, 403);
+
+  for (const [label, metadata] of [
+    ['cross-site Origin null login', { origin: 'null', site: 'cross-site' }],
+    ['none-site Origin null login', { origin: 'null', site: 'none' }],
+    ['missing-site Origin null login', { origin: 'null', site: null }],
+    ['wrong-mode Origin null login', { origin: 'null', mode: 'cors' }],
+    ['missing-mode Origin null login', { origin: 'null', mode: null }],
+    ['arbitrary-origin login', { origin: 'https://evil.example' }],
+  ]) {
+    const blockedChallenge = await requestLoginChallenge(fixture.handler);
+    const response = await submitLogin(fixture.handler, blockedChallenge, {
+      username: fixture.username,
+      password: fixture.password,
+    }, metadata);
+    assert.equal(response.status, 403, label);
+    assert.match(await response.text(), /Запрос на вход недействителен/, label);
+  }
 });
 
 test('local login returns generic credential errors and rejects CSRF replay or cookie failures', async (t) => {
@@ -803,14 +882,13 @@ function submitLogin(handler, challenge, { username, password }, {
   site = 'same-origin',
   mode = 'navigate',
 } = {}) {
+  const headers = { cookie: challenge.cookie };
+  if (origin !== null) headers.origin = origin;
+  if (site !== null) headers['sec-fetch-site'] = site;
+  if (mode !== null) headers['sec-fetch-mode'] = mode;
   return handler(new Request(`${ADMIN_ORIGIN}/login`, {
     method: 'POST',
-    headers: {
-      cookie: challenge.cookie,
-      origin,
-      'sec-fetch-site': site,
-      'sec-fetch-mode': mode,
-    },
+    headers,
     body: new URLSearchParams({ csrf: challenge.csrfToken, username, password }),
   }));
 }
@@ -843,7 +921,7 @@ function mutationHeaders({ contentType, contentLength }) {
 }
 
 function loginHeaders(contentLength, overrides = {}) {
-  return {
+  const headers = {
     origin: ADMIN_ORIGIN,
     'sec-fetch-site': 'same-origin',
     'sec-fetch-mode': 'navigate',
@@ -851,6 +929,10 @@ function loginHeaders(contentLength, overrides = {}) {
     'content-length': String(contentLength),
     ...overrides,
   };
+  for (const [name, value] of Object.entries(headers)) {
+    if (value === null || value === undefined) delete headers[name];
+  }
+  return headers;
 }
 
 function fakeIncoming({ url, headers, body }) {

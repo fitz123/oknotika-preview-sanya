@@ -16,13 +16,14 @@ export function assertMutationRequest(request, {
 
 export function assertLoginRequest(request, adminOrigin) {
   if (request.method.toUpperCase() !== 'POST') throw httpError(405, 'Method is not allowed');
-  if (request.headers.get('origin') !== adminOrigin) throw httpError(403, 'Origin check failed');
   if (request.headers.get('sec-fetch-site') !== 'same-origin') {
     throw httpError(403, 'Fetch Metadata check failed');
   }
   if (request.headers.get('sec-fetch-mode') !== 'navigate') {
     throw httpError(403, 'Fetch mode is not allowed');
   }
+  const origin = request.headers.get('origin');
+  if (origin !== adminOrigin && origin !== 'null') throw httpError(403, 'Origin check failed');
 }
 
 export function assertTrustedProxyHeaders(headers, adminOrigin) {
