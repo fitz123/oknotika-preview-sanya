@@ -208,7 +208,6 @@ test('admin handler keeps XSS escaped and rejects raw HTML through authenticated
   });
   const handler = createAdminHandler({
     adminOrigin: ADMIN_ORIGIN,
-    oidcService: {},
     sessionService: sessions,
     actions,
     previewsRoot: `${harness.root}/previews`,
@@ -258,7 +257,6 @@ test('weekly draft can be edited after Tuesday ingestion and manually published 
   });
   const handler = createAdminHandler({
     adminOrigin: ADMIN_ORIGIN,
-    oidcService: {},
     sessionService: sessions,
     actions,
     previewsRoot: `${harness.root}/friday-previews`,
@@ -422,7 +420,7 @@ test('weekly draft can be edited after Tuesday ingestion and manually published 
   assert.doesNotMatch(publicHtml, /https:\/\/vk\.(?:com|ru)\/oknotika|https:\/\/t\.me\/FUTU_CHAT/);
 });
 
-test('admin handler wires login, editor lifecycle, preview assets, upload and logout routes', async (t) => {
+test('admin handler removes OIDC routes and preserves editor lifecycle, preview, upload and logout', async (t) => {
   let tick = 0;
   const harness = createHarness(t, {
     clock: () => new Date(Date.parse('2026-07-14T00:00:00.000Z') + tick++ * 1000),
@@ -446,19 +444,8 @@ test('admin handler wires login, editor lifecycle, preview assets, upload and lo
     previewsRoot,
     publicOrigin: 'https://oknotika.ru',
   });
-  let callbackSeen = false;
   const handler = createAdminHandler({
     adminOrigin: ADMIN_ORIGIN,
-    oidcService: {
-      beginAuthorization: () => ({
-        authorizationUrl: 'https://oauth.telegram.org/auth?state=test',
-        browserBinding: 'b'.repeat(43),
-      }),
-      finishAuthorization: async () => {
-        callbackSeen = true;
-        return { editorId: harness.editorId };
-      },
-    },
     sessionService: sessions,
     actions,
     previewsRoot,
@@ -468,14 +455,14 @@ test('admin handler wires login, editor lifecycle, preview assets, upload and lo
     headers: { 'sec-fetch-site': 'same-origin' },
   }));
   assert.equal(start.status, 303);
-  assert.equal(start.headers.get('location'), 'https://oauth.telegram.org/auth?state=test');
-  assert.match(start.headers.get('set-cookie'), /__Host-oknotika_oidc=/);
+  assert.equal(start.headers.get('location'), '/login');
+  assert.equal(start.headers.get('set-cookie'), null);
   const callback = await handler(new Request(`${ADMIN_ORIGIN}/auth/callback?code=one&state=test`, {
     headers: { cookie: `__Host-oknotika_oidc=${'b'.repeat(43)}` },
   }));
   assert.equal(callback.status, 303);
-  assert.equal(callbackSeen, true);
-  assert.match(callback.headers.get('set-cookie'), /__Host-oknotika_session=/);
+  assert.equal(callback.headers.get('location'), '/login');
+  assert.equal(callback.headers.get('set-cookie'), null);
 
   const createdSession = sessions.create(harness.editorId);
   const cookie = sessionCookie(createdSession.token);

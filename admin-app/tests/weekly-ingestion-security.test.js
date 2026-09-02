@@ -223,7 +223,6 @@ function weeklyHandler(harness) {
   const ingestionAuthenticator = createIngestionAuthenticator(INGESTION_TOKEN);
   return createAdminHandler({
     adminOrigin: ADMIN_ORIGIN,
-    oidcService: {},
     sessionService: { authenticate: () => null },
     actions: {},
     weeklyIngestion: createWeeklyIngestion({

@@ -10,11 +10,7 @@ import { startListener, stopListener } from '../src/http/listener.js';
 const BASE_ENV = Object.freeze({
   OKNOTIKA_ADMIN_ORIGIN: 'https://admin.oknotika.ru',
   OKNOTIKA_PUBLIC_ORIGIN: 'https://oknotika.ru',
-  TELEGRAM_OIDC_CLIENT_ID: '123456789',
-  TELEGRAM_OIDC_CLIENT_SECRET: 'secret',
   OKNOTIKA_WEEKLY_INGEST_TOKEN: 'weekly-ingestion-token-for-tests-1234567890',
-  TELEGRAM_OIDC_REDIRECT_URI: 'https://admin.oknotika.ru/auth/callback',
-  TELEGRAM_OIDC_SIGNING_ALG: 'RS256',
   OKNOTIKA_DATABASE_PATH: '/var/lib/oknotika-admin/db/admin.sqlite',
   OKNOTIKA_UPLOADS_ROOT: '/var/lib/oknotika-admin/uploads',
   OKNOTIKA_PREVIEWS_ROOT: '/var/lib/oknotika-admin/previews',
@@ -23,18 +19,18 @@ const BASE_ENV = Object.freeze({
 });
 
 test('listener configuration keeps Unix sockets as the default and accepts explicit TCP mode', () => {
-  assert.deepEqual(loadConfiguration(BASE_ENV).listener, {
+  assert.deepEqual(loadListenerTestConfiguration(BASE_ENV).listener, {
     mode: 'unix',
     path: '/run/oknotika-admin/app.sock',
   });
-  assert.deepEqual(loadConfiguration({
+  assert.deepEqual(loadListenerTestConfiguration({
     ...BASE_ENV,
     OKNOTIKA_LISTEN_SOCKET: './var/admin.sock',
   }).listener, {
     mode: 'unix',
     path: resolve('./var/admin.sock'),
   });
-  assert.deepEqual(loadConfiguration({
+  assert.deepEqual(loadListenerTestConfiguration({
     ...BASE_ENV,
     OKNOTIKA_LISTEN_HOST: '0.0.0.0',
     OKNOTIKA_LISTEN_PORT: '8000',
@@ -51,27 +47,31 @@ test('listener configuration rejects mixed, partial and invalid TCP settings', (
     { OKNOTIKA_LISTEN_HOST: '0.0.0.0' },
     { OKNOTIKA_LISTEN_PORT: '8000' },
   ]) {
-    assert.throws(() => loadConfiguration({ ...BASE_ENV, ...overrides }), /mutually exclusive|set together/);
+    assert.throws(() => loadListenerTestConfiguration({ ...BASE_ENV, ...overrides }), /mutually exclusive|set together/);
   }
   for (const host of ['', 'localhost', 'http://127.0.0.1', '999.0.0.1']) {
-    assert.throws(() => loadConfiguration({
+    assert.throws(() => loadListenerTestConfiguration({
       ...BASE_ENV,
       OKNOTIKA_LISTEN_HOST: host,
       OKNOTIKA_LISTEN_PORT: '8000',
     }), /LISTEN_HOST/);
   }
   for (const port of ['', '0', '-1', '8000.5', 'eight-thousand', '65536']) {
-    assert.throws(() => loadConfiguration({
+    assert.throws(() => loadListenerTestConfiguration({
       ...BASE_ENV,
       OKNOTIKA_LISTEN_HOST: '0.0.0.0',
       OKNOTIKA_LISTEN_PORT: port,
     }), /LISTEN_PORT/);
   }
-  assert.throws(() => loadConfiguration({
+  assert.throws(() => loadListenerTestConfiguration({
     ...BASE_ENV,
     OKNOTIKA_LISTEN_SOCKET: '',
   }), /LISTEN_SOCKET/);
 });
+
+function loadListenerTestConfiguration(env) {
+  return loadConfiguration(env, { requireLocalCredential: false });
+}
 
 test('Unix listener replaces a stale socket target, applies permissions and cleans up on close', async (t) => {
   const root = mkdtempSync(resolve(tmpdir(), 'oknotika-listener-'));

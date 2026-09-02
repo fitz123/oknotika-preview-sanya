@@ -1,18 +1,28 @@
-import { readFileSync, realpathSync } from 'node:fs';
+import { lstatSync, readFileSync, realpathSync } from 'node:fs';
 import { isIP } from 'node:net';
-import { dirname, relative, resolve } from 'node:path';
+import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import { assertWeeklyIngestionToken } from '../http/ingestion-auth.js';
+import { createLocalCredential } from './local.js';
 
-export function loadConfiguration(env = process.env, { requireWeeklyIngestionToken = true } = {}) {
+export function loadConfiguration(env = process.env, {
+  requireLocalCredential = true,
+  requireWeeklyIngestionToken = true,
+} = {}) {
   const adminOrigin = exactHttpsOrigin(requireValue(env, 'OKNOTIKA_ADMIN_ORIGIN'), 'OKNOTIKA_ADMIN_ORIGIN');
   const publicOrigin = exactHttpsOrigin(requireValue(env, 'OKNOTIKA_PUBLIC_ORIGIN'), 'OKNOTIKA_PUBLIC_ORIGIN');
-  const redirectUri = requireValue(env, 'TELEGRAM_OIDC_REDIRECT_URI');
-  const expectedRedirect = `${adminOrigin}/auth/callback`;
-  if (redirectUri !== expectedRedirect) {
-    throw new Error(`TELEGRAM_OIDC_REDIRECT_URI must exactly equal ${expectedRedirect}`);
-  }
-  const signingAlgorithm = env.TELEGRAM_OIDC_SIGNING_ALG ?? 'RS256';
-  if (signingAlgorithm !== 'RS256') throw new Error('TELEGRAM_OIDC_SIGNING_ALG must be pinned to RS256');
+  rejectPlaintextPasswordConfiguration(env);
+  const usernameFile = requireLocalCredential
+    ? requireCredentialFilename(env, 'OKNOTIKA_LOCAL_USERNAME')
+    : null;
+  const passwordHashFile = requireLocalCredential
+    ? requireCredentialFilename(env, 'OKNOTIKA_LOCAL_PASSWORD_HASH')
+    : null;
+  const localCredential = requireLocalCredential
+    ? createLocalCredential({
+      username: readCredentialFile(usernameFile, 'OKNOTIKA_LOCAL_USERNAME_FILE'),
+      passwordHash: readCredentialFile(passwordHashFile, 'OKNOTIKA_LOCAL_PASSWORD_HASH_FILE'),
+    })
+    : null;
   const weeklyIngestionToken = requireWeeklyIngestionToken
     ? requireSecret(env, 'OKNOTIKA_WEEKLY_INGEST_TOKEN')
     : null;
@@ -28,20 +38,45 @@ export function loadConfiguration(env = process.env, { requireWeeklyIngestionTok
     ['OKNOTIKA_PREVIEWS_ROOT', previewsRoot],
     ['OKNOTIKA_ARTICLE_RELEASES_ROOT', releasesRoot],
   ]) assertOutside(path, publicRoot, name);
+  if (requireLocalCredential) {
+    assertOutside(usernameFile, publicRoot, 'OKNOTIKA_LOCAL_USERNAME_FILE');
+    assertOutside(passwordHashFile, publicRoot, 'OKNOTIKA_LOCAL_PASSWORD_HASH_FILE');
+  }
   return Object.freeze({
     adminOrigin,
     publicOrigin,
-    redirectUri,
-    clientId: requireSecret(env, 'TELEGRAM_OIDC_CLIENT_ID'),
-    clientSecret: requireSecret(env, 'TELEGRAM_OIDC_CLIENT_SECRET'),
+    localCredential,
+    localCredentialFiles: requireLocalCredential
+      ? Object.freeze({ username: usernameFile, passwordHash: passwordHashFile })
+      : null,
     weeklyIngestionToken,
-    signingAlgorithm,
     databasePath,
     uploadsRoot,
     previewsRoot,
     releasesRoot,
     publicRoot,
     listener: loadListenerConfiguration(env),
+  });
+}
+
+export function loadLegacyOidcBootstrapConfiguration(env = process.env) {
+  const config = loadConfiguration(env, {
+    requireLocalCredential: false,
+    requireWeeklyIngestionToken: false,
+  });
+  const redirectUri = requireValue(env, 'TELEGRAM_OIDC_REDIRECT_URI');
+  const expectedRedirect = `${config.adminOrigin}/auth/callback`;
+  if (redirectUri !== expectedRedirect) {
+    throw new Error(`TELEGRAM_OIDC_REDIRECT_URI must exactly equal ${expectedRedirect}`);
+  }
+  const signingAlgorithm = env.TELEGRAM_OIDC_SIGNING_ALG ?? 'RS256';
+  if (signingAlgorithm !== 'RS256') throw new Error('TELEGRAM_OIDC_SIGNING_ALG must be pinned to RS256');
+  return Object.freeze({
+    ...config,
+    redirectUri,
+    clientId: requireSecret(env, 'TELEGRAM_OIDC_CLIENT_ID'),
+    clientSecret: requireSecret(env, 'TELEGRAM_OIDC_CLIENT_SECRET'),
+    signingAlgorithm,
   });
 }
 
@@ -80,6 +115,10 @@ export function assertRuntimeSeparation(config) {
     ['OKNOTIKA_PREVIEWS_ROOT', config.previewsRoot],
     ['OKNOTIKA_ARTICLE_RELEASES_ROOT', config.releasesRoot],
   ]) assertOutside(realpathSync(path), publicRoot, name);
+  if (config.localCredentialFiles) {
+    assertOutside(realpathSync(config.localCredentialFiles.username), publicRoot, 'OKNOTIKA_LOCAL_USERNAME_FILE');
+    assertOutside(realpathSync(config.localCredentialFiles.passwordHash), publicRoot, 'OKNOTIKA_LOCAL_PASSWORD_HASH_FILE');
+  }
 }
 
 function assertOutside(path, publicRoot, name) {
@@ -108,6 +147,40 @@ function requireValue(env, name) {
   const value = env[name];
   if (typeof value !== 'string' || value.trim() === '') throw new Error(`${name} is required`);
   return value.trim();
+}
+
+function rejectPlaintextPasswordConfiguration(env) {
+  for (const name of [
+    'OKNOTIKA_LOCAL_PASSWORD',
+    'OKNOTIKA_LOCAL_PASSWORD_FILE',
+  ]) {
+    if (env[name] !== undefined) throw new Error(`${name} plaintext password configuration is prohibited`);
+  }
+}
+
+function requireCredentialFilename(env, name) {
+  if (env[name] !== undefined) throw new Error(`${name} direct credential configuration is prohibited; use ${name}_FILE`);
+  const filename = requireValue(env, `${name}_FILE`);
+  if (!isAbsolute(filename)) throw new Error(`${name}_FILE must be an absolute path to a protected credential file`);
+  return filename;
+}
+
+function readCredentialFile(filename, name) {
+  let metadata;
+  let value;
+  try {
+    metadata = lstatSync(filename);
+    if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size < 1 || metadata.size > 4096) throw new Error();
+    if ((metadata.mode & 0o022) !== 0) throw new Error();
+    value = readFileSync(filename, 'utf8');
+  } catch {
+    throw new Error(`${name} must point to a protected, readable regular file`);
+  }
+  if (value.endsWith('\n')) value = value.slice(0, -1);
+  if (value === '' || value.includes('\n') || value.includes('\r') || value.includes('\0')) {
+    throw new Error(`${name} must contain exactly one credential record`);
+  }
+  return value;
 }
 
 function requireSecret(env, name) {

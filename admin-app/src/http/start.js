@@ -2,9 +2,8 @@ import { mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname } from 'node:path';
 import { setImmediate } from 'node:timers';
-import { fetchTelegramDiscovery } from '../auth/conformance.js';
 import { assertRuntimeSeparation, loadConfiguration } from '../auth/config.js';
-import { createOidcService } from '../auth/oidc.js';
+import { createLocalAuthenticator } from '../auth/local.js';
 import { createSessionService } from '../auth/sessions.js';
 import { openDatabase } from '../content/database.js';
 import { createContentService } from '../content/service.js';
@@ -27,8 +26,8 @@ for (const directory of [
 ]) mkdirSync(directory, { recursive: true, mode: 0o700 });
 assertRuntimeSeparation(config);
 
-const discovery = await fetchTelegramDiscovery({ signingAlgorithm: config.signingAlgorithm });
 const db = openDatabase(config.databasePath);
+const localAuthenticator = createLocalAuthenticator(db, config.localCredential);
 const contentService = createContentService(db);
 const publisher = createPublisher(db, {
   releasesRoot: config.releasesRoot,
@@ -57,16 +56,9 @@ const weeklyIngestion = createWeeklyIngestion({
 });
 const ingestionAuthenticator = createIngestionAuthenticator(config.weeklyIngestionToken);
 const sessionService = createSessionService(db);
-const oidcService = createOidcService(db, {
-  clientId: config.clientId,
-  clientSecret: config.clientSecret,
-  redirectUri: config.redirectUri,
-  discovery,
-  allowedAlgorithm: config.signingAlgorithm,
-});
 const handler = createAdminHandler({
   adminOrigin: config.adminOrigin,
-  oidcService,
+  localAuthenticator,
   sessionService,
   actions,
   weeklyIngestion,

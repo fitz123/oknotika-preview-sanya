@@ -1,16 +1,28 @@
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
 import test from 'node:test';
 import { assertTelegramConformance } from '../src/auth/conformance.js';
 import { loadConfiguration } from '../src/auth/config.js';
 import { createJwksVerifier } from '../src/auth/jwt.js';
+import {
+  createLocalAuthenticator,
+  createLocalCredential,
+  hashLocalPassword,
+  LOCAL_AUTH_FAILURE,
+  LOCAL_AUTH_ISSUER,
+  parseScryptPasswordRecord,
+} from '../src/auth/local.js';
 import { createOidcService } from '../src/auth/oidc.js';
 import { createSessionService, sessionCookie } from '../src/auth/sessions.js';
+import { openDatabase } from '../src/content/database.js';
 import { createHarness } from './helpers.js';
 
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/telegram-oidc-conformance.json', import.meta.url)));
 const NOW = new Date('2026-07-14T12:00:00.000Z');
+const TEST_SALT = Buffer.alloc(16, 1);
+const TEST_DIGEST = Buffer.alloc(32, 2);
+const VALID_PASSWORD_HASH = passwordRecord({ salt: TEST_SALT, digest: TEST_DIGEST });
 
 test('official Telegram discovery fixture conforms to the pinned code/S256/basic/RS256 profile', () => {
   const metadata = assertTelegramConformance(fixture.metadata);
@@ -33,33 +45,20 @@ test('official Telegram discovery fixture conforms to the pinned code/S256/basic
   );
 });
 
-test('production configuration pins canonical origins, exact callback and private runtime roots', () => {
-  const env = {
-    OKNOTIKA_ADMIN_ORIGIN: 'https://admin.oknotika.ru',
-    OKNOTIKA_PUBLIC_ORIGIN: 'https://oknotika.ru',
-    TELEGRAM_OIDC_CLIENT_ID: '123456789',
-    TELEGRAM_OIDC_CLIENT_SECRET: 'secret',
-    OKNOTIKA_WEEKLY_INGEST_TOKEN: 'weekly-ingestion-token-for-tests-1234567890',
-    TELEGRAM_OIDC_REDIRECT_URI: 'https://admin.oknotika.ru/auth/callback',
-    TELEGRAM_OIDC_SIGNING_ALG: 'RS256',
-    OKNOTIKA_DATABASE_PATH: '/var/lib/oknotika-admin/db/admin.sqlite',
-    OKNOTIKA_UPLOADS_ROOT: '/var/lib/oknotika-admin/uploads',
-    OKNOTIKA_PREVIEWS_ROOT: '/var/lib/oknotika-admin/previews',
-    OKNOTIKA_ARTICLE_RELEASES_ROOT: '/var/lib/oknotika-admin/article-releases',
-    OKNOTIKA_PUBLIC_ROOT: '/srv/oknotika/current',
-  };
-  assert.equal(loadConfiguration(env).redirectUri, env.TELEGRAM_OIDC_REDIRECT_URI);
+test('production configuration loads local credentials only from protected files and isolates runtime roots', (t) => {
+  const harness = createHarness(t);
+  const env = configEnvironment(harness.root);
+  writeLocalCredentialFiles(harness.root);
+  const config = loadConfiguration(env);
+  assert.equal(config.localCredential.username, 'editor');
+  assert.equal(config.localCredential.passwordRecord.serialized, VALID_PASSWORD_HASH);
+  assert.equal(config.redirectUri, undefined);
+  assert.equal(config.clientSecret, undefined);
   assert.throws(() => loadConfiguration({
-    ...env, TELEGRAM_OIDC_REDIRECT_URI: 'https://admin.oknotika.ru/auth/other',
-  }), /exactly equal/);
-  assert.throws(() => loadConfiguration({
-    ...env, TELEGRAM_OIDC_SIGNING_ALG: 'ES256',
-  }), /pinned to RS256/);
-  assert.throws(() => loadConfiguration({
-    ...env, OKNOTIKA_UPLOADS_ROOT: '/srv/oknotika/current/private',
+    ...env, OKNOTIKA_UPLOADS_ROOT: `${harness.root}/public/private`,
   }), /outside the public/);
   assert.throws(() => loadConfiguration({
-    ...env, OKNOTIKA_ARTICLE_RELEASES_ROOT: '/srv/oknotika/current/article-releases',
+    ...env, OKNOTIKA_ARTICLE_RELEASES_ROOT: `${harness.root}/public/article-releases`,
   }), /outside the public/);
   assert.throws(() => loadConfiguration({
     ...env, OKNOTIKA_WEEKLY_INGEST_TOKEN: 'a'.repeat(31),
@@ -82,35 +81,138 @@ test('production configuration pins canonical origins, exact callback and privat
   }
 });
 
-test('production configuration reads OIDC secrets from systemd credential files', (t) => {
+test('production configuration rejects direct, plaintext, malformed and writable local credentials without disclosure', (t) => {
   const harness = createHarness(t);
-  const clientIdFile = `${harness.root}/client-id`;
-  const clientSecretFile = `${harness.root}/client-secret`;
+  const { usernameFile, passwordHashFile } = writeLocalCredentialFiles(harness.root);
   const ingestionTokenFile = `${harness.root}/weekly-ingest-token`;
-  writeFileSync(clientIdFile, '123456789\n', { mode: 0o600 });
-  writeFileSync(clientSecretFile, 'credential-secret\n', { mode: 0o600 });
   writeFileSync(ingestionTokenFile, 'weekly-ingestion-credential-1234567890\n', { mode: 0o600 });
-  const config = loadConfiguration({
-    OKNOTIKA_ADMIN_ORIGIN: 'https://admin.oknotika.ru',
-    OKNOTIKA_PUBLIC_ORIGIN: 'https://oknotika.ru',
-    TELEGRAM_OIDC_CLIENT_ID_FILE: clientIdFile,
-    TELEGRAM_OIDC_CLIENT_SECRET_FILE: clientSecretFile,
-    OKNOTIKA_WEEKLY_INGEST_TOKEN_FILE: ingestionTokenFile,
-    TELEGRAM_OIDC_REDIRECT_URI: 'https://admin.oknotika.ru/auth/callback',
-    OKNOTIKA_DATABASE_PATH: `${harness.root}/db/admin.sqlite`,
-    OKNOTIKA_UPLOADS_ROOT: `${harness.root}/uploads`,
-    OKNOTIKA_PREVIEWS_ROOT: `${harness.root}/previews`,
-    OKNOTIKA_ARTICLE_RELEASES_ROOT: `${harness.root}/article-releases`,
-    OKNOTIKA_PUBLIC_ROOT: `${harness.root}/public`,
-  });
-  assert.equal(config.clientId, '123456789');
-  assert.equal(config.clientSecret, 'credential-secret');
-  assert.equal(config.weeklyIngestionToken, 'weekly-ingestion-credential-1234567890');
-  assert.throws(() => loadConfiguration({
+  const env = {
     ...configEnvironment(harness.root),
-    TELEGRAM_OIDC_CLIENT_ID: 'direct',
-    TELEGRAM_OIDC_CLIENT_ID_FILE: clientIdFile,
-  }), /mutually exclusive/);
+    OKNOTIKA_WEEKLY_INGEST_TOKEN_FILE: ingestionTokenFile,
+  };
+  delete env.OKNOTIKA_WEEKLY_INGEST_TOKEN;
+  const config = loadConfiguration(env);
+  assert.equal(config.localCredential.username, 'editor');
+  assert.equal(config.weeklyIngestionToken, 'weekly-ingestion-credential-1234567890');
+  for (const forbidden of [
+    { OKNOTIKA_LOCAL_USERNAME: 'editor' },
+    { OKNOTIKA_LOCAL_PASSWORD_HASH: VALID_PASSWORD_HASH },
+    { OKNOTIKA_LOCAL_PASSWORD: 'do-not-store-this' },
+    { OKNOTIKA_LOCAL_PASSWORD_FILE: passwordHashFile },
+  ]) {
+    assert.throws(() => loadConfiguration({ ...env, ...forbidden }), /prohibited/);
+  }
+  writeFileSync(passwordHashFile, 'plaintext-password\n', { mode: 0o600 });
+  assert.throws(() => loadConfiguration(env), (error) => {
+    assert.match(error.message, /malformed|weak/);
+    assert.doesNotMatch(error.message, /plaintext-password/);
+    return true;
+  });
+  writeFileSync(passwordHashFile, `${VALID_PASSWORD_HASH}\n`, { mode: 0o600 });
+  chmodSync(usernameFile, 0o622);
+  assert.throws(() => loadConfiguration(env), /protected, readable regular file/);
+});
+
+test('versioned scrypt records reject non-canonical, weak and excessive parameters', () => {
+  const invalidRecords = [
+    VALID_PASSWORD_HASH.replace('v=1', 'v=2'),
+    passwordRecord({ N: 16384 }),
+    passwordRecord({ N: 262144 }),
+    passwordRecord({ r: 7 }),
+    passwordRecord({ p: 3 }),
+    passwordRecord({ N: '032768' }),
+    passwordRecord({ salt: Buffer.alloc(8) }),
+    passwordRecord({ digest: Buffer.alloc(16) }),
+    VALID_PASSWORD_HASH.replace(TEST_SALT.toString('base64url'), 'not+base64'),
+    `pbkdf2${VALID_PASSWORD_HASH.slice('scrypt'.length)}`,
+  ];
+  for (const record of invalidRecords) {
+    assert.throws(() => parseScryptPasswordRecord(record), /malformed|weak/);
+  }
+  const parsed = parseScryptPasswordRecord(VALID_PASSWORD_HASH);
+  assert.deepEqual({ version: parsed.version, N: parsed.N, r: parsed.r, p: parsed.p }, {
+    version: 1, N: 32768, r: 8, p: 1,
+  });
+});
+
+test('local authentication accepts the configured credential and returns one generic failure', async (t) => {
+  const password = 'correct horse battery staple';
+  const passwordHash = await hashLocalPassword(password, { salt: TEST_SALT });
+  const credential = createLocalCredential({ username: 'editor', passwordHash });
+  const db = openDatabase(':memory:');
+  t.after(() => db.close());
+  const authenticator = createLocalAuthenticator(db, credential, { clock: () => NOW });
+  assert.deepEqual(await authenticator.authenticate({ username: 'editor', password }), {
+    editorId: authenticator.editorId,
+  });
+  const editor = db.prepare('SELECT issuer, subject, credential_fingerprint FROM configured_editors').get();
+  assert.equal(editor.issuer, LOCAL_AUTH_ISSUER);
+  assert.equal(editor.subject, 'editor');
+  assert.equal(editor.credential_fingerprint, credential.fingerprint);
+  for (const supplied of [
+    { username: 'somebody-else', password },
+    { username: 'editor', password: 'wrong-password' },
+    { username: 'somebody-else', password: 'wrong-password' },
+    { username: 'editor', password: 'x'.repeat(1025) },
+  ]) {
+    await assert.rejects(authenticator.authenticate(supplied), (error) => {
+      assert.equal(error.code, 'INVALID_LOCAL_CREDENTIALS');
+      assert.equal(error.message, LOCAL_AUTH_FAILURE);
+      assert.doesNotMatch(error.message, /somebody|wrong|correct|scrypt|editor/i);
+      return true;
+    });
+  }
+});
+
+test('local editor initialization fails closed on a conflicting singleton identity', () => {
+  const db = openDatabase(':memory:');
+  const credential = createLocalCredential({ username: 'editor', passwordHash: VALID_PASSWORD_HASH });
+  db.prepare(`
+    INSERT INTO configured_editors (issuer, subject, enabled, created_at)
+    VALUES ('https://oauth.telegram.org', '9988776655', 1, ?)
+  `).run(NOW.toISOString());
+  assert.throws(
+    () => createLocalAuthenticator(db, credential, { clock: () => NOW }),
+    /conflicts with the local credential identity/,
+  );
+  assert.deepEqual({
+    ...db.prepare('SELECT issuer, subject, credential_fingerprint FROM configured_editors').get(),
+  }, {
+    issuer: 'https://oauth.telegram.org',
+    subject: '9988776655',
+    credential_fingerprint: null,
+  });
+  db.close();
+});
+
+test('credential rotation preserves the singleton editor and revokes active sessions once', () => {
+  const db = openDatabase(':memory:');
+  const firstCredential = createLocalCredential({
+    username: 'editor',
+    passwordHash: passwordRecord({ digest: Buffer.alloc(32, 3) }),
+  });
+  const first = createLocalAuthenticator(db, firstCredential, { clock: () => NOW });
+  const sessions = createSessionService(db, { clock: () => NOW });
+  const session = sessions.create(first.editorId);
+  createLocalAuthenticator(db, firstCredential, { clock: () => NOW });
+  assert.ok(sessions.authenticate(sessionCookie(session.token)));
+
+  const rotationTime = new Date(NOW.valueOf() + 1000);
+  const rotatedCredential = createLocalCredential({
+    username: 'editor',
+    passwordHash: passwordRecord({ digest: Buffer.alloc(32, 4) }),
+  });
+  const rotated = createLocalAuthenticator(db, rotatedCredential, { clock: () => rotationTime });
+  assert.equal(rotated.editorId, first.editorId);
+  assert.equal(sessions.authenticate(sessionCookie(session.token)), null);
+  assert.deepEqual({ ...db.prepare(`
+    SELECT revoked_at, revocation_reason FROM admin_sessions
+  `).get() }, {
+    revoked_at: rotationTime.toISOString(),
+    revocation_reason: 'credential-rotated',
+  });
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM configured_editors').get().count, 1);
+  db.close();
 });
 
 test('authorization code flow binds exact redirect, state, nonce and S256 verifier then consumes state once', async (t) => {
@@ -381,16 +483,33 @@ function configEnvironment(root) {
   return {
     OKNOTIKA_ADMIN_ORIGIN: 'https://admin.oknotika.ru',
     OKNOTIKA_PUBLIC_ORIGIN: 'https://oknotika.ru',
-    TELEGRAM_OIDC_CLIENT_ID: '123456789',
-    TELEGRAM_OIDC_CLIENT_SECRET: 'secret',
+    OKNOTIKA_LOCAL_USERNAME_FILE: `${root}/local-username`,
+    OKNOTIKA_LOCAL_PASSWORD_HASH_FILE: `${root}/local-password-hash`,
     OKNOTIKA_WEEKLY_INGEST_TOKEN: 'weekly-ingestion-token-for-tests-1234567890',
-    TELEGRAM_OIDC_REDIRECT_URI: 'https://admin.oknotika.ru/auth/callback',
     OKNOTIKA_DATABASE_PATH: `${root}/db/admin.sqlite`,
     OKNOTIKA_UPLOADS_ROOT: `${root}/uploads`,
     OKNOTIKA_PREVIEWS_ROOT: `${root}/previews`,
     OKNOTIKA_ARTICLE_RELEASES_ROOT: `${root}/article-releases`,
     OKNOTIKA_PUBLIC_ROOT: `${root}/public`,
   };
+}
+
+function writeLocalCredentialFiles(root) {
+  const usernameFile = `${root}/local-username`;
+  const passwordHashFile = `${root}/local-password-hash`;
+  writeFileSync(usernameFile, 'editor\n', { mode: 0o600 });
+  writeFileSync(passwordHashFile, `${VALID_PASSWORD_HASH}\n`, { mode: 0o600 });
+  return { usernameFile, passwordHashFile };
+}
+
+function passwordRecord({
+  N = 32768,
+  r = 8,
+  p = 1,
+  salt = TEST_SALT,
+  digest = TEST_DIGEST,
+} = {}) {
+  return `scrypt$v=1$N=${N},r=${r},p=${p}$${salt.toString('base64url')}$${digest.toString('base64url')}`;
 }
 
 function signedJwt(key, payload, { algorithm = 'RS256' } = {}) {

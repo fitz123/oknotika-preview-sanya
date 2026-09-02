@@ -3,12 +3,12 @@ import { createHash } from 'node:crypto';
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
 import { fetchTelegramDiscovery, TELEGRAM_ISSUER } from '../src/auth/conformance.js';
-import { loadConfiguration } from '../src/auth/config.js';
+import { loadLegacyOidcBootstrapConfiguration } from '../src/auth/config.js';
 import { createOidcService } from '../src/auth/oidc.js';
 import { openDatabase } from '../src/content/database.js';
 import { createContentService } from '../src/content/service.js';
 
-const config = loadConfiguration(process.env, { requireWeeklyIngestionToken: false });
+const config = loadLegacyOidcBootstrapConfiguration();
 const db = openDatabase(config.databasePath);
 const prompt = createInterface({ input: stdin, output: stdout, terminal: true });
 try {

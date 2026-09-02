@@ -3,21 +3,16 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   expireCookie,
-  OIDC_BINDING_COOKIE,
-  oidcBindingCookie,
-  readUniqueCookie,
   SESSION_COOKIE,
-  sessionCookie,
 } from '../auth/sessions.js';
 import { WEEKLY_INGESTION_BODY_MAXIMUM } from '../content/validation.js';
 import { WEEKLY_INGESTION_PATH } from './ingestion-auth.js';
-import { assertMutationRequest, assertSameOriginNavigation, httpError } from './security.js';
+import { assertMutationRequest, httpError } from './security.js';
 
 const TEMPLATE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../templates/admin');
 
 export function createAdminHandler({
   adminOrigin,
-  oidcService,
   sessionService,
   actions,
   weeklyIngestion,
@@ -35,21 +30,6 @@ export function createAdminHandler({
       if (request.method === 'GET' && url.pathname === '/admin.css') {
         return response(readTemplate('admin.css'), 200, 'text/css; charset=utf-8');
       }
-      if (request.method === 'GET' && url.pathname === '/auth/start') {
-        assertSameOriginNavigation(request, adminOrigin);
-        const login = oidcService.beginAuthorization();
-        return redirect(login.authorizationUrl, [oidcBindingCookie(login.browserBinding)]);
-      }
-      if (request.method === 'GET' && url.pathname === '/auth/callback') {
-        const binding = readUniqueCookie(request.headers.get('cookie'), OIDC_BINDING_COOKIE);
-        const result = await oidcService.finishAuthorization({ callbackUrl: request.url, browserBinding: binding });
-        const session = sessionService.create(result.editorId);
-        return redirect('/', [
-          sessionCookie(session.token),
-          expireCookie(OIDC_BINDING_COOKIE),
-        ]);
-      }
-
       if (request.method === 'POST' && url.pathname === WEEKLY_INGESTION_PATH) {
         if (!ingestionAuthenticator?.authenticate(request.headers.get('authorization'))) {
           throw httpError(401, 'Authentication required');

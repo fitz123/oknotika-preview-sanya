@@ -53,11 +53,11 @@ python3 scripts/build_docker_package.py --help
 
 **Serves:** Sanya's approved request to remove Telegram and use one login/password account only for news/articles.
 
-- [ ] Add a strict versioned local-credential parser/verifier using Node's built-in cryptography, bounded scrypt parameters, constant-time comparisons and generic failed-login responses.
-- [ ] Load username and password-hash records only from root-controlled credential files; reject plaintext/direct password configuration and malformed/weak records.
-- [ ] Reuse the singleton `configured_editors` row and existing `admin_sessions`; initialize only the expected local identity, fail closed on a conflicting prior identity, and revoke active sessions when the stored credential fingerprint changes.
-- [ ] Remove Telegram discovery/OIDC from application startup and public auth routes without changing weekly-ingestion authentication or article authorization.
-- [ ] Add focused tests for valid/invalid credentials, malformed records, single-editor conflict, credential rotation/session revocation and secret non-disclosure.
+- [x] Add a strict versioned local-credential parser/verifier using Node's built-in cryptography, bounded scrypt parameters, constant-time comparisons and generic failed-login responses.
+- [x] Load username and password-hash records only from root-controlled credential files; reject plaintext/direct password configuration and malformed/weak records.
+- [x] Reuse the singleton `configured_editors` row and existing `admin_sessions`; initialize only the expected local identity, fail closed on a conflicting prior identity, and revoke active sessions when the stored credential fingerprint changes.
+- [x] Remove Telegram discovery/OIDC from application startup and public auth routes without changing weekly-ingestion authentication or article authorization.
+- [x] Add focused tests for valid/invalid credentials, malformed records, single-editor conflict, credential rotation/session revocation and secret non-disclosure.
 
 ### Task 2: Implement the local login surface and preserve web security
 

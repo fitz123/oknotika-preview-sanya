@@ -1,7 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
 export const SESSION_COOKIE = '__Host-oknotika_session';
-export const OIDC_BINDING_COOKIE = '__Host-oknotika_oidc';
 
 export function createSessionService(db, {
   clock = () => new Date(),
@@ -77,10 +76,6 @@ export function createSessionService(db, {
 
 export function sessionCookie(token, { maxAgeSeconds = 8 * 60 * 60 } = {}) {
   return `${SESSION_COOKIE}=${token}; Path=/; Max-Age=${maxAgeSeconds}; Secure; HttpOnly; SameSite=Lax`;
-}
-
-export function oidcBindingCookie(token, { maxAgeSeconds = 10 * 60 } = {}) {
-  return `${OIDC_BINDING_COOKIE}=${token}; Path=/; Max-Age=${maxAgeSeconds}; Secure; HttpOnly; SameSite=Lax`;
 }
 
 export function expireCookie(name) {
