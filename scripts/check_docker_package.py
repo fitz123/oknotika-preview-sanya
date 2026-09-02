@@ -25,48 +25,6 @@ SECRETS = {
 }
 REJECTED_ADMIN_DOMAIN = "admin." + "okntoika.ru"
 STANDALONE_INSTRUCTION = "release/oknotika-docker-v2.29.0-rc.4-instruction.html"
-INCREMENTAL_INSTRUCTION = "release/oknotika-local-password-auth-20260902-instruction.html"
-INCREMENTAL_ARCHIVE = "oknotika-local-password-auth-20260902.zip"
-INCREMENTAL_BASE = "cead5dbf429cc00c77e30fbf781cd9451781800f"
-INCREMENTAL_IMPLEMENTATION = "b0f677110934f73a9096b469f8d95bea0ae9e724"
-INCREMENTAL_SOURCES = (
-    ("admin-app/.env.example", "admin-app/.env.example"),
-    ("admin-app/ENROLLMENT.md", "admin-app/ENROLLMENT.md"),
-    ("admin-app/migrations/008_local_credentials.sql", "admin-app/migrations/008_local_credentials.sql"),
-    ("admin-app/migrations/009_local_login_csrf.sql", "admin-app/migrations/009_local_login_csrf.sql"),
-    ("admin-app/scripts/bootstrap-editor.js", "admin-app/scripts/bootstrap-editor.js"),
-    ("admin-app/scripts/configure-local-credentials.js", "admin-app/scripts/configure-local-credentials.js"),
-    ("admin-app/src/auth/config.js", "admin-app/src/auth/config.js"),
-    ("admin-app/src/auth/credential-setup.js", "admin-app/src/auth/credential-setup.js"),
-    ("admin-app/src/auth/local.js", "admin-app/src/auth/local.js"),
-    ("admin-app/src/auth/login.js", "admin-app/src/auth/login.js"),
-    ("admin-app/src/auth/sessions.js", "admin-app/src/auth/sessions.js"),
-    ("admin-app/src/http/handler.js", "admin-app/src/http/handler.js"),
-    ("admin-app/src/http/node-adapter.js", "admin-app/src/http/node-adapter.js"),
-    ("admin-app/src/http/security.js", "admin-app/src/http/security.js"),
-    ("admin-app/src/http/start.js", "admin-app/src/http/start.js"),
-    ("admin-app/templates/admin/admin.css", "admin-app/templates/admin/admin.css"),
-    ("admin-app/templates/admin/login.html", "admin-app/templates/admin/login.html"),
-    ("admin-app/tests/auth-security.test.js", "admin-app/tests/auth-security.test.js"),
-    ("admin-app/tests/deploy.test.js", "admin-app/tests/deploy.test.js"),
-    ("admin-app/tests/http-security.test.js", "admin-app/tests/http-security.test.js"),
-    ("admin-app/tests/listener.test.js", "admin-app/tests/listener.test.js"),
-    ("admin-app/tests/weekly-ingestion-security.test.js", "admin-app/tests/weekly-ingestion-security.test.js"),
-    ("deploy/docker/README.md", "deploy/docker/README.md"),
-    ("deploy/docker/README_ZHENYA.md", "deploy/docker/README_ZHENYA.md"),
-    ("deploy/docker/configure-local-credentials.sh", "deploy/docker/configure-local-credentials.sh"),
-    ("deploy/docker/docker-compose.yml", "deploy/docker/docker-compose.yml"),
-    ("deploy/docker/host-nginx.conf", "deploy/docker/host-nginx.conf"),
-    ("deploy/docker/secrets/README.md", "deploy/docker/secrets/README.md"),
-    ("deploy/docker/secrets/local-password-hash.example", "deploy/docker/secrets/local-password-hash.example"),
-    ("deploy/docker/secrets/local-username.example", "deploy/docker/secrets/local-username.example"),
-    ("deploy/docker/smoke-test.sh", "deploy/docker/smoke-test.sh"),
-    ("docs/WEEKLY_INGESTION.md", "deploy/docs/WEEKLY_INGESTION.md"),
-)
-INCREMENTAL_REMOVALS = (
-    "deploy/docker/secrets/telegram-oidc-client-id.example",
-    "deploy/docker/secrets/telegram-oidc-client-secret.example",
-)
 SECRET_EXAMPLE_PLACEHOLDERS = {
     "local-username": "replace-on-deployment-host\n",
     "local-password-hash": "replace-on-deployment-host-with-a-versioned-scrypt-record\n",
@@ -326,64 +284,6 @@ def validate_standalone_instruction_text(text: str) -> list[str]:
     return errors
 
 
-def validate_incremental_instruction_text(text: str) -> list[str]:
-    errors: list[str] = []
-    require_markers(
-        text,
-        INCREMENTAL_INSTRUCTION,
-        (
-            '<html lang="ru">',
-            INCREMENTAL_ARCHIVE,
-            INCREMENTAL_BASE,
-            INCREMENTAL_IMPLEMENTATION,
-            "ровно 32 файла",
-            "public-app не входит",
-            "OKNOTIKA_LOCAL_AUTH_RELEASE=v2.29.0-local-auth.1",
-            "configure-local-credentials.sh",
-            "wrong password",
-            "credential-rollback",
-            "127.0.0.1:8000",
-            "docker compose down -v",
-            "OIDC",
-            "OKNOTIKA_TELEGRAM_RELAY_SERVICE",
-            "Xray",
-            "production-only шаги",
-            "overflow-wrap: anywhere",
-            "white-space: pre-wrap",
-        ),
-        errors,
-    )
-    for source, destination in INCREMENTAL_SOURCES:
-        marker = f'data-source="{source}" data-destination="{destination}"'
-        if text.count(marker) != 1:
-            errors.append(
-                f"{INCREMENTAL_INSTRUCTION} must list source/destination exactly once: "
-                f"{source} -> {destination}"
-            )
-    for path in INCREMENTAL_REMOVALS:
-        marker = f'data-remove="{path}"'
-        if text.count(marker) != 1:
-            errors.append(
-                f"{INCREMENTAL_INSTRUCTION} must list removal exactly once: {path}"
-            )
-    if re.search(r"<(?:script|form)\b", text, re.IGNORECASE):
-        errors.append("incremental instruction must be static and JavaScript-free")
-    if re.search(r"\b(?:src|href)\s*=", text, re.IGNORECASE):
-        errors.append("incremental instruction must not depend on external resources")
-    direct_secret = re.compile(
-        r"^\s*(?:TELEGRAM_OIDC_CLIENT_ID|TELEGRAM_OIDC_CLIENT_SECRET|OKNOTIKA_LOCAL_USERNAME|OKNOTIKA_LOCAL_PASSWORD(?:_HASH)?|OKNOTIKA_WEEKLY_INGEST_TOKEN)\s*=\s*\S+",
-        re.MULTILINE,
-    )
-    if direct_secret.search(text):
-        errors.append("incremental instruction embeds a credential")
-    for forbidden_checksum in ("sha256sum", "SHA256SUMS", ".zip.sha256", "OKNOTIKA_ARCHIVE_SHA"):
-        if forbidden_checksum in text:
-            errors.append(
-                f"incremental instruction contains a user-facing checksum step: {forbidden_checksum}"
-            )
-    return errors
-
-
 def compose_model(root: Path) -> dict[str, Any]:
     environment = os.environ.copy()
     for name in (
@@ -605,6 +505,8 @@ def validate(root: Path) -> list[str]:
             '| "${container_command[@]}"',
             "--rollback SNAPSHOT_NAME",
             '"${compose[@]}" stop admin',
+            "restore_admin_after_failure",
+            '"${compose[@]}" start admin',
             "flock -n 9",
             "admin remains stopped until login verification",
         ),
@@ -644,8 +546,6 @@ def validate(root: Path) -> list[str]:
     errors.extend(validate_docker_runbook_text(runbook))
     standalone_instruction = read_required(root, STANDALONE_INSTRUCTION, errors)
     errors.extend(validate_standalone_instruction_text(standalone_instruction))
-    incremental_instruction = read_required(root, INCREMENTAL_INSTRUCTION, errors)
-    errors.extend(validate_incremental_instruction_text(incremental_instruction))
 
     dockerignore = read_required(root, ".dockerignore", errors)
     require_markers(

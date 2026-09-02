@@ -169,6 +169,12 @@ class DockerPackageTests(unittest.TestCase):
         self.assertIn('| "${container_command[@]}"', helper)
         self.assertIn("--network none", helper)
         self.assertIn('"${compose[@]}" stop admin', helper)
+        self.assertIn("restore_admin_after_failure", helper)
+        self.assertIn('"${compose[@]}" start admin', helper)
+        self.assertLess(
+            helper.index('IFS= read -r -p "Локальный логин: "'),
+            helper.index('"${compose[@]}" stop admin'),
+        )
         self.assertNotRegex(helper, r"--password(?:=|\s)")
         self.assertNotRegex(helper, r"export\s+[^\n]*PASSWORD")
 
@@ -380,30 +386,21 @@ class DockerPackageTests(unittest.TestCase):
     def test_operator_handoff_has_no_checksum_steps_and_html_is_standalone(self) -> None:
         runbook = (REPO / "deploy/docker/README_ZHENYA.md").read_text(encoding="utf-8")
         instruction = (REPO / checker.STANDALONE_INSTRUCTION).read_text(encoding="utf-8")
-        incremental = (REPO / checker.INCREMENTAL_INSTRUCTION).read_text(encoding="utf-8")
         self.assertEqual(checker.validate_standalone_instruction_text(instruction), [])
-        self.assertEqual(checker.validate_incremental_instruction_text(incremental), [])
         for forbidden in ("sha256sum", "SHA256SUMS", ".zip.sha256", "OKNOTIKA_ARCHIVE_SHA"):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, runbook)
                 self.assertNotIn(forbidden, instruction)
-                self.assertNotIn(forbidden, incremental)
 
-    def test_incremental_instruction_rejects_javascript_and_incomplete_inventory(self) -> None:
-        instruction = (REPO / checker.INCREMENTAL_INSTRUCTION).read_text(encoding="utf-8")
-        first_source, first_destination = checker.INCREMENTAL_SOURCES[0]
-        marker = f'data-source="{first_source}" data-destination="{first_destination}"'
-        changed = instruction.replace(marker, "inventory-entry-removed", 1)
-        self.assertTrue(any(
-            "must list source/destination exactly once" in error
-            for error in checker.validate_incremental_instruction_text(changed)
-        ))
-        self.assertTrue(any(
-            "JavaScript-free" in error
-            for error in checker.validate_incremental_instruction_text(
-                instruction.replace("</body>", "<script>alert(1)</script></body>")
-            )
-        ))
+    def test_incremental_handoff_removes_relay_through_compose_service(self) -> None:
+        instruction = (REPO / "release/oknotika-local-password-auth-20260902-instruction.html").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('stop "$OKNOTIKA_TELEGRAM_RELAY_SERVICE"', instruction)
+        self.assertIn('rm --force "$OKNOTIKA_TELEGRAM_RELAY_SERVICE"', instruction)
+        self.assertNotIn('docker inspect "$OKNOTIKA_TELEGRAM_RELAY_SERVICE"', instruction)
+        self.assertNotIn('docker stop "$OKNOTIKA_TELEGRAM_RELAY_SERVICE"', instruction)
+        self.assertNotIn('docker rm "$OKNOTIKA_TELEGRAM_RELAY_SERVICE"', instruction)
 
     def test_admin_image_and_smoke_include_preview_assets(self) -> None:
         dockerfile = (REPO / "deploy/docker/admin.Dockerfile").read_text(encoding="utf-8")

@@ -146,7 +146,7 @@ export function initializeLocalEditor(db, credential, {
     const rotated = editor.credential_fingerprint !== credential.fingerprint;
     db.prepare(`
       UPDATE configured_editors
-      SET enabled = 1, disabled_at = NULL, credential_fingerprint = ?
+      SET credential_fingerprint = ?
       WHERE id = ?
     `).run(credential.fingerprint, editor.id);
     if (rotated) {

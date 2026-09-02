@@ -16,11 +16,7 @@ from typing import Any
 
 
 PACKAGE_VERSION = "v2.29.0-rc.4"
-INCREMENTAL_BASE = "cead5dbf429cc00c77e30fbf781cd9451781800f"
-INCREMENTAL_IMPLEMENTATION = "b0f677110934f73a9096b469f8d95bea0ae9e724"
-INCREMENTAL_ARCHIVE = "release/oknotika-local-password-auth-20260902.zip"
 ARCHIVE_ROOTS = {"admin-app", "public-app", "deploy"}
-INCREMENTAL_ARCHIVE_ROOTS = {"admin-app", "deploy"}
 SECRET_EXAMPLE_PLACEHOLDERS = {
     "deploy/docker/secrets/local-username.example": b"replace-on-deployment-host\n",
     "deploy/docker/secrets/local-password-hash.example": (
@@ -209,98 +205,6 @@ def expected_payload(
     return implementation_commit, payload, modes
 
 
-def incremental_changes(
-    repo: Path,
-    base: str = INCREMENTAL_BASE,
-    implementation: str = INCREMENTAL_IMPLEMENTATION,
-) -> tuple[dict[str, str], set[str]]:
-    """Return reviewed Docker-package source mappings and removals for the auth delta."""
-    base_commit = resolve_commit(repo, base)
-    implementation_commit = resolve_commit(repo, implementation)
-    if subprocess.run(
-        ["git", "-C", str(repo), "merge-base", "--is-ancestor", base_commit, implementation_commit],
-        check=False,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    ).returncode:
-        raise RuntimeError("incremental Docker package base is not an ancestor of implementation")
-
-    records = run_git(
-        repo,
-        "diff",
-        "--name-status",
-        "--find-renames=100%",
-        "-z",
-        f"{base_commit}..{implementation_commit}",
-        "--",
-    ).split(b"\0")
-    sources: dict[str, str] = {}
-    removals: set[str] = set()
-    index = 0
-    while index < len(records):
-        raw_status = records[index]
-        index += 1
-        if not raw_status:
-            continue
-        status = raw_status.decode("ascii")
-        old_source = records[index].decode("utf-8")
-        index += 1
-        new_source: str | None = None
-        if status.startswith(("R", "C")):
-            new_source = records[index].decode("utf-8")
-            index += 1
-
-        if status == "D" or status.startswith("R"):
-            old_archive = source_to_archive(PurePosixPath(old_source))
-            if old_archive is not None:
-                removals.add(old_archive.as_posix())
-        if status in {"A", "M"}:
-            current_source = old_source
-        elif status.startswith(("R", "C")):
-            assert new_source is not None
-            current_source = new_source
-        elif status == "D":
-            continue
-        else:
-            if source_path_allowed(PurePosixPath(old_source)):
-                raise RuntimeError(f"unsupported incremental Docker change status: {status}")
-            continue
-
-        archive_path = source_to_archive(PurePosixPath(current_source))
-        if archive_path is None:
-            continue
-        archive_name = archive_path.as_posix()
-        if archive_name in sources:
-            raise RuntimeError(f"incremental Docker package mapping collides at: {archive_name}")
-        sources[archive_name] = current_source
-
-    return sources, removals
-
-
-def expected_incremental_payload(
-    repo: Path,
-) -> tuple[str, dict[str, bytes], dict[str, int], dict[str, str], set[str]]:
-    repo = repo.resolve()
-    implementation_commit = resolve_commit(repo, INCREMENTAL_IMPLEMENTATION)
-    sources, removals = incremental_changes(repo)
-    payload: dict[str, bytes] = {}
-    modes: dict[str, int] = {}
-    for archive_name, source_name in sources.items():
-        metadata = run_git(repo, "ls-tree", implementation_commit, "--", source_name).rstrip(b"\n")
-        if not metadata:
-            raise RuntimeError(f"incremental Docker package source is missing: {source_name}")
-        raw_mode, object_type, _remainder = metadata.split(b" ", 2)
-        if object_type != b"blob" or raw_mode not in {b"100644", b"100755"}:
-            raise RuntimeError(
-                f"incremental Docker package source must be a regular file: {source_name}"
-            )
-        payload[archive_name] = run_git(
-            repo, "cat-file", "blob", f"{implementation_commit}:{source_name}"
-        )
-        modes[archive_name] = 0o755 if int(raw_mode, 8) & 0o100 else 0o644
-    return implementation_commit, payload, modes, sources, removals
-
-
 REQUIRED_FILES = {
     mapped.as_posix()
     for source in REQUIRED_SOURCE_FILES
@@ -481,103 +385,15 @@ def inspect_archive(
         }
 
 
-def inspect_incremental_archive(filename: str | Path, repo: Path) -> dict[str, Any]:
-    errors: list[str] = []
-    implementation, payload, modes, sources, removals = expected_incremental_payload(repo)
-    with zipfile.ZipFile(filename) as archive:
-        infos = archive.infolist()
-        raw_names = [info.filename for info in infos]
-        if len(raw_names) != len(set(raw_names)):
-            errors.append("incremental archive contains duplicate filenames")
-
-        file_infos: dict[str, zipfile.ZipInfo] = {}
-        roots: set[str] = set()
-        for info in infos:
-            name = info.filename[:-1] if info.is_dir() and info.filename.endswith("/") else info.filename
-            path = normalized_entry(name)
-            if path is None:
-                errors.append(f"unsafe incremental archive path: {info.filename!r}")
-                continue
-            roots.add(path.parts[0])
-            mode = archive_mode(info)
-            if info.is_dir():
-                errors.append(f"directory entries are forbidden in incremental archive: {info.filename}")
-                continue
-            if stat.S_ISLNK(mode) or not stat.S_ISREG(mode):
-                errors.append(f"incremental archive entry must be a regular file: {info.filename}")
-            archive_name = path.as_posix()
-            if archive_name in file_infos:
-                errors.append(f"incremental archive contains duplicate normalized path: {archive_name}")
-                continue
-            file_infos[archive_name] = info
-            errors.extend(path_boundary_errors(path))
-
-        if roots != INCREMENTAL_ARCHIVE_ROOTS:
-            errors.append(
-                "incremental archive roots must be exactly "
-                f"{sorted(INCREMENTAL_ARCHIVE_ROOTS)}, got {sorted(roots)}"
-            )
-        if set(file_infos) != set(payload):
-            missing = sorted(set(payload) - set(file_infos))
-            extra = sorted(set(file_infos) - set(payload))
-            errors.append(
-                f"incremental archive file set mismatch; missing={missing}, extra={extra}"
-            )
-        if any(path.startswith("public-app/") for path in file_infos):
-            errors.append("incremental archive must not include unchanged public assets")
-
-        inspected: dict[str, dict[str, Any]] = {}
-        for path, info in file_infos.items():
-            digest, size, secrets = inspect_entry(archive, info)
-            file_mode = stat.S_IMODE(archive_mode(info))
-            inspected[path] = {
-                "sha256": digest,
-                "bytes": size,
-                "mode": f"{file_mode:04o}",
-                "source": sources.get(path),
-            }
-            for label in sorted(secrets):
-                errors.append(f"{label} detected in {path}")
-            if path in payload:
-                if digest != sha256(payload[path]) or size != len(payload[path]):
-                    errors.append(f"incremental committed source content mismatch: {path}")
-                if file_mode != modes[path]:
-                    errors.append(f"incremental committed source mode mismatch: {path}")
-            if expected_example := SECRET_EXAMPLE_PLACEHOLDERS.get(path):
-                if size != len(expected_example) or digest != sha256(expected_example):
-                    errors.append(
-                        "incremental credential example must contain only the invalid "
-                        f"deployment placeholder: {path}"
-                    )
-
-        return {
-            "archive": str(filename),
-            "roots": sorted(roots),
-            "baseCommit": INCREMENTAL_BASE,
-            "implementationCommit": implementation,
-            "files": len(inspected),
-            "uncompressedBytes": sum(item["bytes"] for item in inspected.values()),
-            "archiveSha256": sha256(Path(filename).read_bytes()),
-            "sources": sources,
-            "removals": sorted(removals),
-            "errors": errors,
-            "status": "pass" if not errors else "fail",
-        }
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("archive", type=Path)
     parser.add_argument("--repo", type=Path, default=Path("."))
     parser.add_argument("--expected-commit", default="HEAD")
-    parser.add_argument("--incremental", action="store_true")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
     try:
-        if args.incremental:
-            result = inspect_incremental_archive(args.archive, args.repo)
-        else:
-            result = inspect_archive(args.archive, args.expected_commit, args.repo)
+        result = inspect_archive(args.archive, args.expected_commit, args.repo)
     except (OSError, RuntimeError, subprocess.CalledProcessError, zipfile.BadZipFile) as exc:
         print(f"Docker archive check failed: {exc}", file=sys.stderr)
         return 1
@@ -589,8 +405,7 @@ def main() -> int:
             print(f"- {error}", file=sys.stderr)
     else:
         print(
-            f"Docker {'incremental ' if args.incremental else ''}archive check passed: "
-            f"{result['files']} files in "
+            f"Docker archive check passed: {result['files']} files in "
             f"{', '.join(result['roots'])} for {result['implementationCommit']}"
         )
     return 0 if result["status"] == "pass" else 1

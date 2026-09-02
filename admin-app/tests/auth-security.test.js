@@ -21,6 +21,7 @@ import {
 import { createOidcService } from '../src/auth/oidc.js';
 import { createSessionService, sessionCookie } from '../src/auth/sessions.js';
 import { openDatabase } from '../src/content/database.js';
+import { createContentService } from '../src/content/service.js';
 import { createHarness } from './helpers.js';
 
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/telegram-oidc-conformance.json', import.meta.url)));
@@ -259,6 +260,25 @@ test('credential rotation preserves the singleton editor and revokes active sess
     revocation_reason: 'credential-rotated',
   });
   assert.equal(db.prepare('SELECT COUNT(*) AS count FROM configured_editors').get().count, 1);
+  db.close();
+});
+
+test('local editor initialization preserves an explicit access disable across restart', () => {
+  const db = openDatabase(':memory:');
+  const credential = createLocalCredential({ username: 'editor', passwordHash: VALID_PASSWORD_HASH });
+  const first = createLocalAuthenticator(db, credential, { clock: () => NOW });
+  createContentService(db, { clock: () => NOW }).disableEditor(first.editorId);
+
+  const restarted = createLocalAuthenticator(db, credential, {
+    clock: () => new Date(NOW.valueOf() + 1000),
+  });
+  assert.equal(restarted.editorId, first.editorId);
+  assert.deepEqual({ ...db.prepare(`
+    SELECT enabled, disabled_at FROM configured_editors WHERE id = ?
+  `).get(first.editorId) }, {
+    enabled: 0,
+    disabled_at: NOW.toISOString(),
+  });
   db.close();
 });
 
