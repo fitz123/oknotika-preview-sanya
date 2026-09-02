@@ -68,6 +68,39 @@ CI_OPERATIONAL_EXTENSION_FILES = {
     "scripts/check_cicd_package.py",
     "tests/test_cicd_package.py",
 }
+LOCAL_PASSWORD_AUTH_EXTENSION_FILES = {
+    "CLAUDE.md",
+    "README.md",
+    "admin-app/ENROLLMENT.md",
+    "admin-app/migrations/008_local_credentials.sql",
+    "admin-app/migrations/009_local_login_csrf.sql",
+    "admin-app/scripts/bootstrap-editor.js",
+    "admin-app/scripts/configure-local-credentials.js",
+    "admin-app/src/auth/credential-setup.js",
+    "admin-app/src/auth/local.js",
+    "admin-app/src/auth/login.js",
+    "admin-app/src/auth/sessions.js",
+    "admin-app/src/http/handler.js",
+    "admin-app/src/http/node-adapter.js",
+    "admin-app/src/http/security.js",
+    "admin-app/templates/admin/admin.css",
+    "admin-app/templates/admin/login.html",
+    "admin-app/tests/auth-security.test.js",
+    "admin-app/tests/deploy.test.js",
+    "admin-app/tests/http-security.test.js",
+    "admin-app/tests/weekly-ingestion-security.test.js",
+    "deploy/README_ZHENYA.md",
+    "deploy/cicd/oknotika-deploy",
+    "deploy/config/oknotika-admin.env.example",
+    "deploy/nginx/oknotika-admin.conf",
+    "deploy/release-manifest.json",
+    "deploy/scripts/preflight.sh",
+    "deploy/systemd/oknotika-admin.service",
+    "docs/WEEKLY_INGESTION.md",
+    "scripts/check_ci_bundle.py",
+    "scripts/scan_release_zip.py",
+    "tests/test_release_package.py",
+}
 
 
 def sha256(path: Path) -> str:
@@ -143,7 +176,11 @@ def reviewed_docker_extension_path(path: str) -> bool:
 
 
 def reviewed_post_release_extension_path(path: str) -> bool:
-    return reviewed_docker_extension_path(path) or path in CI_OPERATIONAL_EXTENSION_FILES
+    return (
+        reviewed_docker_extension_path(path)
+        or path in CI_OPERATIONAL_EXTENSION_FILES
+        or path in LOCAL_PASSWORD_AUTH_EXTENSION_FILES
+    )
 
 
 def validate(root: Path) -> list[str]:

@@ -87,7 +87,7 @@ python3 scripts/build_docker_package.py --help
 
 **Serves:** Sanya's request to send Zhenya what changed and exactly what he must replace/remove/run.
 
-- [ ] Produce a static JavaScript-free Russian HTML runbook covering the exact repository-relative changed files, backup, file placement, credential setup, image rebuild, safe restart, login smoke, rollback and obsolete OIDC/relay cleanup.
-- [ ] Let the parent package only the reviewed changed files from the approved base, excluding secrets/runtime data and unchanged public assets; do not add a new repository packaging subsystem for this one-off handoff.
-- [ ] Run focused tests plus the full repository suite and an isolated Docker Compose smoke proving public content unchanged, admin loopback-only, password login works, wrong credentials fail, rotation revokes sessions and restart preserves content.
-- [ ] Re-read the final diff as a cut pass and report any production-only human steps without merging or mutating production.
+- [x] Produce a static JavaScript-free Russian HTML runbook covering the exact repository-relative changed files, backup, file placement, credential setup, image rebuild, safe restart, login smoke, rollback and obsolete OIDC/relay cleanup.
+- [x] Let the parent package only the reviewed changed files from the approved base, excluding secrets/runtime data and unchanged public assets; do not add a new repository packaging subsystem for this one-off handoff.
+- [x] Run focused tests plus the full repository suite and an isolated Docker Compose smoke proving public content unchanged, admin loopback-only, password login works, wrong credentials fail, rotation revokes sessions and restart preserves content.
+- [x] Re-read the final diff as a cut pass and report any production-only human steps without merging or mutating production.

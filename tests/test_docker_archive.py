@@ -267,5 +267,43 @@ class DockerArchiveTests(unittest.TestCase):
         self.assertTrue(any("duplicate filenames" in error for error in duplicate_errors), duplicate_errors)
 
 
+class IncrementalAuthArchiveTests(unittest.TestCase):
+    def test_reviewed_incremental_archive_matches_exact_commit_delta(self) -> None:
+        archive = REPO / checker.INCREMENTAL_ARCHIVE
+        result = checker.inspect_incremental_archive(archive, REPO)
+        self.assertEqual(result["errors"], [])
+        self.assertEqual(result["baseCommit"], checker.INCREMENTAL_BASE)
+        self.assertEqual(result["implementationCommit"], checker.INCREMENTAL_IMPLEMENTATION)
+        self.assertEqual(result["files"], 32)
+        self.assertEqual(set(result["roots"]), checker.INCREMENTAL_ARCHIVE_ROOTS)
+        self.assertFalse(any(path.startswith("public-app/") for path in result["sources"]))
+        self.assertEqual(result["removals"], [
+            "deploy/docker/secrets/telegram-oidc-client-id.example",
+            "deploy/docker/secrets/telegram-oidc-client-secret.example",
+        ])
+
+    def test_incremental_archive_tampering_and_extra_public_asset_are_rejected(self) -> None:
+        source = REPO / checker.INCREMENTAL_ARCHIVE
+        with tempfile.TemporaryDirectory(prefix="oknotika-auth-delta-test-") as directory:
+            tampered = Path(directory) / "tampered.zip"
+            rewrite_payload_file(
+                source,
+                tampered,
+                "admin-app/src/auth/login.js",
+                b"tampered\n",
+            )
+            errors = checker.inspect_incremental_archive(tampered, REPO)["errors"]
+            self.assertTrue(any("content mismatch" in error for error in errors), errors)
+
+            extra = Path(directory) / "extra.zip"
+            rewrite_archive(
+                source,
+                extra,
+                additions=[(regular_info("public-app/index.html"), b"unchanged public asset\n")],
+            )
+            errors = checker.inspect_incremental_archive(extra, REPO)["errors"]
+            self.assertTrue(any("unchanged public assets" in error for error in errors), errors)
+
+
 if __name__ == "__main__":
     unittest.main()
