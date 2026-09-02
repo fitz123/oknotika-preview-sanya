@@ -214,8 +214,20 @@ export OKNOTIKA_CREDENTIAL_SNAPSHOT=local-credential-YYYYMMDDTHHMMSSZ-XXXXXXXXXX
 sudo --preserve-env=OKNOTIKA_ROOT,OKNOTIKA_ACTIVE_PROJECT,OKNOTIKA_COMPOSE_ENV \
   "$OKNOTIKA_ROOT/deploy/docker/configure-local-credentials.sh" \
   --rollback "$OKNOTIKA_CREDENTIAL_SNAPSHOT"
-sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --wait admin
+if sudo test -L "$OKNOTIKA_ROOT/admin-app/data/secrets/local-credentials/current"; then
+  sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --wait admin
+else
+  echo 'Предыдущего local credential generation нет; admin оставлен остановленным.' >&2
+fi
 ~~~
+
+Если JSON-результат rollback содержит `"generation":null`, это rollback первичной
+настройки: условие выше намеренно не запускает local-auth admin без обязательных
+secret files. Либо выполнить полный возврат на прежнее OIDC-приложение по
+incremental-инструкции, либо снова запустить credential helper для нового
+generation. Для отмены rollback можно использовать выданный им точный
+`rollback-safety-*` snapshot; запускать admin только после восстановления
+`local-credentials/current`.
 
 Для отмены уже выполненного rollback повторить ту же команду с точным
 `rollback-safety-*` именем из его JSON-результата.

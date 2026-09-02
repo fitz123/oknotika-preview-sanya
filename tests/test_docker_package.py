@@ -223,6 +223,12 @@ class DockerPackageTests(unittest.TestCase):
 
     def test_runbook_local_credential_safety_and_no_secret_boundary_are_enforced(self) -> None:
         runbook = (REPO / "deploy/docker/README_ZHENYA.md").read_text(encoding="utf-8")
+        initial_rollback_restart_guard = (
+            'if sudo test -L '
+            '"$OKNOTIKA_ROOT/admin-app/data/secrets/local-credentials/current"; then'
+        )
+        self.assertIn(initial_rollback_restart_guard, runbook)
+        self.assertIn('JSON-результат rollback содержит `"generation":null`', runbook)
         changes = (
             (
                 runbook.replace(
@@ -413,12 +419,18 @@ class DockerPackageTests(unittest.TestCase):
         candidate_recreate = '--force-recreate --wait --wait-timeout 120 admin'
         rollback_recreate = (
             '--file "$OKNOTIKA_ROLLBACK_TELEGRAM_OVERRIDE" --env-file "$OKNOTIKA_COMPOSE_ENV" '
-            'up --detach --no-build --wait --wait-timeout 120'
+            'up --detach --no-build --force-recreate --wait --wait-timeout 120'
+        )
+        restored_articles_check = (
+            'sudo cmp "$OKNOTIKA_BACKUP/public-articles.before" '
+            '"$OKNOTIKA_BACKUP/public-articles.rollback"'
         )
         self.assertIn(preserved_override, instruction)
         self.assertIn(rollback_recreate, instruction)
+        self.assertIn(restored_articles_check, instruction)
         self.assertLess(instruction.index(preserved_override), instruction.index(candidate_recreate))
         self.assertLess(instruction.index(candidate_recreate), instruction.index(rollback_recreate))
+        self.assertLess(instruction.index(rollback_recreate), instruction.index(restored_articles_check))
 
     def test_admin_image_and_smoke_include_preview_assets(self) -> None:
         dockerfile = (REPO / "deploy/docker/admin.Dockerfile").read_text(encoding="utf-8")
