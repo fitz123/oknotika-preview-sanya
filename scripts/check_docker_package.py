@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import html
 import json
 import os
 import re
@@ -25,6 +26,7 @@ SECRETS = {
 }
 REJECTED_ADMIN_DOMAIN = "admin." + "okntoika.ru"
 STANDALONE_INSTRUCTION = "release/oknotika-docker-v2.29.0-rc.4-instruction.html"
+INCREMENTAL_INSTRUCTION = "release/oknotika-local-password-auth-20260902-instruction.html"
 SECRET_EXAMPLE_PLACEHOLDERS = {
     "local-username": "replace-on-deployment-host\n",
     "local-password-hash": "replace-on-deployment-host-with-a-versioned-scrypt-record\n",
@@ -137,6 +139,70 @@ def validate_host_nginx_text(text: str) -> list[str]:
     return errors
 
 
+def validate_production_relay_handoff_text(text: str, relative: str) -> list[str]:
+    errors: list[str] = []
+    required = (
+        "export OKNOTIKA_TELEGRAM_OVERRIDE=/var/home/oknotika/deploy/docker/docker-compose.xray-proxy.yml",
+        "export OKNOTIKA_XRAY_RELAY_SOCKET_UNIT=/etc/systemd/system/oknotika-xray-relay.socket",
+        "export OKNOTIKA_XRAY_RELAY_SERVICE_UNIT=/etc/systemd/system/oknotika-xray-relay.service",
+        'sudo cp -a -- "$OKNOTIKA_TELEGRAM_OVERRIDE" "$OKNOTIKA_RELAY_TOPOLOGY_BACKUP/docker-compose.xray-proxy.yml"',
+        'sudo cp -a -- "$OKNOTIKA_XRAY_RELAY_SOCKET_UNIT" "$OKNOTIKA_RELAY_TOPOLOGY_BACKUP/oknotika-xray-relay.socket"',
+        'sudo cp -a -- "$OKNOTIKA_XRAY_RELAY_SERVICE_UNIT" "$OKNOTIKA_RELAY_TOPOLOGY_BACKUP/oknotika-xray-relay.service"',
+        "sudo systemctl disable --now oknotika-xray-relay.socket",
+        "sudo systemctl stop oknotika-xray-relay.service",
+        'sudo mv "$OKNOTIKA_TELEGRAM_OVERRIDE" "$OKNOTIKA_RELAY_RETIRED/docker-compose.xray-proxy.yml"',
+        'sudo mv "$OKNOTIKA_XRAY_RELAY_SOCKET_UNIT" "$OKNOTIKA_RELAY_RETIRED/oknotika-xray-relay.socket"',
+        'sudo mv "$OKNOTIKA_XRAY_RELAY_SERVICE_UNIT" "$OKNOTIKA_RELAY_RETIRED/oknotika-xray-relay.service"',
+        'test -z "$(sudo ss -H -ltn \'sport = :11080\')"',
+        'sudo cp -a -- "$OKNOTIKA_RELAY_TOPOLOGY_BACKUP/docker-compose.xray-proxy.yml" "$OKNOTIKA_TELEGRAM_OVERRIDE"',
+        'sudo cp -a -- "$OKNOTIKA_RELAY_TOPOLOGY_BACKUP/oknotika-xray-relay.socket" "$OKNOTIKA_XRAY_RELAY_SOCKET_UNIT"',
+        'sudo cp -a -- "$OKNOTIKA_RELAY_TOPOLOGY_BACKUP/oknotika-xray-relay.service" "$OKNOTIKA_XRAY_RELAY_SERVICE_UNIT"',
+        "sudo systemctl enable --now oknotika-xray-relay.socket",
+        "sudo systemctl is-enabled --quiet oknotika-xray-relay.socket",
+        "sudo systemctl is-active --quiet oknotika-xray-relay.socket",
+        'test "$(sudo ss -H -ltn \'sport = :11080\' | awk \'{print $4}\')" = "172.17.0.1:11080"',
+        "sudo systemctl is-active --quiet xray.service",
+        '--env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --force-recreate --wait --wait-timeout 120 admin',
+        '--file "$OKNOTIKA_TELEGRAM_OVERRIDE" --env-file "$OKNOTIKA_COMPOSE_ENV"',
+    )
+    require_markers(text, relative, required, errors)
+
+    for forbidden in (
+        "OKNOTIKA_TELEGRAM_RELAY_SERVICE",
+        "/root-controlled/exact-production-telegram-override.yml",
+        "exact-production-telegram-relay-service",
+        "systemctl stop xray.service",
+        "systemctl disable xray.service",
+        "systemctl disable --now xray.service",
+    ):
+        if forbidden in text:
+            errors.append(f"{relative} contains obsolete or unsafe relay instruction: {forbidden}")
+
+    if text.count("sudo systemctl daemon-reload") < 2:
+        errors.append(f"{relative} must daemon-reload after relay retirement and restoration")
+    return errors
+
+
+def validate_html_shell_blocks(text: str, relative: str) -> list[str]:
+    errors: list[str] = []
+    blocks = re.findall(r"<pre><code>(.*?)</code></pre>", text, flags=re.DOTALL | re.IGNORECASE)
+    if not blocks:
+        return [f"{relative} does not contain shell blocks"]
+    for index, block in enumerate(blocks, start=1):
+        result = subprocess.run(
+            ["bash", "-n"],
+            input=html.unescape(block),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode:
+            errors.append(
+                f"bash syntax error in {relative} shell block {index}: {result.stderr.strip()}"
+            )
+    return errors
+
+
 def validate_docker_runbook_text(text: str) -> list[str]:
     errors: list[str] = []
     require_markers(
@@ -157,7 +223,9 @@ def validate_docker_runbook_text(text: str) -> list[str]:
             "configure-local-credentials.sh",
             "--rollback \"$OKNOTIKA_CREDENTIAL_SNAPSHOT\"",
             "credential-rollback",
-            "OKNOTIKA_TELEGRAM_RELAY_SERVICE",
+            "/var/home/oknotika/deploy/docker/docker-compose.xray-proxy.yml",
+            "/etc/systemd/system/oknotika-xray-relay.socket",
+            "/etc/systemd/system/oknotika-xray-relay.service",
             "Xray",
             "export OKNOTIKA_ACTIVE_PROJECT=oknotika",
             '--project-name "$OKNOTIKA_ACTIVE_PROJECT"',
@@ -222,7 +290,10 @@ def validate_docker_runbook_text(text: str) -> list[str]:
         'sudo mv "$OKNOTIKA_COMPOSE_ENV.next" "$OKNOTIKA_COMPOSE_ENV"',
         "--force-recreate --wait --wait-timeout 120",
     )
-    restore_positions = tuple(text.find(marker) for marker in restore_order)
+    restore_positions = tuple(text.find(marker) for marker in restore_order[:-1])
+    restore_positions += (
+        text.find(restore_order[-1], max(restore_positions[-1], 0)),
+    )
     if any(position < 0 for position in restore_positions) or restore_positions != tuple(sorted(restore_positions)):
         errors.append("Docker production restore must preserve and promote active image tags before restart")
     upgrade_prepare_order = (
@@ -251,6 +322,7 @@ def validate_docker_runbook_text(text: str) -> list[str]:
     for retired in ("/var/lib/oknotika-admin", "/opt/oknotika-docker", "/etc/oknotika/secrets"):
         if retired in text:
             errors.append(f"Docker runbook contains retired path: {retired}")
+    errors.extend(validate_production_relay_handoff_text(text, "deploy/docker/README_ZHENYA.md"))
     return errors
 
 
@@ -546,6 +618,12 @@ def validate(root: Path) -> list[str]:
     errors.extend(validate_docker_runbook_text(runbook))
     standalone_instruction = read_required(root, STANDALONE_INSTRUCTION, errors)
     errors.extend(validate_standalone_instruction_text(standalone_instruction))
+    incremental_instruction = read_required(root, INCREMENTAL_INSTRUCTION, errors)
+    errors.extend(validate_production_relay_handoff_text(
+        incremental_instruction,
+        INCREMENTAL_INSTRUCTION,
+    ))
+    errors.extend(validate_html_shell_blocks(incremental_instruction, INCREMENTAL_INSTRUCTION))
 
     dockerignore = read_required(root, ".dockerignore", errors)
     require_markers(

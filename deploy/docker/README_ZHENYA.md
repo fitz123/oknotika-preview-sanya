@@ -238,43 +238,98 @@ SQLite вручную.
 
 ## Вывод Telegram relay после проверки local login
 
-Только после успешного local login/logout перенести старые OIDC secrets и
-production-only Compose override/relay из active topology в закрытый rollback
-каталог. Сначала подставить точные существующие production path и service name;
-если они не совпадают с фактическим host, остановиться. Базовый stack и Xray не
-изменять:
+Production topology здесь фиксирован: override
+`/var/home/oknotika/deploy/docker/docker-compose.xray-proxy.yml` меняет только
+`admin` environment/extra_hosts, а bridge relay реализован host units
+`/etc/systemd/system/oknotika-xray-relay.socket` и
+`/etc/systemd/system/oknotika-xray-relay.service`. Это не Compose service.
+Socket слушает только `172.17.0.1:11080` и передаёт соединения в неизменяемый
+Xray на `127.0.0.1:1080`.
+
+Продолжать только после успешных local login/logout, повторного запроса
+закрытой страницы после logout и public checks. Сначала сохранить точные
+override и оба unit-файла в защищённый backup, и только затем вывести relay из
+active topology. Сам Xray запрещено останавливать, редактировать или удалять:
 
 ~~~bash
 set -euo pipefail
-export OKNOTIKA_TELEGRAM_OVERRIDE=/root-controlled/exact-production-telegram-override.yml
-export OKNOTIKA_TELEGRAM_RELAY_SERVICE=exact-production-telegram-relay-service
-export OKNOTIKA_TELEGRAM_RETIRED="$OKNOTIKA_ROOT/admin-app/data/backups/retired-telegram-$(date -u +%Y%m%dT%H%M%SZ)"
+export OKNOTIKA_TELEGRAM_OVERRIDE=/var/home/oknotika/deploy/docker/docker-compose.xray-proxy.yml
+export OKNOTIKA_XRAY_RELAY_SOCKET_UNIT=/etc/systemd/system/oknotika-xray-relay.socket
+export OKNOTIKA_XRAY_RELAY_SERVICE_UNIT=/etc/systemd/system/oknotika-xray-relay.service
+export OKNOTIKA_RELAY_BACKUP="/var/backups/oknotika/telegram-relay-$(date -u +%Y%m%dT%H%M%SZ)"
+export OKNOTIKA_RELAY_TOPOLOGY_BACKUP="$OKNOTIKA_RELAY_BACKUP/relay-topology.before"
+export OKNOTIKA_RELAY_RETIRED="$OKNOTIKA_RELAY_BACKUP/retired-oidc-relay"
 sudo test -f "$OKNOTIKA_TELEGRAM_OVERRIDE"
-[[ "$OKNOTIKA_TELEGRAM_RELAY_SERVICE" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]+$ ]]
-sudo install -d -o root -g root -m 0700 "$OKNOTIKA_TELEGRAM_RETIRED"
-sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
-  --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" \
-  --file "$OKNOTIKA_TELEGRAM_OVERRIDE" --env-file "$OKNOTIKA_COMPOSE_ENV" \
-  stop "$OKNOTIKA_TELEGRAM_RELAY_SERVICE"
-sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
-  --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" \
-  --file "$OKNOTIKA_TELEGRAM_OVERRIDE" --env-file "$OKNOTIKA_COMPOSE_ENV" \
-  rm --force "$OKNOTIKA_TELEGRAM_RELAY_SERVICE"
+sudo test -f "$OKNOTIKA_XRAY_RELAY_SOCKET_UNIT"
+sudo test -f "$OKNOTIKA_XRAY_RELAY_SERVICE_UNIT"
+sudo systemctl is-active --quiet oknotika-xray-relay.socket
+sudo systemctl is-active --quiet xray.service
+test "$(sudo ss -H -ltn 'sport = :11080' | awk '{print $4}')" = "172.17.0.1:11080"
+curl --fail --silent --show-error https://oknotika.ru/ >/dev/null
+curl --fail --silent --show-error https://oknotika.ru/articles/ >/dev/null
+sudo install -d -o root -g root -m 0700 "$OKNOTIKA_RELAY_BACKUP" "$OKNOTIKA_RELAY_TOPOLOGY_BACKUP" "$OKNOTIKA_RELAY_RETIRED"
+sudo cp -a -- "$OKNOTIKA_TELEGRAM_OVERRIDE" "$OKNOTIKA_RELAY_TOPOLOGY_BACKUP/docker-compose.xray-proxy.yml"
+sudo cp -a -- "$OKNOTIKA_XRAY_RELAY_SOCKET_UNIT" "$OKNOTIKA_RELAY_TOPOLOGY_BACKUP/oknotika-xray-relay.socket"
+sudo cp -a -- "$OKNOTIKA_XRAY_RELAY_SERVICE_UNIT" "$OKNOTIKA_RELAY_TOPOLOGY_BACKUP/oknotika-xray-relay.service"
+sudo cmp "$OKNOTIKA_TELEGRAM_OVERRIDE" "$OKNOTIKA_RELAY_TOPOLOGY_BACKUP/docker-compose.xray-proxy.yml"
+sudo cmp "$OKNOTIKA_XRAY_RELAY_SOCKET_UNIT" "$OKNOTIKA_RELAY_TOPOLOGY_BACKUP/oknotika-xray-relay.socket"
+sudo cmp "$OKNOTIKA_XRAY_RELAY_SERVICE_UNIT" "$OKNOTIKA_RELAY_TOPOLOGY_BACKUP/oknotika-xray-relay.service"
+sudo systemctl disable --now oknotika-xray-relay.socket
+sudo systemctl stop oknotika-xray-relay.service
+sudo mv "$OKNOTIKA_TELEGRAM_OVERRIDE" "$OKNOTIKA_RELAY_RETIRED/docker-compose.xray-proxy.yml"
+sudo mv "$OKNOTIKA_XRAY_RELAY_SOCKET_UNIT" "$OKNOTIKA_RELAY_RETIRED/oknotika-xray-relay.socket"
+sudo mv "$OKNOTIKA_XRAY_RELAY_SERVICE_UNIT" "$OKNOTIKA_RELAY_RETIRED/oknotika-xray-relay.service"
 for name in telegram-oidc-client-id telegram-oidc-client-secret; do
   if sudo test -f "$OKNOTIKA_ROOT/admin-app/data/secrets/$name"; then
-    sudo mv "$OKNOTIKA_ROOT/admin-app/data/secrets/$name" "$OKNOTIKA_TELEGRAM_RETIRED/$name"
+    sudo mv "$OKNOTIKA_ROOT/admin-app/data/secrets/$name" "$OKNOTIKA_RELAY_RETIRED/$name"
   fi
 done
-sudo mv "$OKNOTIKA_TELEGRAM_OVERRIDE" "$OKNOTIKA_TELEGRAM_RETIRED/"
+sudo systemctl daemon-reload
 sudo test ! -e "$OKNOTIKA_ROOT/admin-app/data/secrets/telegram-oidc-client-id"
 sudo test ! -e "$OKNOTIKA_ROOT/admin-app/data/secrets/telegram-oidc-client-secret"
-sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --wait
+! sudo systemctl is-active --quiet oknotika-xray-relay.socket
+test -z "$(sudo ss -H -ltn 'sport = :11080')"
+sudo systemctl is-active --quiet xray.service
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" --env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --force-recreate --wait --wait-timeout 120 admin
 ~~~
 
-Проверить, что active Compose запускается без override, local login работает,
-публичный сайт доступен, а Xray продолжает работать без изменений. Retired
-каталог хранить зашифрованно до конца rollback window, затем удалить целиком по
-утверждённой процедуре уничтожения credentials.
+Повторить local login/logout и public checks. Active admin должен быть создан
+только базовым Compose без override; public container не пересоздавать. Retired
+и topology backup хранить зашифрованно до конца rollback window, затем удалить
+целиком по утверждённой процедуре уничтожения credentials.
+
+Для полного возврата на прежний OIDC сначала восстановить прежние source, data и
+Compose env по incremental-инструкции, оставив admin остановленным. Затем из
+того же защищённого backup восстановить override и оба unit-файла по их точным
+production paths, перечитать systemd, включить socket и только после проверок
+пересоздать прежний stack с восстановленным override:
+
+~~~bash
+set -euo pipefail
+sudo test -f "$OKNOTIKA_RELAY_TOPOLOGY_BACKUP/docker-compose.xray-proxy.yml"
+sudo test -f "$OKNOTIKA_RELAY_TOPOLOGY_BACKUP/oknotika-xray-relay.socket"
+sudo test -f "$OKNOTIKA_RELAY_TOPOLOGY_BACKUP/oknotika-xray-relay.service"
+sudo cp -a -- "$OKNOTIKA_RELAY_TOPOLOGY_BACKUP/docker-compose.xray-proxy.yml" "$OKNOTIKA_TELEGRAM_OVERRIDE"
+sudo cp -a -- "$OKNOTIKA_RELAY_TOPOLOGY_BACKUP/oknotika-xray-relay.socket" "$OKNOTIKA_XRAY_RELAY_SOCKET_UNIT"
+sudo cp -a -- "$OKNOTIKA_RELAY_TOPOLOGY_BACKUP/oknotika-xray-relay.service" "$OKNOTIKA_XRAY_RELAY_SERVICE_UNIT"
+sudo systemctl daemon-reload
+sudo systemctl enable --now oknotika-xray-relay.socket
+sudo systemctl is-enabled --quiet oknotika-xray-relay.socket
+sudo systemctl is-active --quiet oknotika-xray-relay.socket
+test "$(sudo ss -H -ltn 'sport = :11080' | awk '{print $4}')" = "172.17.0.1:11080"
+sudo systemctl is-active --quiet xray.service
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
+  --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" \
+  --file "$OKNOTIKA_TELEGRAM_OVERRIDE" --env-file "$OKNOTIKA_COMPOSE_ENV" \
+  config --quiet
+sudo docker compose --project-name "$OKNOTIKA_ACTIVE_PROJECT" \
+  --file "$OKNOTIKA_ROOT/deploy/docker/docker-compose.yml" \
+  --file "$OKNOTIKA_TELEGRAM_OVERRIDE" --env-file "$OKNOTIKA_COMPOSE_ENV" \
+  up --detach --no-build --force-recreate --wait --wait-timeout 120
+~~~
+
+После запуска проверить прежний OIDC login и public URLs. Xray по-прежнему
+нельзя останавливать, редактировать или удалять.
 
 ## Начальный материал и weekly cover
 

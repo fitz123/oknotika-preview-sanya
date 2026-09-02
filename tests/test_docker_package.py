@@ -420,39 +420,61 @@ class DockerPackageTests(unittest.TestCase):
                 self.assertNotIn(forbidden, runbook)
                 self.assertNotIn(forbidden, instruction)
 
-    def test_incremental_handoff_removes_relay_through_compose_service(self) -> None:
+    def test_handoffs_require_exact_production_systemd_relay_topology(self) -> None:
         instruction = (REPO / "release/oknotika-local-password-auth-20260902-instruction.html").read_text(
             encoding="utf-8"
         )
-        self.assertIn('stop "$OKNOTIKA_TELEGRAM_RELAY_SERVICE"', instruction)
-        self.assertIn('rm --force "$OKNOTIKA_TELEGRAM_RELAY_SERVICE"', instruction)
-        self.assertNotIn('docker inspect "$OKNOTIKA_TELEGRAM_RELAY_SERVICE"', instruction)
-        self.assertNotIn('docker stop "$OKNOTIKA_TELEGRAM_RELAY_SERVICE"', instruction)
-        self.assertNotIn('docker rm "$OKNOTIKA_TELEGRAM_RELAY_SERVICE"', instruction)
+        runbook = (REPO / "deploy/docker/README_ZHENYA.md").read_text(encoding="utf-8")
+        for relative, text in (
+            (checker.INCREMENTAL_INSTRUCTION, instruction),
+            ("deploy/docker/README_ZHENYA.md", runbook),
+        ):
+            with self.subTest(relative=relative):
+                self.assertEqual(
+                    checker.validate_production_relay_handoff_text(text, relative),
+                    [],
+                )
+                self.assertNotIn("OKNOTIKA_TELEGRAM_RELAY_SERVICE", text)
+                self.assertNotIn("exact-production-telegram-relay-service", text)
 
-    def test_incremental_handoff_preserves_relay_override_for_full_rollback(self) -> None:
+        obsolete = instruction + "\ndocker compose stop $OKNOTIKA_TELEGRAM_RELAY_SERVICE\n"
+        self.assertTrue(any(
+            "obsolete or unsafe relay instruction" in error
+            for error in checker.validate_production_relay_handoff_text(
+                obsolete,
+                checker.INCREMENTAL_INSTRUCTION,
+            )
+        ))
+
+    def test_incremental_handoff_backs_up_retires_and_restores_relay_in_order(self) -> None:
         instruction = (REPO / "release/oknotika-local-password-auth-20260902-instruction.html").read_text(
             encoding="utf-8"
         )
-        preserved_override = (
-            'sudo install -o root -g root -m 0600 "$OKNOTIKA_TELEGRAM_OVERRIDE" '
-            '"$OKNOTIKA_BACKUP/telegram-override.before.yml"'
+        ordered_markers = (
+            'sudo cp -a -- "$OKNOTIKA_TELEGRAM_OVERRIDE" "$OKNOTIKA_RELAY_TOPOLOGY_BACKUP/docker-compose.xray-proxy.yml"',
+            '--env-file "$OKNOTIKA_CANDIDATE_ENV" up --detach --no-build --force-recreate --wait --wait-timeout 120 admin',
+            'sudo cmp "$OKNOTIKA_BACKUP/public-articles.before" "$OKNOTIKA_BACKUP/public-articles.after"',
+            "sudo systemctl disable --now oknotika-xray-relay.socket",
+            "sudo systemctl stop oknotika-xray-relay.service",
+            'sudo mv "$OKNOTIKA_XRAY_RELAY_SERVICE_UNIT" "$OKNOTIKA_RELAY_RETIRED/oknotika-xray-relay.service"',
+            'test -z "$(sudo ss -H -ltn \'sport = :11080\')"',
+            '--env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --force-recreate --wait --wait-timeout 120 admin',
+            'sudo cp -a -- "$OKNOTIKA_RELAY_TOPOLOGY_BACKUP/oknotika-xray-relay.service" "$OKNOTIKA_XRAY_RELAY_SERVICE_UNIT"',
+            "sudo systemctl enable --now oknotika-xray-relay.socket",
+            '--file "$OKNOTIKA_TELEGRAM_OVERRIDE" --env-file "$OKNOTIKA_COMPOSE_ENV" up --detach --no-build --force-recreate --wait --wait-timeout 120',
+            'sudo cmp "$OKNOTIKA_BACKUP/public-articles.before" "$OKNOTIKA_BACKUP/public-articles.rollback"',
         )
-        candidate_recreate = '--force-recreate --wait --wait-timeout 120 admin'
-        rollback_recreate = (
-            '--file "$OKNOTIKA_ROLLBACK_TELEGRAM_OVERRIDE" --env-file "$OKNOTIKA_COMPOSE_ENV" '
-            'up --detach --no-build --force-recreate --wait --wait-timeout 120'
+        positions = tuple(instruction.index(marker) for marker in ordered_markers)
+        self.assertEqual(positions, tuple(sorted(positions)))
+        self.assertEqual(
+            checker.validate_html_shell_blocks(instruction, checker.INCREMENTAL_INSTRUCTION),
+            [],
         )
-        restored_articles_check = (
-            'sudo cmp "$OKNOTIKA_BACKUP/public-articles.before" '
-            '"$OKNOTIKA_BACKUP/public-articles.rollback"'
-        )
-        self.assertIn(preserved_override, instruction)
-        self.assertIn(rollback_recreate, instruction)
-        self.assertIn(restored_articles_check, instruction)
-        self.assertLess(instruction.index(preserved_override), instruction.index(candidate_recreate))
-        self.assertLess(instruction.index(candidate_recreate), instruction.index(rollback_recreate))
-        self.assertLess(instruction.index(rollback_recreate), instruction.index(restored_articles_check))
+        for retired_example in (
+            "deploy/docker/secrets/telegram-oidc-client-id.example",
+            "deploy/docker/secrets/telegram-oidc-client-secret.example",
+        ):
+            self.assertEqual(instruction.count(f'data-remove="{retired_example}"'), 1)
 
     def test_admin_image_and_smoke_include_preview_assets(self) -> None:
         dockerfile = (REPO / "deploy/docker/admin.Dockerfile").read_text(encoding="utf-8")
