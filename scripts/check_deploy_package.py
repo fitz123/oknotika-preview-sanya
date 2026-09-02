@@ -107,17 +107,20 @@ def main() -> None:
         'Cache-Control "public, max-age=0, must-revalidate"',
         'Cache-Control "public, max-age=31536000, immutable"',
     )
-    require_text(
+    admin_nginx = require_text(
         deploy / "nginx/oknotika-admin.conf",
         "server unix:/run/oknotika-admin/app.sock",
         "client_max_body_size 1m",
         "client_max_body_size 10m",
+        "location = /login",
         "location = /api/uploads",
         "limit_conn oknotika_admin_uploads 2",
         "limit_req zone=oknotika_admin_login",
         "proxy_set_header X-Forwarded-Proto https",
         "proxy_set_header X-Forwarded-For $remote_addr",
     )
+    if "location = /auth/start" in admin_nginx or "location = /auth/callback" in admin_nginx:
+        fail("admin nginx retains obsolete OIDC routes")
     require_text(
         deploy / "nginx/snippets/admin-security-headers.conf",
         'Cache-Control "no-store"',

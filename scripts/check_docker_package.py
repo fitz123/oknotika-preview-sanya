@@ -103,7 +103,7 @@ def validate_host_nginx_text(text: str) -> list[str]:
             "proxy_pass http://oknotika_docker_public;",
             "client_max_body_size 1m;",
             "client_max_body_size 10m;",
-            "location = /auth/callback {",
+            "location = /login {",
             "location = /api/uploads {",
             "limit_req zone=oknotika_docker_admin_login burst=3 nodelay;",
             "limit_conn oknotika_docker_admin_uploads 2;",
@@ -126,15 +126,13 @@ def validate_host_nginx_text(text: str) -> list[str]:
             errors.append(f"host nginx uses a public backend upstream: {public_listener}")
     if "$proxy_add_x_forwarded_for" in text:
         errors.append("host nginx must replace, not append, X-Forwarded-For")
-    if text.count("proxy_set_header X-Forwarded-For $remote_addr;") < 5:
+    if text.count("proxy_set_header X-Forwarded-For $remote_addr;") < 4:
         errors.append("host nginx does not replace X-Forwarded-For in every proxy location")
-    callback = re.search(r"location = /auth/callback \{(?P<body>.*?)\n    \}", text, re.DOTALL)
-    if callback is not None:
-        callback_body = callback.group("body")
-        if "access_log off;" not in callback_body:
-            errors.append("host nginx callback access logging must be disabled")
-        if "error_log /dev/null crit;" not in callback_body:
-            errors.append("host nginx callback error logging must be suppressed")
+    for obsolete_path in ("/auth/start", "/auth/callback"):
+        if f"location = {obsolete_path}" in text:
+            errors.append(f"host nginx retains obsolete OIDC route {obsolete_path}")
+    if "access_log off;" in text or "error_log /dev/null" in text:
+        errors.append("host nginx retains an obsolete OIDC logging exception")
     return errors
 
 

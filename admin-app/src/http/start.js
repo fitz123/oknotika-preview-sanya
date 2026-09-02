@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import { dirname } from 'node:path';
 import { setImmediate } from 'node:timers';
 import { assertRuntimeSeparation, loadConfiguration } from '../auth/config.js';
+import { createLoginCsrfService } from '../auth/login.js';
 import { createLocalAuthenticator } from '../auth/local.js';
 import { createSessionService } from '../auth/sessions.js';
 import { openDatabase } from '../content/database.js';
@@ -28,6 +29,7 @@ assertRuntimeSeparation(config);
 
 const db = openDatabase(config.databasePath);
 const localAuthenticator = createLocalAuthenticator(db, config.localCredential);
+const loginCsrfService = createLoginCsrfService(db);
 const contentService = createContentService(db);
 const publisher = createPublisher(db, {
   releasesRoot: config.releasesRoot,
@@ -59,6 +61,7 @@ const sessionService = createSessionService(db);
 const handler = createAdminHandler({
   adminOrigin: config.adminOrigin,
   localAuthenticator,
+  loginCsrfService,
   sessionService,
   actions,
   weeklyIngestion,

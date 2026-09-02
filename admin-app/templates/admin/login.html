@@ -13,8 +13,20 @@
     <p class="eyebrow">Закрытый редактор</p>
     <h1>Новости</h1>
     <p>Черновики «Дайджеста недели», предпросмотр и ручная публикация.</p>
-    <p class="login-card__security">Доступ разрешён только заранее подтверждённому Telegram-аккаунту редактора.</p>
-    <a class="button button--primary" href="/auth/start">Войти через Telegram</a>
+    <p class="login-card__security">Доступ разрешён только редактору с локальной учётной записью.</p>
+    {{loginError}}
+    <form class="login-form" method="post" action="/login">
+      <input type="hidden" name="csrf" value="{{csrfToken}}">
+      <label class="field">
+        <span>Логин</span>
+        <input name="username" type="text" autocomplete="username" required autofocus>
+      </label>
+      <label class="field">
+        <span>Пароль</span>
+        <input name="password" type="password" autocomplete="current-password" required>
+      </label>
+      <button class="button button--primary" type="submit">Войти</button>
+    </form>
   </main>
 </body>
 </html>

@@ -1,6 +1,7 @@
-import { assertMutationRequest } from './security.js';
+import { LOGIN_BODY_MAXIMUM } from '../auth/login.js';
 import { WEEKLY_INGESTION_BODY_MAXIMUM } from '../content/validation.js';
 import { WEEKLY_INGESTION_PATH } from './ingestion-auth.js';
+import { assertLoginRequest, assertMutationRequest } from './security.js';
 
 const JSON_BODY_MAXIMUM = 1024 * 1024;
 const UPLOAD_BODY_MAXIMUM = 10 * 1024 * 1024;
@@ -27,6 +28,13 @@ export async function createProxiedRequest(incoming, {
       discardBody(incoming);
       return headerOnlyRequest;
     }
+  } else if (method === 'POST' && target.pathname === '/login') {
+    try {
+      assertLoginRequest(headerOnlyRequest, adminOrigin);
+    } catch {
+      discardBody(incoming);
+      return headerOnlyRequest;
+    }
   } else {
     const session = sessionService.authenticate(headerOnlyRequest.headers.get('cookie'));
     if (!session || !hasValidMutationHeaders(headerOnlyRequest, adminOrigin, session, sessionService)) {
@@ -47,6 +55,10 @@ export async function createProxiedRequest(incoming, {
 export function requestBodyMaximum(request) {
   const url = new URL(request.url);
   const mediaType = request.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase();
+  if (request.method === 'POST' && url.pathname === '/login'
+      && mediaType === 'application/x-www-form-urlencoded') {
+    return LOGIN_BODY_MAXIMUM;
+  }
   if (request.method === 'POST' && url.pathname === WEEKLY_INGESTION_PATH
       && mediaType === 'application/json') {
     return WEEKLY_INGESTION_BODY_MAXIMUM;

@@ -544,10 +544,15 @@ if [[ -n "$write_out" ]]; then printf '200'; fi
   assert.match(unexpectedOptional.stderr, /VK destination must be absent/);
 });
 
-test('admin ingress isolates large uploads and caps their global concurrency', () => {
+test('admin ingress rate-limits password login and isolates large uploads', () => {
   const nginx = readFileSync(resolve(REPO_ROOT, 'deploy/nginx/oknotika-admin.conf'), 'utf8');
   const zones = readFileSync(resolve(REPO_ROOT, 'deploy/nginx/00-oknotika-zones.conf'), 'utf8');
   assert.match(nginx, /client_max_body_size 1m;/);
+  assert.match(
+    nginx,
+    /location = \/login \{[\s\S]*?limit_req zone=oknotika_admin_login burst=3 nodelay;/,
+  );
+  assert.doesNotMatch(nginx, /location = \/auth\/(?:start|callback)/);
   assert.match(
     nginx,
     /location = \/api\/uploads \{[\s\S]*?client_max_body_size 10m;[\s\S]*?limit_conn oknotika_admin_uploads 2;/,

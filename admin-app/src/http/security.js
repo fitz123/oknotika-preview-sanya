@@ -14,11 +14,15 @@ export function assertMutationRequest(request, {
   }
 }
 
-export function assertSameOriginNavigation(request, adminOrigin) {
-  const origin = request.headers.get('origin');
-  if (origin !== null && origin !== adminOrigin) throw httpError(403, 'Origin check failed');
-  const site = request.headers.get('sec-fetch-site');
-  if (site !== null && !['same-origin', 'none'].includes(site)) throw httpError(403, 'Fetch Metadata check failed');
+export function assertLoginRequest(request, adminOrigin) {
+  if (request.method.toUpperCase() !== 'POST') throw httpError(405, 'Method is not allowed');
+  if (request.headers.get('origin') !== adminOrigin) throw httpError(403, 'Origin check failed');
+  if (request.headers.get('sec-fetch-site') !== 'same-origin') {
+    throw httpError(403, 'Fetch Metadata check failed');
+  }
+  if (request.headers.get('sec-fetch-mode') !== 'navigate') {
+    throw httpError(403, 'Fetch mode is not allowed');
+  }
 }
 
 export function assertTrustedProxyHeaders(headers, adminOrigin) {

@@ -162,7 +162,7 @@ class DockerPackageTests(unittest.TestCase):
             placeholder,
         ))
 
-    def test_host_nginx_domains_ports_and_proxy_headers_are_enforced(self) -> None:
+    def test_host_nginx_domains_ports_proxy_headers_and_login_limit_are_enforced(self) -> None:
         nginx = (REPO / "deploy/docker/host-nginx.conf").read_text(encoding="utf-8")
         changes = (
             (
@@ -186,12 +186,16 @@ class DockerPackageTests(unittest.TestCase):
                 "127.0.0.1:8001",
             ),
             (
-                nginx.replace("access_log off;", "access_log /var/log/nginx/access.log;", 1),
-                "callback access logging must be disabled",
+                nginx.replace("location = /login {", "location = /auth/callback {", 1),
+                "obsolete OIDC route /auth/callback",
             ),
             (
-                nginx.replace("error_log /dev/null crit;", "error_log /var/log/nginx/error.log error;", 1),
-                "callback error logging must be suppressed",
+                nginx.replace(
+                    "limit_req zone=oknotika_docker_admin_login burst=3 nodelay;",
+                    "limit_req zone=oknotika_docker_admin_general burst=3 nodelay;",
+                    1,
+                ),
+                "oknotika_docker_admin_login",
             ),
         )
         for changed, expected in changes:

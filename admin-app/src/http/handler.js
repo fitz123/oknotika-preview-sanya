@@ -1,18 +1,28 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { LOCAL_AUTH_FAILURE } from '../auth/local.js';
+import {
+  LOGIN_BODY_MAXIMUM,
+  LOGIN_CSRF_COOKIE,
+  loginCsrfCookie,
+} from '../auth/login.js';
 import {
   expireCookie,
+  readUniqueCookie,
   SESSION_COOKIE,
+  sessionCookie,
 } from '../auth/sessions.js';
 import { WEEKLY_INGESTION_BODY_MAXIMUM } from '../content/validation.js';
 import { WEEKLY_INGESTION_PATH } from './ingestion-auth.js';
-import { assertMutationRequest, httpError } from './security.js';
+import { assertLoginRequest, assertMutationRequest, httpError } from './security.js';
 
 const TEMPLATE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../templates/admin');
 
 export function createAdminHandler({
   adminOrigin,
+  localAuthenticator,
+  loginCsrfService,
   sessionService,
   actions,
   weeklyIngestion,
@@ -25,7 +35,36 @@ export function createAdminHandler({
       if (url.origin !== adminOrigin) throw httpError(400, 'Request origin is not canonical');
 
       if (request.method === 'GET' && url.pathname === '/login') {
-        return html(readTemplate('login.html'));
+        if (sessionService.authenticate(request.headers.get('cookie'))) return redirect('/');
+        return renderLogin(loginCsrfService);
+      }
+      if (request.method === 'POST' && url.pathname === '/login') {
+        try {
+          assertLoginRequest(request, adminOrigin);
+          const form = await readLoginForm(request);
+          loginCsrfService.consume({
+            token: form.csrfToken,
+            browserBinding: readUniqueCookie(request.headers.get('cookie'), LOGIN_CSRF_COOKIE),
+          });
+          const authenticated = await localAuthenticator.authenticate(form);
+          const session = sessionService.create(authenticated.editorId);
+          return redirect('/', [
+            sessionCookie(session.token),
+            expireCookie(LOGIN_CSRF_COOKIE),
+          ]);
+        } catch (error) {
+          if (error.code === 'INVALID_LOCAL_CREDENTIALS') {
+            return renderLogin(loginCsrfService, { status: 401, error: LOCAL_AUTH_FAILURE });
+          }
+          if (error.code === 'INVALID_LOGIN_CSRF' || Number.isInteger(error.status)) {
+            const status = error.code === 'INVALID_LOGIN_CSRF' ? 403 : error.status;
+            return renderLogin(loginCsrfService, {
+              status,
+              error: 'Запрос на вход недействителен. Обновите страницу и попробуйте снова.',
+            });
+          }
+          throw error;
+        }
       }
       if (request.method === 'GET' && url.pathname === '/admin.css') {
         return response(readTemplate('admin.css'), 200, 'text/css; charset=utf-8');
@@ -259,8 +298,39 @@ async function readJson(request, maximum = 1024 * 1024) {
   }
 }
 
-function html(body) {
-  return response(body, 200, 'text/html; charset=utf-8');
+async function readLoginForm(request) {
+  const mediaType = request.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase();
+  if (mediaType !== 'application/x-www-form-urlencoded') {
+    throw httpError(415, 'Login form Content-Type is invalid');
+  }
+  const text = await request.text();
+  if (Buffer.byteLength(text) > LOGIN_BODY_MAXIMUM) {
+    throw httpError(413, 'Login form is too large');
+  }
+  const parameters = new URLSearchParams(text);
+  for (const name of ['csrf', 'username', 'password']) {
+    if (parameters.getAll(name).length !== 1) throw httpError(400, 'Login form is invalid');
+  }
+  return {
+    csrfToken: parameters.get('csrf'),
+    username: parameters.get('username'),
+    password: parameters.get('password'),
+  };
+}
+
+function renderLogin(loginCsrfService, { status = 200, error = '' } = {}) {
+  const challenge = loginCsrfService.issue();
+  const body = interpolate(readTemplate('login.html'), {
+    csrfToken: escapeAttribute(challenge.token),
+    loginError: error
+      ? `<p class="login-card__error" role="alert">${escapeHtml(error)}</p>`
+      : '',
+  });
+  return html(body, status, [loginCsrfCookie(challenge.browserBinding, challenge)]);
+}
+
+function html(body, status = 200, cookies = []) {
+  return response(body, status, 'text/html; charset=utf-8', {}, cookies);
 }
 
 function json(body, status = 200) {

@@ -65,10 +65,10 @@ python3 scripts/build_docker_package.py --help
 
 **Serves:** Sanya's requirement to sign in with a normal login/password while retaining a safe admin rather than `admin/admin`.
 
-- [ ] Replace the Telegram button with username/password form POST handling and generic errors; keep secure `__Host-` session cookies, idle/absolute expiry and logout.
-- [ ] Protect login submission with same-origin/fetch-metadata and a one-use or equivalently robust pre-auth CSRF mechanism; do not put credentials into URLs, HTML responses or logs.
-- [ ] Update nginx rate limiting for the password-login endpoint and remove obsolete OIDC callback handling/log exceptions.
-- [ ] Cover successful login, wrong username/password, CSRF/replay/cookie failures, session expiry/revocation and API access in security tests.
+- [x] Replace the Telegram button with username/password form POST handling and generic errors; keep secure `__Host-` session cookies, idle/absolute expiry and logout.
+- [x] Protect login submission with same-origin/fetch-metadata and a one-use or equivalently robust pre-auth CSRF mechanism; do not put credentials into URLs, HTML responses or logs.
+- [x] Update nginx rate limiting for the password-login endpoint and remove obsolete OIDC callback handling/log exceptions.
+- [x] Cover successful login, wrong username/password, CSRF/replay/cookie failures, session expiry/revocation and API access in security tests.
 
 ### Task 3: Make VPS credential setup and migration safe and simple
 

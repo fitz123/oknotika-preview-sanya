@@ -4,6 +4,11 @@ import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
 import test from 'node:test';
 import { assertTelegramConformance } from '../src/auth/conformance.js';
 import { loadConfiguration } from '../src/auth/config.js';
+import {
+  createLoginCsrfService,
+  loginCsrfCookie,
+  LOGIN_CSRF_COOKIE,
+} from '../src/auth/login.js';
 import { createJwksVerifier } from '../src/auth/jwt.js';
 import {
   createLocalAuthenticator,
@@ -162,6 +167,48 @@ test('local authentication accepts the configured credential and returns one gen
       return true;
     });
   }
+});
+
+test('pre-auth login CSRF tokens are short-lived, browser-bound and consumed once', (t) => {
+  let now = new Date(NOW);
+  const harness = createHarness(t);
+  const csrf = createLoginCsrfService(harness.db, {
+    clock: () => now,
+    ttlMs: 60_000,
+  });
+  const first = csrf.issue();
+  const serialized = loginCsrfCookie(first.browserBinding, first);
+  assert.match(serialized, new RegExp(`^${LOGIN_CSRF_COOKIE}=`));
+  assert.match(serialized, /; Path=\/;/);
+  assert.match(serialized, /; Secure;/);
+  assert.match(serialized, /; HttpOnly;/);
+  assert.match(serialized, /; SameSite=Strict$/);
+  assert.doesNotMatch(serialized, /Domain=/i);
+  assert.doesNotThrow(() => csrf.consume({
+    token: first.token,
+    browserBinding: first.browserBinding,
+  }));
+  assert.throws(() => csrf.consume({
+    token: first.token,
+    browserBinding: first.browserBinding,
+  }), /invalid or expired/);
+
+  const browserBound = csrf.issue();
+  assert.throws(() => csrf.consume({
+    token: browserBound.token,
+    browserBinding: 'A'.repeat(43),
+  }), /invalid or expired/);
+  assert.doesNotThrow(() => csrf.consume({
+    token: browserBound.token,
+    browserBinding: browserBound.browserBinding,
+  }));
+
+  const expired = csrf.issue();
+  now = new Date(NOW.valueOf() + 60_001);
+  assert.throws(() => csrf.consume({
+    token: expired.token,
+    browserBinding: expired.browserBinding,
+  }), /invalid or expired/);
 });
 
 test('local editor initialization fails closed on a conflicting singleton identity', () => {
