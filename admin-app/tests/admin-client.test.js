@@ -12,6 +12,7 @@ test('mobile news editor wires weekly form, social links, preview, publish, with
   const requests = [];
   const assigned = [];
   const confirmations = [];
+  const storedNotices = new Map([['draftDeletionNotice', 'Предыдущее предупреждение']]);
   let reloads = 0;
   let formValues = new Map();
   const elements = Object.fromEntries([
@@ -46,7 +47,13 @@ test('mobile news editor wires weekly form, social links, preview, publish, with
     if (path.includes('/preview')) return Response.json({ previewUrl: '/previews/token/' }, { status: 201 });
     if (path === '/api/uploads') return Response.json({ assetId: 19 }, { status: 201 });
     if (path === '/logout') return new Response('', { status: 200 });
-    if (path.endsWith('/delete')) return Response.json({ status: 'deleted', articleId: 5 });
+    if (path.endsWith('/delete')) {
+      return Response.json({
+        status: 'deleted',
+        articleId: 5,
+        cleanup: { status: 'incomplete', failureCount: 1 },
+      });
+    }
     if (path.endsWith('/revisions') || path.endsWith('/restore') || path === '/api/articles') {
       return Response.json({ revisionId: 12, articleId: 5 }, { status: 201 });
     }
@@ -79,9 +86,17 @@ test('mobile news editor wires weekly form, social links, preview, publish, with
       confirmations.push(message);
       return true;
     },
+    sessionStorage: {
+      getItem: key => storedNotices.get(key) ?? null,
+      removeItem: key => storedNotices.delete(key),
+      setItem: (key, value) => storedNotices.set(key, value),
+    },
     Number,
     JSON,
   });
+
+  assert.equal(status.textContent, 'Предыдущее предупреждение');
+  assert.equal(storedNotices.has('draftDeletionNotice'), false);
 
   const click = dataset => listeners.click({
     target: { closest: () => ({ dataset }) },
@@ -111,7 +126,8 @@ test('mobile news editor wires weekly form, social links, preview, publish, with
     expectedRevisionId: 11,
   });
   assert.match(confirmations.at(-1), /навсегда.*необратимо/i);
-  assert.equal(status.textContent, 'Черновик удалён навсегда.');
+  assert.match(status.textContent, /очистка связанных файлов не завершена.*ошибок: 1/i);
+  assert.equal(storedNotices.get('draftDeletionNotice'), status.textContent);
 
   formValues = new Map([
     ['title', 'New title'], ['publicationDate', '2026-07-14'], ['lead', 'Lead'],

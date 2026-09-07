@@ -2,6 +2,7 @@ const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
 const statusNode = document.querySelector('#status');
 const articleForm = document.querySelector('#article-form');
 const socialForm = document.querySelector('#social-form');
+const DRAFT_DELETION_NOTICE_KEY = 'draftDeletionNotice';
 let deletePending = false;
 
 async function api(path, options = {}) {
@@ -17,6 +18,12 @@ async function api(path, options = {}) {
 
 function report(message) {
   statusNode.textContent = message;
+}
+
+const draftDeletionNotice = globalThis.sessionStorage.getItem(DRAFT_DELETION_NOTICE_KEY);
+if (draftDeletionNotice) {
+  globalThis.sessionStorage.removeItem(DRAFT_DELETION_NOTICE_KEY);
+  report(draftDeletionNotice);
 }
 
 articleForm.addEventListener('submit', async (event) => {
@@ -108,7 +115,7 @@ document.addEventListener('click', async (event) => {
       deletePending = true;
       button.disabled = true;
       try {
-        await api(`/api/articles/${button.dataset.id}/delete`, {
+        const result = await api(`/api/articles/${button.dataset.id}/delete`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
@@ -116,7 +123,13 @@ document.addEventListener('click', async (event) => {
             expectedRevisionId: Number(button.dataset.revision),
           }),
         });
-        report('Черновик удалён навсегда.');
+        const message = result.cleanup?.status === 'incomplete'
+          ? `Черновик удалён, но очистка связанных файлов не завершена (ошибок: ${result.cleanup.failureCount}). Обратитесь к администратору.`
+          : 'Черновик удалён навсегда.';
+        if (result.cleanup?.status === 'incomplete') {
+          globalThis.sessionStorage.setItem(DRAFT_DELETION_NOTICE_KEY, message);
+        }
+        report(message);
         location.reload();
       } catch (error) {
         deletePending = false;
