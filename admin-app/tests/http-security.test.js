@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync, readlinkSync } from 'node:fs';
+import { existsSync, readFileSync, readlinkSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 import { createLoginCsrfService, LOGIN_CSRF_COOKIE } from '../src/auth/login.js';
@@ -9,7 +9,11 @@ import { createAdminActions } from '../src/http/admin-actions.js';
 import { createAdminHandler } from '../src/http/handler.js';
 import { createProxiedRequest } from '../src/http/node-adapter.js';
 import { assertMutationRequest, assertTrustedProxyHeaders } from '../src/http/security.js';
-import { createPublisher } from '../src/render/publisher.js';
+import {
+  acquirePublisherLock,
+  createPublisher,
+  releasePublisherLock,
+} from '../src/render/publisher.js';
 import { articleInput, createHarness, weeklyIngestionInput } from './helpers.js';
 
 const ADMIN_ORIGIN = 'https://admin.oknotika.ru';
@@ -489,7 +493,7 @@ test('optimistic revision checks reject stale forms and actions emit audit event
   );
 });
 
-test('authenticated draft deletion route requires exact confirmation and surfaces not-found', async (t) => {
+test('authenticated draft deletion route requires confirmation, backup exclusion and explicit not-found', async (t) => {
   const harness = createHarness(t);
   const created = harness.service.createArticle(
     articleInput(harness.coverAssetId),
@@ -498,9 +502,11 @@ test('authenticated draft deletion route requires exact confirmation and surface
   const sessions = createSessionService(harness.db);
   const createdSession = sessions.create(harness.editorId);
   const cookie = sessionCookie(createdSession.token);
+  const releasesRoot = resolve(harness.root, 'article-releases');
   const actions = createAdminActions({
     db: harness.db,
     contentService: harness.service,
+    releasesRoot,
     publicOrigin: 'https://oknotika.ru',
   });
   const handler = createAdminHandler({
@@ -547,6 +553,19 @@ test('authenticated draft deletion route requires exact confirmation and surface
   });
   assert.equal(staleRevision.status, 400);
   assert.match((await staleRevision.json()).error, /Revision conflict/);
+
+  const backupLock = acquirePublisherLock(releasesRoot);
+  try {
+    const blockedByBackup = await mutate({
+      expectedRevisionId: created.revisionId,
+      confirmation: 'DELETE_FOREVER',
+    });
+    assert.equal(blockedByBackup.status, 500);
+    assert.ok(harness.service.getArticle(created.articleId));
+    assert.equal(existsSync(harness.coverPath), true);
+  } finally {
+    releasePublisherLock(backupLock);
+  }
 
   const deleted = await mutate({
     expectedRevisionId: created.revisionId,

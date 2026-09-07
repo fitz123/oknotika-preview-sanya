@@ -752,6 +752,41 @@ test('never-published weekly draft deletion removes owned records, files and tra
   );
 });
 
+test('draft deletion removes restored revisions in dependency order', (t) => {
+  const {
+    db, service, editorId, coverAssetId, coverPath,
+  } = createHarness(t);
+  const created = service.createArticle(articleInput(coverAssetId), editorId);
+  const revised = service.reviseArticle(
+    created.articleId,
+    articleInput(coverAssetId, { title: 'Редакция перед восстановлением' }),
+    editorId,
+    { expectedRevisionId: created.revisionId },
+  );
+  const restoredRevisionId = service.restoreRevision(
+    created.articleId,
+    created.revisionId,
+    editorId,
+    { expectedRevisionId: revised.revisionId },
+  );
+
+  const result = service.deleteNeverPublishedDraft(created.articleId, editorId, {
+    expectedRevisionId: restoredRevisionId,
+  });
+
+  assert.equal(result.status, 'deleted');
+  assert.deepEqual(result.revisionIds, [
+    created.revisionId,
+    revised.revisionId,
+    restoredRevisionId,
+  ]);
+  assert.equal(service.getArticle(created.articleId), undefined);
+  assert.equal(db.prepare(`
+    SELECT COUNT(*) AS count FROM article_revisions WHERE article_id = ?
+  `).get(created.articleId).count, 0);
+  assert.equal(existsSync(coverPath), false);
+});
+
 test('draft deletion requires an enabled editor and the exact current revision', (t) => {
   const { db, service, editorId, coverAssetId, coverPath } = createHarness(t);
   const created = service.createArticle(articleInput(coverAssetId), editorId);

@@ -50,6 +50,7 @@ const actions = createAdminActions({
   publisher,
   uploadStore,
   previewsRoot: config.previewsRoot,
+  releasesRoot: config.releasesRoot,
   publicOrigin: config.publicOrigin,
 });
 const weeklyIngestion = createWeeklyIngestion({

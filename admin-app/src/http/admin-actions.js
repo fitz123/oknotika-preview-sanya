@@ -1,4 +1,5 @@
 import { createPrivatePreview } from '../render/preview.js';
+import { acquirePublisherLock, releasePublisherLock } from '../render/publisher.js';
 
 export function createAdminActions({
   db,
@@ -6,6 +7,7 @@ export function createAdminActions({
   publisher,
   uploadStore,
   previewsRoot,
+  releasesRoot,
   publicOrigin,
   clock = () => new Date(),
 } = {}) {
@@ -137,11 +139,18 @@ export function createAdminActions({
 
   function deleteDraft(articleId, expectedRevisionId, editorId, confirmation) {
     requireConfirmation(confirmation, 'DELETE_FOREVER');
-    return contentService.deleteNeverPublishedDraft(
-      integer(articleId, 'articleId'),
-      editorId,
-      { expectedRevisionId: integer(expectedRevisionId, 'expectedRevisionId') },
-    );
+    const normalizedArticleId = integer(articleId, 'articleId');
+    const normalizedRevisionId = integer(expectedRevisionId, 'expectedRevisionId');
+    const lock = acquirePublisherLock(releasesRoot);
+    try {
+      return contentService.deleteNeverPublishedDraft(
+        normalizedArticleId,
+        editorId,
+        { expectedRevisionId: normalizedRevisionId },
+      );
+    } finally {
+      releasePublisherLock(lock);
+    }
   }
 
   async function upload(bytes, declaredMediaType, editorId) {

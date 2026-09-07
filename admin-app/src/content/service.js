@@ -243,8 +243,10 @@ export function createContentService(db, {
               SELECT id FROM article_revisions WHERE article_id = ?
             )
           `).run(normalizedArticleId);
-          db.prepare('DELETE FROM article_revisions WHERE article_id = ?')
-            .run(normalizedArticleId);
+          const deleteRevision = db.prepare('DELETE FROM article_revisions WHERE id = ?');
+          for (const revisionId of [...revisionIds].reverse()) {
+            deleteRevision.run(revisionId);
+          }
 
           const deletedAssetIds = [];
           const retainedAssetIds = [];
