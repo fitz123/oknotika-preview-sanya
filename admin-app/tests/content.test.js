@@ -19,6 +19,13 @@ import { formatMoscowDate, normalizePublicationDate } from '../src/content/valid
 import { createPrivatePreview } from '../src/render/preview.js';
 import { articleInput, createHarness, weeklyIngestionInput } from './helpers.js';
 
+function deletionOptions(service, article, expectedRevisionId = article.revisionId) {
+  return {
+    expectedRevisionId,
+    expectedGenerationToken: service.getArticle(article.articleId).generation_token,
+  };
+}
+
 test('schema models editor, immutable revisions, assets, releases and audit events', (t) => {
   const { db } = createHarness(t);
   const tables = new Set(db.prepare("SELECT name FROM sqlite_schema WHERE type = 'table'").all().map((row) => row.name));
@@ -552,6 +559,7 @@ test('draft deletion migration upgrades schema nine and remains readable by its 
   assert.equal(
     service.deleteNeverPublishedDraft(privateDraft.articleId, editorId, {
       expectedRevisionId: privateDraft.revisionId,
+      expectedGenerationToken: service.getArticle(privateDraft.articleId).generation_token,
     }).status,
     'deleted',
   );
@@ -574,6 +582,10 @@ test('draft deletion migration upgrades schema nine and remains readable by its 
     title: 'Draft created by rollback application',
   }), editorId);
   assert.equal(rollbackService.getArticle(rollbackDraft.articleId).state, 'draft');
+  assert.match(
+    rollbackService.getArticle(rollbackDraft.articleId).generation_token,
+    /^[0-9a-f]{32}$/,
+  );
   rollbackDb.close();
 });
 
@@ -704,9 +716,12 @@ test('never-published weekly draft deletion removes owned records, files and tra
     VALUES (?, ?, ?, '2026-07-13T12:00:00.000Z')
   `).run(unrelatedPreviewId, revised.revisionId, unrelatedDirectory);
 
-  const result = service.deleteNeverPublishedDraft(created.articleId, editorId, {
-    expectedRevisionId: revised.revisionId,
-  });
+  const deletionRequest = deletionOptions(service, created, revised.revisionId);
+  const result = service.deleteNeverPublishedDraft(
+    created.articleId,
+    editorId,
+    deletionRequest,
+  );
 
   assert.equal(result.status, 'deleted');
   assert.deepEqual(result.revisionIds, [created.revisionId, revised.revisionId]);
@@ -747,6 +762,7 @@ test('never-published weekly draft deletion removes owned records, files and tra
   assert.deepEqual(
     service.deleteNeverPublishedDraft(created.articleId, editorId, {
       expectedRevisionId: revised.revisionId,
+      expectedGenerationToken: deletionRequest.expectedGenerationToken,
     }),
     { status: 'not_found', articleId: created.articleId },
   );
@@ -770,9 +786,11 @@ test('draft deletion removes restored revisions in dependency order', (t) => {
     { expectedRevisionId: revised.revisionId },
   );
 
-  const result = service.deleteNeverPublishedDraft(created.articleId, editorId, {
-    expectedRevisionId: restoredRevisionId,
-  });
+  const result = service.deleteNeverPublishedDraft(
+    created.articleId,
+    editorId,
+    deletionOptions(service, created, restoredRevisionId),
+  );
 
   assert.equal(result.status, 'deleted');
   assert.deepEqual(result.revisionIds, [
@@ -787,6 +805,35 @@ test('draft deletion removes restored revisions in dependency order', (t) => {
   assert.equal(existsSync(coverPath), false);
 });
 
+test('a delayed deletion retry cannot delete an article that reused numeric IDs', (t) => {
+  const { service, editorId, coverAssetId } = createHarness(t);
+  service.createArticle(articleInput(coverAssetId, { title: 'Anchor draft' }), editorId);
+  const deleted = service.createArticle(articleInput(coverAssetId, {
+    title: 'Deleted generation',
+  }), editorId);
+  const delayedRequest = deletionOptions(service, deleted);
+
+  assert.equal(
+    service.deleteNeverPublishedDraft(deleted.articleId, editorId, delayedRequest).status,
+    'deleted',
+  );
+  const replacement = service.createArticle(articleInput(coverAssetId, {
+    title: 'Replacement generation',
+  }), editorId);
+
+  assert.equal(replacement.articleId, deleted.articleId);
+  assert.equal(replacement.revisionId, deleted.revisionId);
+  assert.notEqual(
+    service.getArticle(replacement.articleId).generation_token,
+    delayedRequest.expectedGenerationToken,
+  );
+  assert.deepEqual(
+    service.deleteNeverPublishedDraft(deleted.articleId, editorId, delayedRequest),
+    { status: 'not_found', articleId: deleted.articleId },
+  );
+  assert.ok(service.getArticle(replacement.articleId));
+});
+
 test('draft deletion requires an enabled editor and the exact current revision', (t) => {
   const { db, service, editorId, coverAssetId, coverPath } = createHarness(t);
   const created = service.createArticle(articleInput(coverAssetId), editorId);
@@ -797,6 +844,7 @@ test('draft deletion requires an enabled editor and the exact current revision',
   assert.throws(
     () => service.deleteNeverPublishedDraft(created.articleId, editorId, {
       expectedRevisionId: created.revisionId,
+      expectedGenerationToken: service.getArticle(created.articleId).generation_token,
     }),
     /Revision conflict/,
   );
@@ -804,10 +852,17 @@ test('draft deletion requires an enabled editor and the exact current revision',
     () => service.deleteNeverPublishedDraft(created.articleId, editorId),
     /expectedRevisionId must be a positive integer/,
   );
+  assert.throws(
+    () => service.deleteNeverPublishedDraft(created.articleId, editorId, {
+      expectedRevisionId: revised.revisionId,
+    }),
+    /expectedGenerationToken must be a 32-character lowercase hexadecimal token/,
+  );
   service.disableEditor(editorId);
   assert.throws(
     () => service.deleteNeverPublishedDraft(created.articleId, editorId, {
       expectedRevisionId: revised.revisionId,
+      expectedGenerationToken: service.getArticle(created.articleId).generation_token,
     }),
     /enabled editor/,
   );
@@ -835,9 +890,11 @@ test('draft deletion preserves a cover asset and upload still used by another ar
     title: 'Черновик с общей обложкой',
   }), editorId);
 
-  const result = service.deleteNeverPublishedDraft(deleted.articleId, editorId, {
-    expectedRevisionId: deleted.revisionId,
-  });
+  const result = service.deleteNeverPublishedDraft(
+    deleted.articleId,
+    editorId,
+    deletionOptions(service, deleted),
+  );
 
   assert.deepEqual(result.deletedAssetIds, []);
   assert.deepEqual(result.retainedAssetIds, [coverAssetId]);
@@ -893,6 +950,7 @@ test('current and historical public evidence all reject draft deletion', (t) => 
     assert.throws(
       () => service.deleteNeverPublishedDraft(article.articleId, editorId, {
         expectedRevisionId: article.revisionId,
+        expectedGenerationToken: service.getArticle(article.articleId).generation_token,
       }),
       (error) => error.status === 409 && /never-published/.test(error.message),
     );
@@ -947,6 +1005,7 @@ test('partial file staging failure restores quarantined files and database state
   assert.throws(
     () => service.deleteNeverPublishedDraft(created.articleId, editorId, {
       expectedRevisionId: created.revisionId,
+      expectedGenerationToken: service.getArticle(created.articleId).generation_token,
     }),
     /injected quarantine failure/,
   );
@@ -975,9 +1034,11 @@ test('post-commit file cleanup failure is retained in the deletion tombstone', (
   } = createHarness(t, { serviceOptions: { fileCleanup: cleanup } });
   const created = service.createArticle(articleInput(coverAssetId), editorId);
 
-  const result = service.deleteNeverPublishedDraft(created.articleId, editorId, {
-    expectedRevisionId: created.revisionId,
-  });
+  const result = service.deleteNeverPublishedDraft(
+    created.articleId,
+    editorId,
+    deletionOptions(service, created),
+  );
 
   assert.equal(result.status, 'deleted');
   assert.equal(result.cleanup.status, 'incomplete');
@@ -1004,6 +1065,11 @@ test('database enforces one configured editor plus immutable slugs and revision 
   assert.throws(
     () => db.prepare('UPDATE articles SET slug = ? WHERE id = ?').run('changed', created.articleId),
     /article slug is immutable/,
+  );
+  assert.throws(
+    () => db.prepare('UPDATE articles SET generation_token = ? WHERE id = ?')
+      .run('a'.repeat(32), created.articleId),
+    /article generation token is immutable/,
   );
   assert.throws(
     () => db.prepare('UPDATE article_revisions SET title = ? WHERE id = ?').run('changed', created.revisionId),

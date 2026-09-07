@@ -522,6 +522,7 @@ test('deleting an unrelated private draft leaves the active public release byte-
 
   const deleted = harness.service.deleteNeverPublishedDraft(draft.articleId, harness.editorId, {
     expectedRevisionId: draft.revisionId,
+    expectedGenerationToken: harness.service.getArticle(draft.articleId).generation_token,
   });
 
   assert.equal(deleted.status, 'deleted');

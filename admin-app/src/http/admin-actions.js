@@ -14,6 +14,7 @@ export function createAdminActions({
   function listArticles() {
     const articles = db.prepare(`
       SELECT a.id, a.slug, a.state, a.public_state, a.current_revision_id,
+             a.generation_token,
              a.published_revision_id, a.updated_at, r.revision_number,
              r.title, r.publication_at, r.lead, r.body_markdown, r.cover_asset_id,
              r.cover_alt, r.source_url, w.issue_id AS weekly_issue_id,
@@ -137,7 +138,13 @@ export function createAdminActions({
     );
   }
 
-  function deleteDraft(articleId, expectedRevisionId, editorId, confirmation) {
+  function deleteDraft(
+    articleId,
+    expectedRevisionId,
+    expectedGenerationToken,
+    editorId,
+    confirmation,
+  ) {
     requireConfirmation(confirmation, 'DELETE_FOREVER');
     const normalizedArticleId = integer(articleId, 'articleId');
     const normalizedRevisionId = integer(expectedRevisionId, 'expectedRevisionId');
@@ -146,7 +153,10 @@ export function createAdminActions({
       return contentService.deleteNeverPublishedDraft(
         normalizedArticleId,
         editorId,
-        { expectedRevisionId: normalizedRevisionId },
+        {
+          expectedRevisionId: normalizedRevisionId,
+          expectedGenerationToken,
+        },
       );
     } finally {
       releasePublisherLock(lock);

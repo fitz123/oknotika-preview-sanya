@@ -515,9 +515,9 @@ image tags. Production Compose сохраняет default
 restore.
 
 Migration 010 для удаления never-published drafts остаётся читаемой текущей
-schema-9 rollback application: она добавляет только таблицу учёта private preview
-и заменяет delete-триггеры, не меняя существующие колонки или read/write
-контракты. При application rollback на schema 9 текущую schema-10 DB переносить
+schema-9 rollback application: она добавляет generation token с DB-trigger для
+старого writer, таблицу учёта private preview и заменяет delete-триггеры, не
+меняя существующие read/write контракты. При application rollback на schema 9 текущую schema-10 DB переносить
 вместе с data и не откатывать отдельно: прежний editor продолжит читать,
 редактировать и публиковать материалы, но в нём не будет действия permanent
 delete. Preview, созданные во время такого rollback, не получат ownership-запись

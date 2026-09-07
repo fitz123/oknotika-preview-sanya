@@ -121,6 +121,7 @@ document.addEventListener('click', async (event) => {
           body: JSON.stringify({
             confirmation: 'DELETE_FOREVER',
             expectedRevisionId: Number(button.dataset.revision),
+            expectedGenerationToken: button.dataset.generation,
           }),
         });
         const message = result.cleanup?.status === 'incomplete'

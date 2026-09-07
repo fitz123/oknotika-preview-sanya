@@ -117,13 +117,16 @@ test('mobile news editor wires weekly form, social links, preview, publish, with
   assert.ok(requests.some(request => request.path === '/api/articles/5/publish'));
   assert.ok(requests.some(request => request.path === '/api/articles/5/withdraw'));
 
-  const deleteClick = { action: 'delete', id: '5', revision: '11' };
+  const deleteClick = {
+    action: 'delete', id: '5', revision: '11', generation: 'a'.repeat(32),
+  };
   await Promise.all([click(deleteClick), click(deleteClick)]);
   const deleteRequests = requests.filter(request => request.path === '/api/articles/5/delete');
   assert.equal(deleteRequests.length, 1);
   assert.deepEqual(JSON.parse(deleteRequests[0].options.body), {
     confirmation: 'DELETE_FOREVER',
     expectedRevisionId: 11,
+    expectedGenerationToken: 'a'.repeat(32),
   });
   assert.match(confirmations.at(-1), /навсегда.*необратимо/i);
   assert.match(status.textContent, /очистка связанных файлов не завершена.*ошибок: 1/i);

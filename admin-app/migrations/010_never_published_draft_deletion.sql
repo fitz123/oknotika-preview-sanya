@@ -1,5 +1,38 @@
 PRAGMA foreign_keys = ON;
 
+ALTER TABLE articles
+ADD COLUMN generation_token TEXT
+CHECK (
+  generation_token IS NULL
+  OR (
+    length(generation_token) = 32
+    AND generation_token NOT GLOB '*[^0-9a-f]*'
+  )
+);
+
+UPDATE articles
+SET generation_token = lower(hex(randomblob(16)))
+WHERE generation_token IS NULL;
+
+CREATE UNIQUE INDEX articles_generation_token_idx
+ON articles(generation_token);
+
+CREATE TRIGGER articles_assign_generation_token
+AFTER INSERT ON articles
+WHEN NEW.generation_token IS NULL
+BEGIN
+  UPDATE articles
+  SET generation_token = lower(hex(randomblob(16)))
+  WHERE id = NEW.id;
+END;
+
+CREATE TRIGGER articles_generation_token_is_immutable
+BEFORE UPDATE OF generation_token ON articles
+WHEN OLD.generation_token IS NOT NULL
+BEGIN
+  SELECT RAISE(ABORT, 'article generation token is immutable');
+END;
+
 CREATE TABLE private_previews (
   preview_id TEXT PRIMARY KEY,
   revision_id INTEGER NOT NULL REFERENCES article_revisions(id) ON DELETE RESTRICT,

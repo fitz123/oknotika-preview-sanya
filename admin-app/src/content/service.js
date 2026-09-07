@@ -177,15 +177,24 @@ export function createContentService(db, {
       });
     },
 
-    deleteNeverPublishedDraft(articleId, editorId, { expectedRevisionId } = {}) {
+    deleteNeverPublishedDraft(articleId, editorId, {
+      expectedRevisionId,
+      expectedGenerationToken,
+    } = {}) {
       assertEditor(db, editorId);
       const normalizedArticleId = positiveInteger(articleId, 'articleId');
       const normalizedRevisionId = positiveInteger(expectedRevisionId, 'expectedRevisionId');
+      const normalizedGenerationToken = generationToken(
+        expectedGenerationToken,
+        'expectedGenerationToken',
+      );
       const staged = [];
       let result;
       try {
         result = transaction(db, () => {
-          const article = db.prepare('SELECT * FROM articles WHERE id = ?').get(normalizedArticleId);
+          const article = db.prepare(`
+            SELECT * FROM articles WHERE id = ? AND generation_token = ?
+          `).get(normalizedArticleId, normalizedGenerationToken);
           if (!article) return { status: 'not_found', articleId: normalizedArticleId };
           assertExpectedRevision(article, normalizedRevisionId);
           assertNeverPublished(db, article);
@@ -283,6 +292,7 @@ export function createContentService(db, {
           const details = {
             articleId: normalizedArticleId,
             expectedRevisionId: normalizedRevisionId,
+            generationToken: normalizedGenerationToken,
             revisionIds,
             weeklyIssues,
             deletedAssetIds,
@@ -580,6 +590,13 @@ function positiveInteger(value, name) {
     throw new TypeError(`${name} must be a positive integer`);
   }
   return number;
+}
+
+function generationToken(value, name) {
+  if (typeof value !== 'string' || !/^[0-9a-f]{32}$/.test(value)) {
+    throw new TypeError(`${name} must be a 32-character lowercase hexadecimal token`);
+  }
+  return value;
 }
 
 function assertNeverPublished(db, article) {

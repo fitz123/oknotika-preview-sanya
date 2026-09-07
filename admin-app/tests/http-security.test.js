@@ -111,7 +111,8 @@ test('Node adapter authenticates before buffering and applies route-specific bod
   assert.equal(await acceptedSocialLinks.text(), '{}');
   assert.equal(socialLinks.iterated, true);
 
-  const deleteBody = Buffer.from('{"expectedRevisionId":23,"confirmation":"DELETE_FOREVER"}');
+  const deletePayload = `{"expectedRevisionId":23,"expectedGenerationToken":"${'a'.repeat(32)}","confirmation":"DELETE_FOREVER"}`;
+  const deleteBody = Buffer.from(deletePayload);
   const deleteDraft = fakeIncoming({
     url: '/api/articles/17/delete',
     body: deleteBody,
@@ -121,10 +122,7 @@ test('Node adapter authenticates before buffering and applies route-specific bod
     adminOrigin: ADMIN_ORIGIN,
     sessionService: authenticatedSessionService,
   });
-  assert.equal(
-    await acceptedDelete.text(),
-    '{"expectedRevisionId":23,"confirmation":"DELETE_FOREVER"}',
-  );
+  assert.equal(await acceptedDelete.text(), deletePayload);
   assert.equal(deleteDraft.iterated, true);
 
   const loginBody = Buffer.from('csrf=token&username=editor&password=private');
@@ -529,26 +527,39 @@ test('authenticated draft deletion route requires confirmation, backup exclusion
       body: JSON.stringify(body),
     },
   ));
+  const generationToken = harness.service.getArticle(created.articleId).generation_token;
 
   const dashboard = await handler(new Request(`${ADMIN_ORIGIN}/`, { headers: { cookie } }));
   assert.match(
     await dashboard.text(),
-    new RegExp(`data-action="delete" data-id="${created.articleId}"[^>]*>Удалить навсегда`),
+    new RegExp(`data-action="delete" data-id="${created.articleId}"[^>]*data-generation="${generationToken}"[^>]*>Удалить навсегда`),
   );
 
   const wrongConfirmation = await mutate({
     expectedRevisionId: created.revisionId,
+    expectedGenerationToken: generationToken,
     confirmation: 'DELETE',
   });
   assert.equal(wrongConfirmation.status, 400);
   assert.match((await wrongConfirmation.json()).error, /DELETE_FOREVER/);
 
-  const missingRevision = await mutate({ confirmation: 'DELETE_FOREVER' });
+  const missingRevision = await mutate({
+    expectedGenerationToken: generationToken,
+    confirmation: 'DELETE_FOREVER',
+  });
   assert.equal(missingRevision.status, 400);
   assert.match((await missingRevision.json()).error, /expectedRevisionId/);
 
+  const missingGeneration = await mutate({
+    expectedRevisionId: created.revisionId,
+    confirmation: 'DELETE_FOREVER',
+  });
+  assert.equal(missingGeneration.status, 400);
+  assert.match((await missingGeneration.json()).error, /expectedGenerationToken/);
+
   const staleRevision = await mutate({
     expectedRevisionId: created.revisionId + 1,
+    expectedGenerationToken: generationToken,
     confirmation: 'DELETE_FOREVER',
   });
   assert.equal(staleRevision.status, 400);
@@ -558,6 +569,7 @@ test('authenticated draft deletion route requires confirmation, backup exclusion
   try {
     const blockedByBackup = await mutate({
       expectedRevisionId: created.revisionId,
+      expectedGenerationToken: generationToken,
       confirmation: 'DELETE_FOREVER',
     });
     assert.equal(blockedByBackup.status, 500);
@@ -569,6 +581,7 @@ test('authenticated draft deletion route requires confirmation, backup exclusion
 
   const deleted = await mutate({
     expectedRevisionId: created.revisionId,
+    expectedGenerationToken: generationToken,
     confirmation: 'DELETE_FOREVER',
   });
   assert.equal(deleted.status, 200);
@@ -579,6 +592,7 @@ test('authenticated draft deletion route requires confirmation, backup exclusion
 
   const repeated = await mutate({
     expectedRevisionId: created.revisionId,
+    expectedGenerationToken: generationToken,
     confirmation: 'DELETE_FOREVER',
   });
   assert.equal(repeated.status, 404);

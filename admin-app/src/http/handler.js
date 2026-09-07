@@ -167,7 +167,7 @@ export function createAdminHandler({
       if (request.method === 'POST' && deleteMatch) {
         const body = await readJson(request);
         const result = actions.deleteDraft(
-          deleteMatch[1], body.expectedRevisionId,
+          deleteMatch[1], body.expectedRevisionId, body.expectedGenerationToken,
           Number(session.editor_id), body.confirmation,
         );
         return result.status === 'not_found'
@@ -232,7 +232,7 @@ function renderDashboard(actions, session) {
             ? `<button type="button" class="button button--danger" data-action="withdraw" data-id="${article.id}" data-revision="${article.current_revision_id}">Снять с публикации</button>`
             : ''}
           ${article.deletion_eligible
-            ? `<button type="button" class="button button--danger" data-action="delete" data-id="${article.id}" data-revision="${article.current_revision_id}">Удалить навсегда</button>`
+            ? `<button type="button" class="button button--danger" data-action="delete" data-id="${article.id}" data-revision="${article.current_revision_id}" data-generation="${escapeAttribute(article.generation_token)}">Удалить навсегда</button>`
             : ''}
         </div>
         ${renderRevisions(actions.listRevisions(article.id), article)}
