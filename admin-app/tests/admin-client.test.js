@@ -4,13 +4,14 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 
-test('mobile news editor wires weekly form, social links, preview, publish, withdraw, restore and logout', async () => {
+test('mobile news editor wires weekly form, social links, preview, publish, withdraw, restore, delete and logout', async () => {
   const listeners = {};
   const formListeners = {};
   const socialListeners = {};
   const logoutListeners = {};
   const requests = [];
   const assigned = [];
+  const confirmations = [];
   let reloads = 0;
   let formValues = new Map();
   const elements = Object.fromEntries([
@@ -45,6 +46,7 @@ test('mobile news editor wires weekly form, social links, preview, publish, with
     if (path.includes('/preview')) return Response.json({ previewUrl: '/previews/token/' }, { status: 201 });
     if (path === '/api/uploads') return Response.json({ assetId: 19 }, { status: 201 });
     if (path === '/logout') return new Response('', { status: 200 });
+    if (path.endsWith('/delete')) return Response.json({ status: 'deleted', articleId: 5 });
     if (path.endsWith('/revisions') || path.endsWith('/restore') || path === '/api/articles') {
       return Response.json({ revisionId: 12, articleId: 5 }, { status: 201 });
     }
@@ -73,7 +75,10 @@ test('mobile news editor wires weekly form, social links, preview, publish, with
       reload: () => { reloads += 1; },
       assign: value => assigned.push(value),
     },
-    confirm: () => true,
+    confirm: (message) => {
+      confirmations.push(message);
+      return true;
+    },
     Number,
     JSON,
   });
@@ -96,6 +101,17 @@ test('mobile news editor wires weekly form, social links, preview, publish, with
   assert.ok(!requests.some(request => request.path === '/api/releases/rollback'));
   assert.ok(requests.some(request => request.path === '/api/articles/5/publish'));
   assert.ok(requests.some(request => request.path === '/api/articles/5/withdraw'));
+
+  const deleteClick = { action: 'delete', id: '5', revision: '11' };
+  await Promise.all([click(deleteClick), click(deleteClick)]);
+  const deleteRequests = requests.filter(request => request.path === '/api/articles/5/delete');
+  assert.equal(deleteRequests.length, 1);
+  assert.deepEqual(JSON.parse(deleteRequests[0].options.body), {
+    confirmation: 'DELETE_FOREVER',
+    expectedRevisionId: 11,
+  });
+  assert.match(confirmations.at(-1), /навсегда.*необратимо/i);
+  assert.equal(status.textContent, 'Черновик удалён навсегда.');
 
   formValues = new Map([
     ['title', 'New title'], ['publicationDate', '2026-07-14'], ['lead', 'Lead'],

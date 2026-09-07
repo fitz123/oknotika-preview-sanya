@@ -38,9 +38,17 @@ test('article listing preserves a legacy source written after the multi-source m
     publicOrigin: 'https://oknotika.ru',
   });
 
-  assert.deepEqual(actions.listArticles()[0].source_urls, [
+  const listed = actions.listArticles()[0];
+  assert.deepEqual(listed.source_urls, [
     'https://example.com/rollback-source',
   ]);
+  assert.equal(listed.deletion_eligible, true);
+
+  harness.db.prepare(`
+    INSERT INTO audit_events (event_type, article_id, created_at)
+    VALUES ('article.published', ?, '2026-07-14T00:00:00.000Z')
+  `).run(created.articleId);
+  assert.equal(actions.listArticles()[0].deletion_eligible, false);
 });
 
 test('Node adapter authenticates before buffering and applies route-specific body limits', async () => {
@@ -98,6 +106,22 @@ test('Node adapter authenticates before buffering and applies route-specific bod
   });
   assert.equal(await acceptedSocialLinks.text(), '{}');
   assert.equal(socialLinks.iterated, true);
+
+  const deleteBody = Buffer.from('{"expectedRevisionId":23,"confirmation":"DELETE_FOREVER"}');
+  const deleteDraft = fakeIncoming({
+    url: '/api/articles/17/delete',
+    body: deleteBody,
+    headers: mutationHeaders({ contentType: 'application/json', contentLength: deleteBody.length }),
+  });
+  const acceptedDelete = await createProxiedRequest(deleteDraft, {
+    adminOrigin: ADMIN_ORIGIN,
+    sessionService: authenticatedSessionService,
+  });
+  assert.equal(
+    await acceptedDelete.text(),
+    '{"expectedRevisionId":23,"confirmation":"DELETE_FOREVER"}',
+  );
+  assert.equal(deleteDraft.iterated, true);
 
   const loginBody = Buffer.from('csrf=token&username=editor&password=private');
   const login = fakeIncoming({
@@ -465,6 +489,87 @@ test('optimistic revision checks reject stale forms and actions emit audit event
   );
 });
 
+test('authenticated draft deletion route requires exact confirmation and surfaces not-found', async (t) => {
+  const harness = createHarness(t);
+  const created = harness.service.createArticle(
+    articleInput(harness.coverAssetId),
+    harness.editorId,
+  );
+  const sessions = createSessionService(harness.db);
+  const createdSession = sessions.create(harness.editorId);
+  const cookie = sessionCookie(createdSession.token);
+  const actions = createAdminActions({
+    db: harness.db,
+    contentService: harness.service,
+    publicOrigin: 'https://oknotika.ru',
+  });
+  const handler = createAdminHandler({
+    adminOrigin: ADMIN_ORIGIN,
+    sessionService: sessions,
+    actions,
+  });
+  const mutate = (body) => handler(new Request(
+    `${ADMIN_ORIGIN}/api/articles/${created.articleId}/delete`,
+    {
+      method: 'POST',
+      headers: {
+        cookie,
+        origin: ADMIN_ORIGIN,
+        'sec-fetch-site': 'same-origin',
+        'sec-fetch-mode': 'cors',
+        'x-csrf-token': createdSession.csrfToken,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    },
+  ));
+
+  const dashboard = await handler(new Request(`${ADMIN_ORIGIN}/`, { headers: { cookie } }));
+  assert.match(
+    await dashboard.text(),
+    new RegExp(`data-action="delete" data-id="${created.articleId}"[^>]*>Удалить навсегда`),
+  );
+
+  const wrongConfirmation = await mutate({
+    expectedRevisionId: created.revisionId,
+    confirmation: 'DELETE',
+  });
+  assert.equal(wrongConfirmation.status, 400);
+  assert.match((await wrongConfirmation.json()).error, /DELETE_FOREVER/);
+
+  const missingRevision = await mutate({ confirmation: 'DELETE_FOREVER' });
+  assert.equal(missingRevision.status, 400);
+  assert.match((await missingRevision.json()).error, /expectedRevisionId/);
+
+  const staleRevision = await mutate({
+    expectedRevisionId: created.revisionId + 1,
+    confirmation: 'DELETE_FOREVER',
+  });
+  assert.equal(staleRevision.status, 400);
+  assert.match((await staleRevision.json()).error, /Revision conflict/);
+
+  const deleted = await mutate({
+    expectedRevisionId: created.revisionId,
+    confirmation: 'DELETE_FOREVER',
+  });
+  assert.equal(deleted.status, 200);
+  assert.deepEqual(
+    (({ status, articleId }) => ({ status, articleId }))(await deleted.json()),
+    { status: 'deleted', articleId: created.articleId },
+  );
+
+  const repeated = await mutate({
+    expectedRevisionId: created.revisionId,
+    confirmation: 'DELETE_FOREVER',
+  });
+  assert.equal(repeated.status, 404);
+  assert.deepEqual(await repeated.json(), {
+    status: 'not_found',
+    articleId: created.articleId,
+    error: 'Draft not found',
+  });
+});
+
 test('admin handler keeps XSS escaped and rejects raw HTML through authenticated API', async (t) => {
   const harness = createHarness(t);
   const sessions = createSessionService(harness.db);
@@ -562,6 +667,7 @@ test('weekly draft can be edited after Tuesday ingestion and manually published 
   assert.match(draftHtml, /YouTube: настроен/);
   assert.match(draftHtml, /VK: настроен/);
   assert.match(draftHtml, /FUTUCHAT: настроен/);
+  assert.match(draftHtml, /data-action="delete"[^>]*>Удалить навсегда</);
   assert.doesNotMatch(draftHtml, /Operational rollback|data-action="rollback"/);
 
   const loadedSocial = await (await handler(new Request(`${ADMIN_ORIGIN}/api/social-links`, {
@@ -655,6 +761,7 @@ test('weekly draft can be edited after Tuesday ingestion and manually published 
   assert.match(publishedHtml, /https:\/\/oknotika\.ru\/articles\/[^/]+\/</);
   assert.match(publishedHtml, /YouTube: настроен/);
   assert.match(publishedHtml, /FUTUCHAT: настроен/);
+  assert.doesNotMatch(publishedHtml, /data-action="delete"/);
   assert.equal(harness.service.getArticle(ingested.articleId).state, 'published');
 
   let activeDirectory = resolve(
@@ -795,6 +902,8 @@ test('admin handler removes OIDC routes and preserves editor lifecycle, preview,
   assert.equal(withdrawnResponse.status, 200);
   const withdrawn = await withdrawnResponse.json();
   assert.notEqual(withdrawn.releaseId, published.releaseId);
+  const withdrawnDashboard = await handler(new Request(`${ADMIN_ORIGIN}/`, { headers: { cookie } }));
+  assert.doesNotMatch(await withdrawnDashboard.text(), /data-action="delete"/);
 
   const restoreResponse = await mutate(`/api/articles/${created.articleId}/restore`, JSON.stringify({
     sourceRevisionId: created.revisionId,

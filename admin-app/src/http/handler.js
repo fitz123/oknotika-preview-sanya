@@ -163,6 +163,17 @@ export function createAdminHandler({
         );
         return json({ revisionId }, 201);
       }
+      const deleteMatch = /^\/api\/articles\/(\d+)\/delete$/.exec(url.pathname);
+      if (request.method === 'POST' && deleteMatch) {
+        const body = await readJson(request);
+        const result = actions.deleteDraft(
+          deleteMatch[1], body.expectedRevisionId,
+          Number(session.editor_id), body.confirmation,
+        );
+        return result.status === 'not_found'
+          ? json({ ...result, error: 'Draft not found' }, 404)
+          : json(result);
+      }
       if (request.method === 'POST' && url.pathname === '/api/uploads') {
         const length = Number(request.headers.get('content-length') ?? 0);
         if (length > 10 * 1024 * 1024) throw httpError(413, 'Upload is larger than 10 MB');
@@ -219,6 +230,9 @@ function renderDashboard(actions, session) {
             : ''}
           ${article.public_state === 'published'
             ? `<button type="button" class="button button--danger" data-action="withdraw" data-id="${article.id}" data-revision="${article.current_revision_id}">Снять с публикации</button>`
+            : ''}
+          ${article.deletion_eligible
+            ? `<button type="button" class="button button--danger" data-action="delete" data-id="${article.id}" data-revision="${article.current_revision_id}">Удалить навсегда</button>`
             : ''}
         </div>
         ${renderRevisions(actions.listRevisions(article.id), article)}

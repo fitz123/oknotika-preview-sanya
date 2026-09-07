@@ -14,7 +14,19 @@ export function createAdminActions({
       SELECT a.id, a.slug, a.state, a.public_state, a.current_revision_id,
              a.published_revision_id, a.updated_at, r.revision_number,
              r.title, r.publication_at, r.lead, r.body_markdown, r.cover_asset_id,
-             r.cover_alt, r.source_url, w.issue_id AS weekly_issue_id
+             r.cover_alt, r.source_url, w.issue_id AS weekly_issue_id,
+             CASE WHEN a.state = 'draft'
+                    AND a.public_state IS NULL
+                    AND a.published_revision_id IS NULL
+                    AND NOT EXISTS (
+                      SELECT 1 FROM release_articles ra WHERE ra.article_id = a.id
+                    )
+                    AND NOT EXISTS (
+                      SELECT 1 FROM audit_events ae
+                      WHERE ae.article_id = a.id
+                        AND ae.event_type IN ('article.published', 'article.withdrawn')
+                    )
+                  THEN 1 ELSE 0 END AS deletion_eligible
       FROM articles a
       JOIN article_revisions r ON r.id = a.current_revision_id
       LEFT JOIN weekly_ingestion_issues w ON w.article_id = a.id
@@ -28,6 +40,7 @@ export function createAdminActions({
       const sourceUrls = sources.all(article.current_revision_id).map((source) => source.url);
       return {
         ...article,
+        deletion_eligible: Boolean(article.deletion_eligible),
         source_urls: sourceUrls.length > 0
           ? sourceUrls
           : (article.source_url ? [article.source_url] : []),
@@ -122,6 +135,15 @@ export function createAdminActions({
     );
   }
 
+  function deleteDraft(articleId, expectedRevisionId, editorId, confirmation) {
+    requireConfirmation(confirmation, 'DELETE_FOREVER');
+    return contentService.deleteNeverPublishedDraft(
+      integer(articleId, 'articleId'),
+      editorId,
+      { expectedRevisionId: integer(expectedRevisionId, 'expectedRevisionId') },
+    );
+  }
+
   async function upload(bytes, declaredMediaType, editorId) {
     const result = await uploadStore.store({ bytes, declaredMediaType, editorId });
     audit('asset.uploaded', editorId, { details: { assetId: result.assetId, uploadId: result.uploadId } });
@@ -146,6 +168,7 @@ export function createAdminActions({
     publish,
     withdraw,
     restoreRevision,
+    deleteDraft,
     upload,
   };
 }

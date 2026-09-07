@@ -55,10 +55,10 @@ git diff --check
 
 **Serves:** Sanya and Evgeny's request for a visible delete option so abandoned drafts do not accumulate.
 
-- [ ] Add a bounded authenticated API route for deleting a draft, include it in pre-body mutation admission, and require the exact destructive confirmation plus `expectedRevisionId`.
-- [ ] Add a clearly destructive `Удалить навсегда` action only when `public_state` and public-history eligibility allow it; never render it for published/withdrawn/ever-public items.
-- [ ] Add a Russian irreversible confirmation prompt, call the API once, report success/failure plainly, and reload the queue after success.
-- [ ] Preserve existing edit, preview, publish, withdraw, restore, CSRF, session, body-limit, and error contracts.
+- [x] Add a bounded authenticated API route for deleting a draft, include it in pre-body mutation admission, and require the exact destructive confirmation plus `expectedRevisionId`.
+- [x] Add a clearly destructive `Удалить навсегда` action only when `public_state` and public-history eligibility allow it; never render it for published/withdrawn/ever-public items.
+- [x] Add a Russian irreversible confirmation prompt, call the API once, report success/failure plainly, and reload the queue after success.
+- [x] Preserve existing edit, preview, publish, withdraw, restore, CSRF, session, body-limit, and error contracts.
 
 ### Task 3: Prove lifecycle, safety, and rollback compatibility
 

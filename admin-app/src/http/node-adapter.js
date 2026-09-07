@@ -9,7 +9,7 @@ const JSON_MUTATION_PATHS = [
   /^\/api\/articles$/,
   /^\/api\/social-links$/,
   /^\/api\/articles\/\d+\/revisions$/,
-  /^\/api\/articles\/\d+\/(?:publish|withdraw|restore)$/,
+  /^\/api\/articles\/\d+\/(?:publish|withdraw|restore|delete)$/,
 ];
 
 export async function createProxiedRequest(incoming, {

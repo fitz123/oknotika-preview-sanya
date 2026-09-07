@@ -2,6 +2,7 @@ const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
 const statusNode = document.querySelector('#status');
 const articleForm = document.querySelector('#article-form');
 const socialForm = document.querySelector('#social-form');
+let deletePending = false;
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -99,6 +100,29 @@ document.addEventListener('click', async (event) => {
         }),
       });
       location.reload();
+      return;
+    }
+    if (button.dataset.action === 'delete') {
+      if (deletePending) return;
+      if (!confirm('Удалить этот черновик навсегда? Действие необратимо: редакции и связанные только с ним файлы будут удалены без возможности восстановления.')) return;
+      deletePending = true;
+      button.disabled = true;
+      try {
+        await api(`/api/articles/${button.dataset.id}/delete`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            confirmation: 'DELETE_FOREVER',
+            expectedRevisionId: Number(button.dataset.revision),
+          }),
+        });
+        report('Черновик удалён навсегда.');
+        location.reload();
+      } catch (error) {
+        deletePending = false;
+        button.disabled = false;
+        throw error;
+      }
       return;
     }
     const confirmation = button.dataset.action === 'publish' ? 'PUBLISH' : 'WITHDRAW';
