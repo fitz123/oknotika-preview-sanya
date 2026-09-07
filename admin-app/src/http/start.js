@@ -30,7 +30,7 @@ assertRuntimeSeparation(config);
 const db = openDatabase(config.databasePath);
 const localAuthenticator = createLocalAuthenticator(db, config.localCredential);
 const loginCsrfService = createLoginCsrfService(db);
-const contentService = createContentService(db);
+const contentService = createContentService(db, { previewsRoot: config.previewsRoot });
 const publisher = createPublisher(db, {
   releasesRoot: config.releasesRoot,
   publicOrigin: config.publicOrigin,

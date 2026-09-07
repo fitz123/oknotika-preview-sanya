@@ -80,6 +80,7 @@ export function createAdminActions({
       authenticatedEditorId: editorId,
       previewsRoot,
       publicOrigin,
+      clock,
     });
     audit('preview.created', editorId, { revisionId: normalizedRevisionId });
     return result;

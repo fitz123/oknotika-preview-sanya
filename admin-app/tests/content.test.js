@@ -1,11 +1,21 @@
 import assert from 'node:assert/strict';
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import test from 'node:test';
 import { openDatabase } from '../src/content/database.js';
 import { renderMarkdown } from '../src/content/markdown.js';
 import { formatMoscowDate, normalizePublicationDate } from '../src/content/validation.js';
+import { createPrivatePreview } from '../src/render/preview.js';
 import { articleInput, createHarness, weeklyIngestionInput } from './helpers.js';
 
 test('schema models editor, immutable revisions, assets, releases and audit events', (t) => {
@@ -14,7 +24,7 @@ test('schema models editor, immutable revisions, assets, releases and audit even
   for (const expected of [
     'configured_editors', 'articles', 'article_revisions', 'assets', 'releases',
     'release_articles', 'site_state', 'audit_events', 'article_revision_sources',
-    'weekly_ingestion_issues', 'site_social_links',
+    'weekly_ingestion_issues', 'site_social_links', 'private_previews',
   ]) {
     assert.ok(tables.has(expected), `${expected} table is missing`);
   }
@@ -547,7 +557,283 @@ test('weekly ingestion is versioned, idempotent and refuses silent manual overwr
   );
 });
 
-test('database enforces one configured editor plus immutable slugs and revisions', (t) => {
+test('never-published weekly draft deletion removes owned records, files and tracked previews', (t) => {
+  const {
+    root, privateRoot, coverPath, db, service, editorId, coverAssetId,
+  } = createHarness(t);
+  const originalPath = resolve(privateRoot, 'cover.source');
+  copyFileSync(coverPath, originalPath);
+  db.prepare(`
+    INSERT INTO private_uploads
+      (original_path, sanitized_asset_id, original_media_type, source_bytes,
+       width, height, created_by, created_at)
+    VALUES (?, ?, 'image/png', 1, 1, 1, ?, '2026-07-13T12:00:00.000Z')
+  `).run(originalPath, coverAssetId, editorId);
+  const created = service.ingestWeeklyDraft(weeklyIngestionInput(coverAssetId));
+  const revised = service.reviseArticle(
+    created.articleId,
+    weeklyIngestionInput(coverAssetId, {
+      article: { lead: 'Редакторская правка перед удалением.' },
+    }).article,
+    editorId,
+    { expectedRevisionId: created.revisionId },
+  );
+  const previewsRoot = resolve(root, 'previews');
+  const preview = createPrivatePreview({
+    db,
+    revisionId: revised.revisionId,
+    authenticatedEditorId: editorId,
+    previewsRoot,
+    publicOrigin: 'https://oknotika.ru',
+  });
+  const unknownPreview = resolve(previewsRoot, 'untracked-preview');
+  mkdirSync(unknownPreview, { recursive: true });
+  writeFileSync(resolve(unknownPreview, 'index.html'), 'untracked');
+  const unrelatedDirectory = resolve(root, 'unrelated-preview');
+  const unrelatedPreviewId = 'a'.repeat(32);
+  mkdirSync(unrelatedDirectory);
+  writeFileSync(resolve(unrelatedDirectory, 'index.html'), 'unrelated');
+  db.prepare(`
+    INSERT INTO private_previews (preview_id, revision_id, directory, created_at)
+    VALUES (?, ?, ?, '2026-07-13T12:00:00.000Z')
+  `).run(unrelatedPreviewId, revised.revisionId, unrelatedDirectory);
+
+  const result = service.deleteNeverPublishedDraft(created.articleId, editorId, {
+    expectedRevisionId: revised.revisionId,
+  });
+
+  assert.equal(result.status, 'deleted');
+  assert.deepEqual(result.revisionIds, [created.revisionId, revised.revisionId]);
+  assert.deepEqual(result.deletedAssetIds, [coverAssetId]);
+  assert.deepEqual(result.retainedAssetIds, []);
+  assert.equal(result.cleanup.status, 'completed');
+  assert.equal(result.cleanup.failureCount, 0);
+  assert.equal(existsSync(coverPath), false);
+  assert.equal(existsSync(originalPath), false);
+  assert.equal(existsSync(preview.directory), false);
+  assert.equal(existsSync(unknownPreview), true);
+  assert.equal(existsSync(unrelatedDirectory), true);
+  for (const table of [
+    'articles',
+    'article_revisions',
+    'article_revision_sources',
+    'weekly_ingestion_issues',
+    'private_uploads',
+    'private_previews',
+    'assets',
+  ]) {
+    assert.equal(db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get().count, 0, table);
+  }
+  const audits = db.prepare('SELECT * FROM audit_events ORDER BY id').all();
+  assert.equal(audits.length, 1);
+  assert.equal(audits[0].event_type, 'article.draft_deleted');
+  assert.equal(audits[0].article_id, null);
+  assert.equal(audits[0].revision_id, null);
+  const details = JSON.parse(audits[0].details_json);
+  assert.equal(details.articleId, created.articleId);
+  assert.deepEqual(details.weeklyIssues, ['2026-W31']);
+  assert.deepEqual(new Set(details.previewIds), new Set([preview.previewId, unrelatedPreviewId]));
+  assert.deepEqual(details.preservedPreviewIds, [unrelatedPreviewId]);
+  assert.equal(details.untrackedPreviewsPreserved, true);
+  assert.equal(details.cleanup.status, 'completed');
+  assert.doesNotMatch(audits[0].details_json, /Редакторская|Дайджест недели/);
+
+  assert.deepEqual(
+    service.deleteNeverPublishedDraft(created.articleId, editorId, {
+      expectedRevisionId: revised.revisionId,
+    }),
+    { status: 'not_found', articleId: created.articleId },
+  );
+});
+
+test('draft deletion requires an enabled editor and the exact current revision', (t) => {
+  const { db, service, editorId, coverAssetId, coverPath } = createHarness(t);
+  const created = service.createArticle(articleInput(coverAssetId), editorId);
+  const revised = service.reviseArticle(created.articleId, articleInput(coverAssetId, {
+    title: 'Новая текущая редакция',
+  }), editorId, { expectedRevisionId: created.revisionId });
+
+  assert.throws(
+    () => service.deleteNeverPublishedDraft(created.articleId, editorId, {
+      expectedRevisionId: created.revisionId,
+    }),
+    /Revision conflict/,
+  );
+  assert.throws(
+    () => service.deleteNeverPublishedDraft(created.articleId, editorId),
+    /expectedRevisionId must be a positive integer/,
+  );
+  service.disableEditor(editorId);
+  assert.throws(
+    () => service.deleteNeverPublishedDraft(created.articleId, editorId, {
+      expectedRevisionId: revised.revisionId,
+    }),
+    /enabled editor/,
+  );
+  assert.ok(service.getArticle(created.articleId));
+  assert.equal(existsSync(coverPath), true);
+  assert.equal(db.prepare(`
+    SELECT COUNT(*) AS count FROM article_revisions WHERE article_id = ?
+  `).get(created.articleId).count, 2);
+});
+
+test('draft deletion preserves a cover asset and upload still used by another article', (t) => {
+  const {
+    privateRoot, coverPath, db, service, editorId, coverAssetId,
+  } = createHarness(t);
+  const originalPath = resolve(privateRoot, 'shared.source');
+  copyFileSync(coverPath, originalPath);
+  db.prepare(`
+    INSERT INTO private_uploads
+      (original_path, sanitized_asset_id, original_media_type, source_bytes,
+       width, height, created_by, created_at)
+    VALUES (?, ?, 'image/png', 1, 1, 1, ?, '2026-07-13T12:00:00.000Z')
+  `).run(originalPath, coverAssetId, editorId);
+  const deleted = service.createArticle(articleInput(coverAssetId), editorId);
+  const remaining = service.createArticle(articleInput(coverAssetId, {
+    title: 'Черновик с общей обложкой',
+  }), editorId);
+
+  const result = service.deleteNeverPublishedDraft(deleted.articleId, editorId, {
+    expectedRevisionId: deleted.revisionId,
+  });
+
+  assert.deepEqual(result.deletedAssetIds, []);
+  assert.deepEqual(result.retainedAssetIds, [coverAssetId]);
+  assert.equal(existsSync(coverPath), true);
+  assert.equal(existsSync(originalPath), true);
+  assert.ok(db.prepare('SELECT 1 FROM assets WHERE id = ?').get(coverAssetId));
+  assert.ok(db.prepare('SELECT 1 FROM private_uploads WHERE sanitized_asset_id = ?').get(coverAssetId));
+  assert.ok(service.getArticle(remaining.articleId));
+});
+
+test('current and historical public evidence all reject draft deletion', (t) => {
+  const { db, service, editorId, coverAssetId } = createHarness(t);
+  const published = service.createArticle(articleInput(coverAssetId, {
+    title: 'Опубликованная статья',
+  }), editorId);
+  db.prepare(`
+    UPDATE articles
+    SET state = 'published', public_state = 'published', published_revision_id = ?
+    WHERE id = ?
+  `).run(published.revisionId, published.articleId);
+
+  const withdrawn = service.createArticle(articleInput(coverAssetId, {
+    title: 'Отозванная статья',
+  }), editorId);
+  db.prepare(`
+    UPDATE articles
+    SET state = 'withdrawn', public_state = 'withdrawn', published_revision_id = ?
+    WHERE id = ?
+  `).run(withdrawn.revisionId, withdrawn.articleId);
+
+  const releaseLinked = service.createArticle(articleInput(coverAssetId, {
+    title: 'Статья из старого релиза',
+  }), editorId);
+  db.prepare(`
+    INSERT INTO releases (id, status, created_at)
+    VALUES ('historical-release', 'complete', '2026-07-13T12:00:00.000Z')
+  `).run();
+  db.prepare(`
+    INSERT INTO release_articles (release_id, article_id, revision_id, public_state)
+    VALUES ('historical-release', ?, ?, 'published')
+  `).run(releaseLinked.articleId, releaseLinked.revisionId);
+
+  const audited = service.createArticle(articleInput(coverAssetId, {
+    title: 'Статья с историей публикации',
+  }), editorId);
+  db.prepare(`
+    INSERT INTO audit_events
+      (editor_id, event_type, article_id, revision_id, details_json, created_at)
+    VALUES (?, 'article.published', ?, ?, '{}', '2026-07-13T12:00:00.000Z')
+  `).run(editorId, audited.articleId, audited.revisionId);
+
+  for (const article of [published, withdrawn, releaseLinked, audited]) {
+    assert.throws(
+      () => service.deleteNeverPublishedDraft(article.articleId, editorId, {
+        expectedRevisionId: article.revisionId,
+      }),
+      (error) => error.status === 409 && /never-published/.test(error.message),
+    );
+    assert.ok(service.getArticle(article.articleId));
+  }
+
+  assert.throws(
+    () => db.prepare('DELETE FROM article_revision_sources WHERE revision_id = ?')
+      .run(published.revisionId),
+    /article revision sources are immutable/,
+  );
+  assert.throws(
+    () => db.prepare('DELETE FROM article_revisions WHERE id = ?').run(audited.revisionId),
+    /article revisions are immutable/,
+  );
+  assert.throws(
+    () => db.prepare('DELETE FROM articles WHERE id = ?').run(withdrawn.articleId),
+    /articles with public history are immutable/,
+  );
+  assert.throws(
+    () => db.prepare(`
+      DELETE FROM audit_events
+      WHERE article_id = ? AND event_type = 'article.published'
+    `).run(audited.articleId),
+    /public transition audit events are immutable/,
+  );
+});
+
+test('file staging failure rolls back draft deletion and restores database state', (t) => {
+  const cleanup = {
+    lstat: (path) => lstatSync(path),
+    rename: () => { throw new Error('injected quarantine failure'); },
+    remove: (path, options) => rmSync(path, options),
+  };
+  const {
+    db, service, editorId, coverAssetId, coverPath,
+  } = createHarness(t, { serviceOptions: { fileCleanup: cleanup } });
+  const created = service.createArticle(articleInput(coverAssetId), editorId);
+
+  assert.throws(
+    () => service.deleteNeverPublishedDraft(created.articleId, editorId, {
+      expectedRevisionId: created.revisionId,
+    }),
+    /injected quarantine failure/,
+  );
+  assert.ok(service.getArticle(created.articleId));
+  assert.ok(db.prepare('SELECT 1 FROM article_revisions WHERE id = ?').get(created.revisionId));
+  assert.ok(db.prepare('SELECT 1 FROM assets WHERE id = ?').get(coverAssetId));
+  assert.equal(existsSync(coverPath), true);
+});
+
+test('post-commit file cleanup failure is retained in the deletion tombstone', (t) => {
+  const cleanup = {
+    lstat: (path) => lstatSync(path),
+    rename: (source, destination) => renameSync(source, destination),
+    remove: () => { throw new Error('injected final cleanup failure'); },
+  };
+  const {
+    db, service, editorId, coverAssetId, coverPath,
+  } = createHarness(t, { serviceOptions: { fileCleanup: cleanup } });
+  const created = service.createArticle(articleInput(coverAssetId), editorId);
+
+  const result = service.deleteNeverPublishedDraft(created.articleId, editorId, {
+    expectedRevisionId: created.revisionId,
+  });
+
+  assert.equal(result.status, 'deleted');
+  assert.equal(result.cleanup.status, 'incomplete');
+  assert.equal(result.cleanup.failureCount, 1);
+  assert.equal(existsSync(coverPath), false);
+  assert.equal(service.getArticle(created.articleId), undefined);
+  const tombstone = db.prepare(`
+    SELECT details_json FROM audit_events WHERE event_type = 'article.draft_deleted'
+  `).get();
+  const details = JSON.parse(tombstone.details_json);
+  assert.equal(details.cleanup.status, 'incomplete');
+  assert.equal(details.cleanup.failures.length, 1);
+  assert.match(details.cleanup.failures[0].error, /injected final cleanup failure/);
+  assert.equal(existsSync(details.cleanup.failures[0].stagedPath), true);
+});
+
+test('database enforces one configured editor plus immutable slugs and revision updates', (t) => {
   const { db, service, editorId, coverAssetId } = createHarness(t);
   assert.throws(
     () => service.configureEditor({ issuer: 'https://oauth.telegram.org', subject: 'another-editor' }),
@@ -564,7 +850,7 @@ test('database enforces one configured editor plus immutable slugs and revisions
   );
   assert.throws(
     () => db.prepare('DELETE FROM article_revisions WHERE id = ?').run(created.revisionId),
-    /article revisions are immutable/,
+    /FOREIGN KEY constraint failed/,
   );
 });
 

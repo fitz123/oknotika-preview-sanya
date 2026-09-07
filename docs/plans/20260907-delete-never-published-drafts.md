@@ -42,12 +42,12 @@ git diff --check
 
 **Serves:** Sanya's choice of permanent deletion for abandoned drafts, with the explicit boundary that published history must remain immutable.
 
-- [ ] Add the smallest forward-only migration needed to permit revision/source deletion only when the parent article is provably never public; retain hard database rejection for published, withdrawn, release-linked, or ever-public content.
-- [ ] Add a transactional content-service operation requiring an enabled editor, exact article ID, expected current revision ID, and never-public evidence checks (`public_state`, `published_revision_id`, release membership, and public transition history).
-- [ ] Delete dependent weekly-ingestion/source/revision/article records in safe FK order and retain a non-content audit tombstone that records the deletion event without retaining deleted body content or creating dangling foreign keys.
-- [ ] Remove only assets/private uploads no longer referenced by any remaining revision. Coordinate private file deletion so failure cannot remove a shared file or silently leave the database in an ambiguous partial state.
-- [ ] Remove only private preview artifacts that are demonstrably tied to the deleted draft/revisions; never broad-delete unknown preview directories.
-- [ ] Validate successful deletion, stale revision rejection, shared-asset preservation, weekly-draft cleanup, and hard rejection for current or historical public content.
+- [x] Add the smallest forward-only migration needed to permit revision/source deletion only when the parent article is provably never public; retain hard database rejection for published, withdrawn, release-linked, or ever-public content.
+- [x] Add a transactional content-service operation requiring an enabled editor, exact article ID, expected current revision ID, and never-public evidence checks (`public_state`, `published_revision_id`, release membership, and public transition history).
+- [x] Delete dependent weekly-ingestion/source/revision/article records in safe FK order and retain a non-content audit tombstone that records the deletion event without retaining deleted body content or creating dangling foreign keys.
+- [x] Remove only assets/private uploads no longer referenced by any remaining revision. Coordinate private file deletion so failure cannot remove a shared file or silently leave the database in an ambiguous partial state.
+- [x] Remove only private preview artifacts that are demonstrably tied to the deleted draft/revisions; never broad-delete unknown preview directories.
+- [x] Validate successful deletion, stale revision rejection, shared-asset preservation, weekly-draft cleanup, and hard rejection for current or historical public content.
 
 ### Task 2: Expose an explicit destructive editor action
 

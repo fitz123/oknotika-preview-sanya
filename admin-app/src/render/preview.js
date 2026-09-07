@@ -1,12 +1,19 @@
 import { randomBytes } from 'node:crypto';
-import { chmodSync, copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadPreviewSnapshot, renderDetailDocument } from './renderer.js';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 
-export function createPrivatePreview({ db, revisionId, authenticatedEditorId, previewsRoot, publicOrigin }) {
+export function createPrivatePreview({
+  db,
+  revisionId,
+  authenticatedEditorId,
+  previewsRoot,
+  publicOrigin,
+  clock = () => new Date(),
+}) {
   const editor = db.prepare('SELECT id FROM configured_editors WHERE id = ? AND enabled = 1')
     .get(authenticatedEditorId);
   if (!editor) throw new Error('Authentication is required for preview');
@@ -35,6 +42,15 @@ export function createPrivatePreview({ db, revisionId, authenticatedEditorId, pr
     scriptTag: '',
   });
   writePrivate(resolve(directory, 'index.html'), html);
+  try {
+    db.prepare(`
+      INSERT INTO private_previews (preview_id, revision_id, directory, created_at)
+      VALUES (?, ?, ?, ?)
+    `).run(previewId, revisionId, directory, clock().toISOString());
+  } catch (error) {
+    rmSync(directory, { recursive: true, force: true });
+    throw error;
+  }
   return { previewId, directory };
 }
 

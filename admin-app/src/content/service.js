@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import { basename } from 'node:path';
+import { lstatSync, readFileSync, renameSync, rmSync } from 'node:fs';
+import { basename, resolve } from 'node:path';
 import { allocateSlug } from './slug.js';
 import { transaction } from './database.js';
 import {
@@ -21,7 +21,7 @@ function assertEditor(db, editorId) {
 }
 
 function insertAudit(db, event, clock) {
-  db.prepare(`
+  const result = db.prepare(`
     INSERT INTO audit_events
       (editor_id, event_type, article_id, revision_id, release_id, details_json, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -34,9 +34,21 @@ function insertAudit(db, event, clock) {
     JSON.stringify(event.details ?? {}),
     now(clock),
   );
+  return Number(result.lastInsertRowid);
 }
 
-export function createContentService(db, { clock = () => new Date() } = {}) {
+const DEFAULT_FILE_CLEANUP = Object.freeze({
+  lstat: (path) => lstatSync(path),
+  rename: (source, destination) => renameSync(source, destination),
+  remove: (path, options) => rmSync(path, options),
+});
+
+export function createContentService(db, {
+  clock = () => new Date(),
+  fileCleanup = DEFAULT_FILE_CLEANUP,
+  previewsRoot = null,
+} = {}) {
+  const normalizedPreviewsRoot = previewsRoot === null ? null : resolve(previewsRoot);
   return {
     configureEditor({ issuer, subject }) {
       if (!issuer || !subject) throw new TypeError('issuer and subject are required');
@@ -163,6 +175,166 @@ export function createContentService(db, { clock = () => new Date() } = {}) {
         }, clock);
         return revisionId;
       });
+    },
+
+    deleteNeverPublishedDraft(articleId, editorId, { expectedRevisionId } = {}) {
+      assertEditor(db, editorId);
+      const normalizedArticleId = positiveInteger(articleId, 'articleId');
+      const normalizedRevisionId = positiveInteger(expectedRevisionId, 'expectedRevisionId');
+      const staged = [];
+      let result;
+      try {
+        result = transaction(db, () => {
+          const article = db.prepare('SELECT * FROM articles WHERE id = ?').get(normalizedArticleId);
+          if (!article) return { status: 'not_found', articleId: normalizedArticleId };
+          assertExpectedRevision(article, normalizedRevisionId);
+          assertNeverPublished(db, article);
+
+          const revisions = db.prepare(`
+            SELECT id, cover_asset_id FROM article_revisions
+            WHERE article_id = ? ORDER BY id
+          `).all(normalizedArticleId);
+          const revisionIds = revisions.map((revision) => Number(revision.id));
+          const candidateAssetIds = [...new Set(
+            revisions.map((revision) => Number(revision.cover_asset_id)),
+          )];
+          const previews = db.prepare(`
+            SELECT preview_id, directory FROM private_previews
+            WHERE revision_id IN (
+              SELECT id FROM article_revisions WHERE article_id = ?
+            )
+            ORDER BY preview_id
+          `).all(normalizedArticleId);
+          const weeklyIssues = db.prepare(`
+            SELECT issue_id FROM weekly_ingestion_issues
+            WHERE article_id = ? ORDER BY issue_id
+          `).all(normalizedArticleId).map((issue) => issue.issue_id);
+
+          db.prepare('DELETE FROM weekly_ingestion_issues WHERE article_id = ?')
+            .run(normalizedArticleId);
+          db.prepare(`
+            DELETE FROM audit_events
+            WHERE article_id = ? OR revision_id IN (
+              SELECT id FROM article_revisions WHERE article_id = ?
+            )
+          `).run(normalizedArticleId, normalizedArticleId);
+          db.prepare(`
+            UPDATE articles SET current_revision_id = NULL
+            WHERE id = ?
+          `).run(normalizedArticleId);
+          db.prepare(`
+            DELETE FROM private_previews
+            WHERE revision_id IN (
+              SELECT id FROM article_revisions WHERE article_id = ?
+            )
+          `).run(normalizedArticleId);
+          for (const preview of previews) {
+            if (isOwnedPreview(preview, normalizedPreviewsRoot)) {
+              stagePath(fileCleanup, staged, {
+                kind: 'preview',
+                path: preview.directory,
+                reference: preview.preview_id,
+              });
+            }
+          }
+          db.prepare(`
+            DELETE FROM article_revision_sources
+            WHERE revision_id IN (
+              SELECT id FROM article_revisions WHERE article_id = ?
+            )
+          `).run(normalizedArticleId);
+          db.prepare('DELETE FROM article_revisions WHERE article_id = ?')
+            .run(normalizedArticleId);
+
+          const deletedAssetIds = [];
+          const retainedAssetIds = [];
+          for (const assetId of candidateAssetIds) {
+            const stillReferenced = db.prepare(`
+              SELECT 1 FROM article_revisions WHERE cover_asset_id = ? LIMIT 1
+            `).get(assetId);
+            if (stillReferenced) {
+              retainedAssetIds.push(assetId);
+              continue;
+            }
+            const asset = db.prepare('SELECT * FROM assets WHERE id = ?').get(assetId);
+            if (!asset) continue;
+            const upload = db.prepare(`
+              SELECT id, original_path FROM private_uploads
+              WHERE sanitized_asset_id = ?
+            `).get(assetId);
+            stageUnsharedAssetPath(db, fileCleanup, staged, asset.private_path, assetId, {
+              kind: 'asset',
+              reference: assetId,
+            });
+            if (upload) {
+              stageUnsharedAssetPath(db, fileCleanup, staged, upload.original_path, assetId, {
+                kind: 'upload-original',
+                reference: Number(upload.id),
+              });
+              db.prepare('DELETE FROM private_uploads WHERE id = ?').run(upload.id);
+            }
+            db.prepare('DELETE FROM assets WHERE id = ?').run(assetId);
+            deletedAssetIds.push(assetId);
+          }
+
+          db.prepare('DELETE FROM articles WHERE id = ?').run(normalizedArticleId);
+          const details = {
+            articleId: normalizedArticleId,
+            expectedRevisionId: normalizedRevisionId,
+            revisionIds,
+            weeklyIssues,
+            deletedAssetIds,
+            retainedAssetIds,
+            previewIds: previews.map((preview) => preview.preview_id),
+            preservedPreviewIds: previews
+              .filter((preview) => !isOwnedPreview(preview, normalizedPreviewsRoot))
+              .map((preview) => preview.preview_id),
+            untrackedPreviewsPreserved: true,
+            cleanup: cleanupDetails(staged, 'pending'),
+          };
+          const tombstoneId = insertAudit(db, {
+            type: 'article.draft_deleted',
+            editorId,
+            details,
+          }, clock);
+          return {
+            status: 'deleted',
+            articleId: normalizedArticleId,
+            revisionIds,
+            deletedAssetIds,
+            retainedAssetIds,
+            tombstoneId,
+            details,
+          };
+        });
+      } catch (error) {
+        const recoveryFailures = restoreStaged(fileCleanup, staged);
+        if (recoveryFailures.length > 0) {
+          throw new AggregateError(
+            [error, ...recoveryFailures],
+            'Draft deletion failed and one or more quarantined files could not be restored',
+          );
+        }
+        throw error;
+      }
+
+      if (result.status === 'not_found') return result;
+      const cleanupFailures = removeStaged(fileCleanup, staged);
+      const cleanupStatus = cleanupFailures.length === 0 ? 'completed' : 'incomplete';
+      result.details.cleanup = cleanupDetails(staged, cleanupStatus, cleanupFailures);
+      db.prepare('UPDATE audit_events SET details_json = ? WHERE id = ?')
+        .run(JSON.stringify(result.details), result.tombstoneId);
+      return {
+        status: result.status,
+        articleId: result.articleId,
+        revisionIds: result.revisionIds,
+        deletedAssetIds: result.deletedAssetIds,
+        retainedAssetIds: result.retainedAssetIds,
+        cleanup: {
+          status: result.details.cleanup.status,
+          failureCount: result.details.cleanup.failures.length,
+        },
+      };
     },
 
     ingestWeeklyDraft(input) {
@@ -398,4 +570,126 @@ function conflictError(message) {
   const error = new Error(message);
   error.status = 409;
   return error;
+}
+
+function positiveInteger(value, name) {
+  const number = typeof value === 'number' ? value : Number(value);
+  if (!Number.isInteger(number) || number < 1) {
+    throw new TypeError(`${name} must be a positive integer`);
+  }
+  return number;
+}
+
+function assertNeverPublished(db, article) {
+  const hasRelease = db.prepare(`
+    SELECT 1 FROM release_articles WHERE article_id = ? LIMIT 1
+  `).get(article.id);
+  const hasPublicTransition = db.prepare(`
+    SELECT 1 FROM audit_events
+    WHERE article_id = ?
+      AND event_type IN ('article.published', 'article.withdrawn')
+    LIMIT 1
+  `).get(article.id);
+  if (article.state !== 'draft'
+      || article.public_state !== null
+      || article.published_revision_id !== null
+      || hasRelease
+      || hasPublicTransition) {
+    throw conflictError('Only a never-published private draft can be deleted');
+  }
+}
+
+function stageUnsharedAssetPath(db, fileCleanup, staged, path, assetId, target) {
+  const shared = db.prepare(`
+    SELECT 1 FROM assets WHERE id <> ? AND private_path = ?
+    UNION ALL
+    SELECT 1 FROM private_uploads WHERE sanitized_asset_id <> ? AND original_path = ?
+    LIMIT 1
+  `).get(assetId, path, assetId, path);
+  if (!shared) stagePath(fileCleanup, staged, { ...target, path });
+}
+
+function isOwnedPreview(preview, previewsRoot) {
+  return previewsRoot !== null
+    && /^[A-Za-z0-9_-]{32}$/.test(preview.preview_id)
+    && preview.directory === resolve(previewsRoot, preview.preview_id);
+}
+
+function stagePath(fileCleanup, staged, target) {
+  if (staged.some((item) => item.originalPath === target.path)) return;
+  try {
+    fileCleanup.lstat(target.path);
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      staged.push({
+        kind: target.kind,
+        reference: target.reference,
+        originalPath: target.path,
+        stagedPath: null,
+        missing: true,
+      });
+      return;
+    }
+    throw error;
+  }
+  const stagedPath = `${target.path}.delete-${randomUUID()}`;
+  fileCleanup.rename(target.path, stagedPath);
+  staged.push({
+    kind: target.kind,
+    reference: target.reference,
+    originalPath: target.path,
+    stagedPath,
+    missing: false,
+  });
+}
+
+function restoreStaged(fileCleanup, staged) {
+  const failures = [];
+  for (const item of [...staged].reverse()) {
+    if (!item.stagedPath) continue;
+    try {
+      fileCleanup.rename(item.stagedPath, item.originalPath);
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  return failures;
+}
+
+function removeStaged(fileCleanup, staged) {
+  const failures = [];
+  for (const item of staged) {
+    if (!item.stagedPath) continue;
+    try {
+      fileCleanup.remove(item.stagedPath, {
+        recursive: item.kind === 'preview',
+        force: false,
+      });
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        failures.push({
+          kind: item.kind,
+          reference: item.reference,
+          originalPath: item.originalPath,
+          stagedPath: item.stagedPath,
+          error: error.message,
+        });
+      }
+    }
+  }
+  return failures;
+}
+
+function cleanupDetails(staged, status, failures = []) {
+  return {
+    status: staged.length === 0 ? 'not_needed' : status,
+    targets: staged.map((item) => ({
+      kind: item.kind,
+      reference: item.reference,
+      originalPath: item.originalPath,
+      stagedPath: item.stagedPath,
+      missing: item.missing,
+    })),
+    failures,
+  };
 }

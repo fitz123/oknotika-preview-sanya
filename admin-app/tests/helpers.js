@@ -9,14 +9,21 @@ const TINY_PNG = Buffer.from(
   'base64',
 );
 
-export function createHarness(t, { clock = () => new Date('2026-07-13T12:00:00.000Z') } = {}) {
+export function createHarness(t, {
+  clock = () => new Date('2026-07-13T12:00:00.000Z'),
+  serviceOptions = {},
+} = {}) {
   const root = mkdtempSync(resolve(tmpdir(), 'oknotika-content-'));
   const privateRoot = resolve(root, 'private');
   mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
   const coverPath = resolve(privateRoot, 'cover.png');
   writeFileSync(coverPath, TINY_PNG, { mode: 0o600 });
   const db = openDatabase(':memory:');
-  const service = createContentService(db, { clock });
+  const service = createContentService(db, {
+    clock,
+    previewsRoot: resolve(root, 'previews'),
+    ...serviceOptions,
+  });
   const editorId = service.configureEditor({
     issuer: 'https://oauth.telegram.org',
     subject: 'editor-123',
