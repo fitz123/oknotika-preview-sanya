@@ -287,6 +287,28 @@ test('local login form creates an authenticated session that can use the API and
   }))).status, 401);
 });
 
+test('favicon probe cannot rotate the browser-bound login challenge', async (t) => {
+  const fixture = await createLocalLoginFixture(t);
+  const challenge = await requestLoginChallenge(fixture.handler);
+  const favicon = await fixture.handler(new Request(`${ADMIN_ORIGIN}/favicon.ico`, {
+    headers: {
+      cookie: challenge.cookie,
+      'sec-fetch-site': 'same-origin',
+      'sec-fetch-mode': 'no-cors',
+    },
+  }));
+  assert.equal(favicon.status, 204);
+  assert.equal(favicon.headers.get('location'), null);
+  assert.deepEqual(favicon.headers.getSetCookie(), []);
+
+  const loggedIn = await submitLogin(fixture.handler, challenge, {
+    username: fixture.username,
+    password: fixture.password,
+  }, { origin: 'null' });
+  assert.equal(loggedIn.status, 303);
+  assert.equal(loggedIn.headers.get('location'), '/');
+});
+
 test('local login accepts Origin null only for same-origin navigate and still consumes CSRF', async (t) => {
   const fixture = await createLocalLoginFixture(t);
   const challenge = await requestLoginChallenge(fixture.handler);

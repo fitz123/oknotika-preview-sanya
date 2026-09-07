@@ -34,6 +34,16 @@ export function createAdminHandler({
       const url = new URL(request.url);
       if (url.origin !== adminOrigin) throw httpError(400, 'Request origin is not canonical');
 
+      if (request.method === 'GET' && url.pathname === '/favicon.ico') {
+        return new Response(null, {
+          status: 204,
+          headers: {
+            'cache-control': 'public, max-age=86400',
+            'x-content-type-options': 'nosniff',
+            'x-robots-tag': 'noindex, nofollow, noarchive',
+          },
+        });
+      }
       if (request.method === 'GET' && url.pathname === '/login') {
         if (sessionService.authenticate(request.headers.get('cookie'))) return redirect('/');
         return renderLogin(loginCsrfService);
