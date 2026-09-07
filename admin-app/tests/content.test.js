@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import test from 'node:test';
 import { openDatabase } from '../src/content/database.js';
+import { createContentService } from '../src/content/service.js';
 import { renderMarkdown } from '../src/content/markdown.js';
 import { formatMoscowDate, normalizePublicationDate } from '../src/content/validation.js';
 import { createPrivatePreview } from '../src/render/preview.js';
@@ -471,6 +472,111 @@ test('weekly migration backfills legacy source rows and marks pre-existing artic
   );
 });
 
+test('draft deletion migration upgrades schema nine and remains readable by its rollback migrator', (t) => {
+  const root = mkdtempSync(resolve(tmpdir(), 'oknotika-deletion-migration-'));
+  const migrations = resolve(root, 'upgrade-migrations');
+  const rollbackMigrations = resolve(root, 'rollback-migrations');
+  const databasePath = resolve(root, 'admin.sqlite');
+  const coverPath = resolve(root, 'cover.png');
+  mkdirSync(migrations);
+  mkdirSync(rollbackMigrations);
+  writeFileSync(coverPath, 'private cover');
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const schemaNineMigrations = [
+    '001_content.sql',
+    '002_admin_security.sql',
+    '003_public_revision_state.sql',
+    '004_weekly_news.sql',
+    '005_article_content_kind.sql',
+    '006_futuchat_social_destination.sql',
+    '007_pending_social_defaults.sql',
+    '008_local_credentials.sql',
+    '009_local_login_csrf.sql',
+  ];
+  for (const name of schemaNineMigrations) {
+    const source = resolve(import.meta.dirname, '../migrations', name);
+    copyFileSync(source, resolve(migrations, name));
+    copyFileSync(source, resolve(rollbackMigrations, name));
+  }
+
+  let db = openDatabase(databasePath, migrations);
+  let service = createContentService(db);
+  const editorId = service.configureEditor({
+    issuer: 'local-password',
+    subject: 'schema-nine-editor',
+  });
+  const coverAssetId = service.registerAsset({
+    privatePath: coverPath,
+    mediaType: 'image/png',
+    width: 1,
+    height: 1,
+  });
+  const privateDraft = service.createArticle(articleInput(coverAssetId, {
+    title: 'Schema nine private draft',
+  }), editorId);
+  const publicArticle = service.createArticle(articleInput(coverAssetId, {
+    title: 'Schema nine public history',
+  }), editorId);
+  db.prepare(`
+    UPDATE articles
+    SET state = 'published', public_state = 'published', published_revision_id = ?
+    WHERE id = ?
+  `).run(publicArticle.revisionId, publicArticle.articleId);
+  db.prepare(`
+    INSERT INTO audit_events
+      (editor_id, event_type, article_id, revision_id, details_json, created_at)
+    VALUES (?, 'article.published', ?, ?, '{}', '2026-09-07T12:00:00.000Z')
+  `).run(editorId, publicArticle.articleId, publicArticle.revisionId);
+  db.close();
+
+  copyFileSync(
+    resolve(import.meta.dirname, '../migrations/010_never_published_draft_deletion.sql'),
+    resolve(migrations, '010_never_published_draft_deletion.sql'),
+  );
+  db = openDatabase(databasePath, migrations);
+  service = createContentService(db);
+  assert.equal(
+    db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get().version,
+    10,
+  );
+  assert.ok(db.prepare("SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'private_previews'").get());
+  assert.throws(
+    () => db.prepare('DELETE FROM article_revision_sources WHERE revision_id = ?')
+      .run(publicArticle.revisionId),
+    /article revision sources are immutable/,
+  );
+  assert.throws(
+    () => db.prepare('DELETE FROM articles WHERE id = ?').run(publicArticle.articleId),
+    /articles with public history are immutable/,
+  );
+  assert.equal(
+    service.deleteNeverPublishedDraft(privateDraft.articleId, editorId, {
+      expectedRevisionId: privateDraft.revisionId,
+    }).status,
+    'deleted',
+  );
+  assert.ok(service.getArticle(publicArticle.articleId));
+  db.close();
+
+  const rollbackDb = openDatabase(databasePath, rollbackMigrations);
+  const rollbackService = createContentService(rollbackDb);
+  assert.equal(
+    rollbackDb.prepare('SELECT MAX(version) AS version FROM schema_migrations').get().version,
+    10,
+  );
+  assert.equal(rollbackDb.prepare(`
+    SELECT r.title
+    FROM articles a
+    JOIN article_revisions r ON r.id = a.current_revision_id
+    WHERE a.id = ?
+  `).get(publicArticle.articleId).title, 'Schema nine public history');
+  const rollbackDraft = rollbackService.createArticle(articleInput(coverAssetId, {
+    title: 'Draft created by rollback application',
+  }), editorId);
+  assert.equal(rollbackService.getArticle(rollbackDraft.articleId).state, 'draft');
+  rollbackDb.close();
+});
+
 test('weekly ingestion is versioned, idempotent and refuses silent manual overwrite', (t) => {
   const { db, service, editorId, coverAssetId } = createHarness(t);
   const payload = weeklyIngestionInput(coverAssetId);
@@ -780,16 +886,28 @@ test('current and historical public evidence all reject draft deletion', (t) => 
   );
 });
 
-test('file staging failure rolls back draft deletion and restores database state', (t) => {
+test('partial file staging failure restores quarantined files and database state', (t) => {
+  let renameCalls = 0;
   const cleanup = {
     lstat: (path) => lstatSync(path),
-    rename: () => { throw new Error('injected quarantine failure'); },
+    rename: (source, destination) => {
+      renameCalls += 1;
+      if (renameCalls === 2) throw new Error('injected quarantine failure');
+      renameSync(source, destination);
+    },
     remove: (path, options) => rmSync(path, options),
   };
   const {
-    db, service, editorId, coverAssetId, coverPath,
+    root, db, service, editorId, coverAssetId, coverPath,
   } = createHarness(t, { serviceOptions: { fileCleanup: cleanup } });
   const created = service.createArticle(articleInput(coverAssetId), editorId);
+  const preview = createPrivatePreview({
+    db,
+    revisionId: created.revisionId,
+    authenticatedEditorId: editorId,
+    previewsRoot: resolve(root, 'previews'),
+    publicOrigin: 'https://oknotika.ru',
+  });
 
   assert.throws(
     () => service.deleteNeverPublishedDraft(created.articleId, editorId, {
@@ -800,7 +918,15 @@ test('file staging failure rolls back draft deletion and restores database state
   assert.ok(service.getArticle(created.articleId));
   assert.ok(db.prepare('SELECT 1 FROM article_revisions WHERE id = ?').get(created.revisionId));
   assert.ok(db.prepare('SELECT 1 FROM assets WHERE id = ?').get(coverAssetId));
+  assert.ok(db.prepare('SELECT 1 FROM private_previews WHERE preview_id = ?').get(preview.previewId));
+  assert.equal(existsSync(preview.directory), true);
   assert.equal(existsSync(coverPath), true);
+  assert.equal(renameCalls, 3);
+  assert.equal(
+    db.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE event_type = 'article.draft_deleted'")
+      .get().count,
+    0,
+  );
 });
 
 test('post-commit file cleanup failure is retained in the deletion tombstone', (t) => {

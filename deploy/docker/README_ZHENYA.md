@@ -514,6 +514,19 @@ image tags. Production Compose сохраняет default
 `OKNOTIKA_HOST_ROOT=/var/home/oknotika`; override используется только в isolated
 restore.
 
+Migration 010 для удаления never-published drafts остаётся читаемой текущей
+schema-9 rollback application: она добавляет только таблицу учёта private preview
+и заменяет delete-триггеры, не меняя существующие колонки или read/write
+контракты. При application rollback на schema 9 текущую schema-10 DB переносить
+вместе с data и не откатывать отдельно: прежний editor продолжит читать,
+редактировать и публиковать материалы, но в нём не будет действия permanent
+delete. Preview, созданные во время такого rollback, не получат ownership-запись
+и после roll-forward намеренно останутся как untracked, а не будут угаданы и
+удалены. Application rollback не восстанавливает уже удалённый draft или его
+private files; для такого восстановления нужен только согласованный backup DB,
+uploads и previews, сделанный до удаления. Active public release и его файлы при
+удалении несвязанного private draft не переключаются и не переписываются.
+
 ~~~bash
 set -euo pipefail
 export OKNOTIKA_NEW_ARCHIVE=/private/incoming/oknotika-docker-vX.Y.Z.zip

@@ -161,6 +161,9 @@ class FinalDocumentationTests(unittest.TestCase):
             "сравнивает SHA-256 обоих установленных root-owned helper",
             "Первый bootstrap, routine deploy и evidence",
             "article/content symlink не меняется",
+            "Migration 010 для удаления never-published drafts",
+            "schema-9 rollback application",
+            "Application rollback не восстанавливает уже удалённый draft",
         ):
             with self.subTest(marker=marker):
                 changed = runbook.replace(marker, "removed requirement")
@@ -217,6 +220,19 @@ class FinalDocumentationTests(unittest.TestCase):
             "deploy/systemd/oknotika-admin.service",
         ):
             with self.subTest(path=path):
+                self.assertTrue(docs_checker.reviewed_post_release_extension_path(path))
+        for path in (
+            "admin-app/migrations/010_never_published_draft_deletion.sql",
+            "admin-app/src/content/service.js",
+            "admin-app/src/http/admin-actions.js",
+            "admin-app/src/render/preview.js",
+            "admin-app/templates/admin/admin.js",
+            "admin-app/tests/admin-client.test.js",
+            "admin-app/tests/content.test.js",
+            "admin-app/tests/helpers.js",
+        ):
+            with self.subTest(path=path):
+                self.assertIn(path, docs_checker.DRAFT_DELETION_EXTENSION_FILES)
                 self.assertTrue(docs_checker.reviewed_post_release_extension_path(path))
         self.assertFalse(docs_checker.reviewed_post_release_extension_path("scripts/unreviewed.py"))
 

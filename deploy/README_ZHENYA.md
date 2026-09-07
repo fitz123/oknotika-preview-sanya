@@ -329,6 +329,18 @@ sudo systemd-run --pty --wait --collect --unit=oknotika-prepare-app-rollback \
 
 Флаг fail-closed отклоняет schema-4 release, FUTUCHAT, `vk.ru` и любой другой manifest, который предыдущая application не сможет прочитать. Только после успешной команды проверить `article-releases/active`, manifest и `/articles/`, атомарно вернуть `/opt/oknotika-admin/current` на предыдущий release и запустить service. Additive columns/tables migrations 006–007 старая application игнорирует. Если совместимого immutable article release нет, восстановить один согласованный pre-migration backup, содержащий одновременно DB, `article-releases/releases` и symlink `article-releases/active`; восстановление одной DB недостаточно. Публичный vhost остаётся доступен всё время.
 
+Migration 010 для удаления never-published drafts остаётся читаемой текущей
+schema-9 rollback application: новая таблица учёта private preview и заменённые
+delete-триггеры не меняют существующие колонки или read/write контракты. При
+application rollback на schema 9 переносить текущую schema-10 DB вместе со всем
+data и не откатывать её отдельно. Прежний editor продолжит читать, редактировать
+и публиковать материалы, но permanent delete в нём недоступен; созданные им
+preview не имеют ownership-записи и после roll-forward намеренно сохраняются как
+untracked. Application rollback не восстанавливает уже удалённый draft или его
+private files — для этого нужен согласованный backup DB, uploads и previews,
+сделанный до удаления. Active public release при удалении несвязанного private
+draft не переключается и не переписывается.
+
 ## Локальные и production gates
 
 Локально, без credentials и Linux services:

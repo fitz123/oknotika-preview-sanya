@@ -45,6 +45,9 @@ DEPLOY_REQUIRED = (
     "сравнивает SHA-256 обоих установленных root-owned helper",
     "Первый bootstrap, routine deploy и evidence",
     "article/content symlink не меняется",
+    "Migration 010 для удаления never-published drafts",
+    "schema-9 rollback application",
+    "Application rollback не восстанавливает уже удалённый draft",
 )
 DOCKER_EXTENSION_FILES = {
     ".dockerignore",
@@ -100,6 +103,21 @@ LOCAL_PASSWORD_AUTH_EXTENSION_FILES = {
     "scripts/check_ci_bundle.py",
     "scripts/scan_release_zip.py",
     "tests/test_release_package.py",
+}
+DRAFT_DELETION_EXTENSION_FILES = {
+    "admin-app/migrations/010_never_published_draft_deletion.sql",
+    "admin-app/src/content/service.js",
+    "admin-app/src/http/admin-actions.js",
+    "admin-app/src/http/handler.js",
+    "admin-app/src/http/node-adapter.js",
+    "admin-app/src/http/start.js",
+    "admin-app/src/render/preview.js",
+    "admin-app/templates/admin/admin.js",
+    "admin-app/tests/admin-client.test.js",
+    "admin-app/tests/content.test.js",
+    "admin-app/tests/deploy.test.js",
+    "admin-app/tests/helpers.js",
+    "admin-app/tests/http-security.test.js",
 }
 
 
@@ -180,6 +198,7 @@ def reviewed_post_release_extension_path(path: str) -> bool:
         reviewed_docker_extension_path(path)
         or path in CI_OPERATIONAL_EXTENSION_FILES
         or path in LOCAL_PASSWORD_AUTH_EXTENSION_FILES
+        or path in DRAFT_DELETION_EXTENSION_FILES
     )
 
 

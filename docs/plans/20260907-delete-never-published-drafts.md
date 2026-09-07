@@ -66,8 +66,8 @@ git diff --check
 
 **Serves:** Sanya's requirement for real cleanup and the standing production/data-retention constraints.
 
-- [ ] Add HTTP/client/domain/migration tests for the success path and all refusal boundaries, including direct SQL attempts against public history.
-- [ ] Test that an active public release and rendered public files remain byte/logically unchanged after deleting an unrelated never-published draft.
-- [ ] Test orphan versus shared asset behavior and failure handling for private-file cleanup.
-- [ ] Verify the migration remains readable by the current rollback application where applicable; document any exact rollback boundary rather than adding speculative machinery.
-- [ ] Run the focused validation commands and leave the branch clean with task-owned commits only.
+- [x] Add HTTP/client/domain/migration tests for the success path and all refusal boundaries, including direct SQL attempts against public history.
+- [x] Test that an active public release and rendered public files remain byte/logically unchanged after deleting an unrelated never-published draft.
+- [x] Test orphan versus shared asset behavior and failure handling for private-file cleanup.
+- [x] Verify the migration remains readable by the current rollback application where applicable; document any exact rollback boundary rather than adding speculative machinery.
+- [x] Run the focused validation commands and leave the branch clean with task-owned commits only.

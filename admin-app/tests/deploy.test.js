@@ -32,7 +32,7 @@ import {
   createPublisher,
   releasePublisherLock,
 } from '../src/render/publisher.js';
-import { articleInput } from './helpers.js';
+import { articleInput, createHarness } from './helpers.js';
 import { runWeeklyIngestionSmoke } from '../../deploy/scripts/smoke-weekly-ingestion.mjs';
 
 const REPO_ROOT = resolve(import.meta.dirname, '../..');
@@ -464,6 +464,84 @@ test('pre-migration backup runs once per pending schema and skips current databa
   execFileSync('bash', [script], { env });
   assert.equal(readdirSync(backupRoot).filter(name => name.endsWith('.sqlite')).length, 1);
   assert.match(readFileSync(script, 'utf8'), /maximum_backups=10/);
+});
+
+test('deleting an unrelated private draft leaves the active public release byte-identical', async (t) => {
+  const harness = createHarness(t);
+  const releasesRoot = resolve(harness.root, 'deletion-public-invariance');
+  const publisher = createPublisher(harness.db, {
+    releasesRoot,
+    publicOrigin: 'https://oknotika.ru',
+    clock: () => new Date('2026-09-07T12:00:00.000Z'),
+  });
+  const publishedArticle = harness.service.createArticle(
+    articleInput(harness.coverAssetId, { title: 'Public article remains active' }),
+    harness.editorId,
+  );
+  const activeRelease = await publisher.publish({
+    editorId: harness.editorId,
+    transition: {
+      type: 'publish',
+      articleId: publishedArticle.articleId,
+      expectedRevisionId: publishedArticle.revisionId,
+    },
+  });
+
+  const draftCoverPath = resolve(harness.privateRoot, 'unrelated-draft.png');
+  copyFileSync(harness.coverPath, draftCoverPath);
+  const draftCoverAssetId = harness.service.registerAsset({
+    privatePath: draftCoverPath,
+    mediaType: 'image/png',
+    width: 1,
+    height: 1,
+  });
+  const draft = harness.service.createArticle(articleInput(draftCoverAssetId, {
+    title: 'Unrelated abandoned draft',
+  }), harness.editorId);
+
+  const activeTarget = readlinkSync(publisher.activePath);
+  const activeDirectory = resolve(releasesRoot, activeTarget);
+  const manifestPath = resolve(activeDirectory, 'manifest.json');
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  const publicBytesBefore = Object.fromEntries([
+    ['manifest.json', readFileSync(manifestPath)],
+    ...Object.keys(manifest.files).sort().map((path) => [
+      path,
+      readFileSync(resolve(activeDirectory, path)),
+    ]),
+  ]);
+  const publicStateBefore = {
+    site: { ...harness.db.prepare('SELECT * FROM site_state WHERE singleton = 1').get() },
+    release: { ...harness.db.prepare('SELECT * FROM releases WHERE id = ?').get(activeRelease.releaseId) },
+    ledger: harness.db.prepare(`
+      SELECT * FROM release_articles WHERE release_id = ? ORDER BY article_id
+    `).all(activeRelease.releaseId).map((row) => ({ ...row })),
+    article: { ...harness.db.prepare('SELECT * FROM articles WHERE id = ?').get(publishedArticle.articleId) },
+    revision: { ...harness.db.prepare('SELECT * FROM article_revisions WHERE id = ?').get(publishedArticle.revisionId) },
+  };
+
+  const deleted = harness.service.deleteNeverPublishedDraft(draft.articleId, harness.editorId, {
+    expectedRevisionId: draft.revisionId,
+  });
+
+  assert.equal(deleted.status, 'deleted');
+  assert.deepEqual(deleted.deletedAssetIds, [draftCoverAssetId]);
+  assert.equal(existsSync(draftCoverPath), false);
+  assert.equal(readlinkSync(publisher.activePath), activeTarget);
+  const publicBytesAfter = Object.fromEntries(Object.keys(publicBytesBefore).map((path) => [
+    path,
+    readFileSync(resolve(activeDirectory, path)),
+  ]));
+  assert.deepEqual(publicBytesAfter, publicBytesBefore);
+  assert.deepEqual({
+    site: { ...harness.db.prepare('SELECT * FROM site_state WHERE singleton = 1').get() },
+    release: { ...harness.db.prepare('SELECT * FROM releases WHERE id = ?').get(activeRelease.releaseId) },
+    ledger: harness.db.prepare(`
+      SELECT * FROM release_articles WHERE release_id = ? ORDER BY article_id
+    `).all(activeRelease.releaseId).map((row) => ({ ...row })),
+    article: { ...harness.db.prepare('SELECT * FROM articles WHERE id = ?').get(publishedArticle.articleId) },
+    revision: { ...harness.db.prepare('SELECT * FROM article_revisions WHERE id = ?').get(publishedArticle.revisionId) },
+  }, publicStateBefore);
 });
 
 test('deployment manifest pins Node 24, bundled SQLite and the exact npm lockfile', () => {
