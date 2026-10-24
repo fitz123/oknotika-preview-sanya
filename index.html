@@ -29,12 +29,37 @@
   </header>
 
   <main id="top">
-    <section class="hero section section--hero hub-hero">
+    <section class="hero section section--hero hub-hero" data-hero-motion>
       <div class="hero__visual" aria-hidden="true">
-        <img src="img/cases/atrium.jpg" alt="" />
+        <img src="img/cases/atrium.jpg" alt="" width="1400" height="930" />
+        <!-- Photo-space coordinates and a matching cover crop keep the drawing on the roof. -->
+        <svg class="hero__drawing" viewBox="0 0 1400 930" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
+          <path class="hero__drawing-shade" d="M305 173 370 117 475 146 576 83 661 125 769 75 844 130 953 100 1019 167 1135 155 1195 232 1258 157 1307 240 1400 163V280L813 720 507 721Q367 586 305 173Z" />
+          <g class="hero__drawing-panes">
+            <path d="M567 382 646 393 567 430Z" />
+            <path d="M646 393 724 408 640 441Z" />
+            <path d="M724 408 799 424 711 454Z" />
+            <path d="M799 424 873 442 782 469Z" />
+            <path d="M567 430 646 393 640 441Z" />
+            <path d="M640 441 724 408 711 454Z" />
+          </g>
+          <g class="hero__drawing-lines">
+            <path pathLength="1" d="M305 173 370 117 475 146 576 83 661 125 769 75 844 130 953 100 1019 167 1135 155 1195 232 1258 157 1307 240 1400 163" />
+            <path pathLength="1" d="M337 369 412 370 493 373 567 382 646 393 724 408 799 424 873 442 942 460 1007 480 1068 502" />
+            <path pathLength="1" d="M352 424 423 420 494 423 567 430 640 441 711 454 782 469 849 486 915 505 978 526 1036 547" />
+            <path pathLength="1" d="M369 478 434 467 499 464 565 470 633 480 698 495 763 511 826 530 884 549 939 569 991 590" />
+            <path pathLength="1" d="M401 558 460 543 521 541 580 547 638 559 695 571 748 587 800 604 850 625 895 646" />
+            <path pathLength="1" d="M454 646 507 632 560 631 611 638 661 650 708 664 753 681 795 698" />
+            <path pathLength="1" d="M386 522 434 467 494 423 567 382M401 558 448 508 499 464 567 430 646 393M420 592 460 543 510 506 565 470 640 441 724 408" />
+            <path pathLength="1" d="M437 620 477 576 521 541 573 512 633 480 711 454 799 424M472 670 507 632 547 603 590 581 638 559 696 537 763 511 849 486" />
+            <path pathLength="1" d="M507 706 830 700M507 706Q393 596 337 334M813 720 1322 339" />
+            <path class="hero__drawing-secondary" pathLength="1" d="M493 373 494 423 499 464 510 506 521 541 534 574 547 603 560 631 574 657 588 681 600 702" />
+            <path class="hero__drawing-secondary" pathLength="1" d="M646 393 640 441 633 480 635 524 638 559 645 592 653 621 661 650 670 676 690 701M799 424 782 469 763 511 754 553 748 587 748 621 750 652 753 681 760 700" />
+          </g>
+        </svg>
       </div>
       <div class="container hero__inner">
-        <div class="hero__content reveal">
+        <div class="hero__content">
           <p class="eyebrow">ОКНОТИКА · светопрозрачные решения</p>
           <h1>Окна, фасады и инженерные продукты под задачу объекта</h1>
           <p class="hero__lead">Собираем светопрозрачную систему как часть здания: материал, профиль, стеклопакет, фурнитура, монтажный узел, автоматика, документация и ответственность.</p>
@@ -43,7 +68,7 @@
             <a class="btn btn--ghost" href="#products">Посмотреть продукты</a>
           </div>
         </div>
-        <aside class="weekly-fact reveal reveal--delay" aria-label="Новости" data-latest-fact data-latest-fact-state="fallback">
+        <aside class="weekly-fact" aria-label="Новости" data-latest-fact data-latest-fact-state="fallback">
           <p class="eyebrow">Новости</p>
           <h2 data-latest-title>Корпус Курчатовской школы получил фасад из стекла, стемалита и алюминия</h2>
           <p data-latest-lead>В Покровском-Стрешневе завершается корпус на 815 учеников. Фасад сочетает алюминиевые кассеты, стекло и стемалит, а на эксплуатируемой кровле устроена озеленённая терраса.</p>

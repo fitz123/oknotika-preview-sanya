@@ -1,4 +1,9 @@
 (() => {
+  const hero = document.querySelector('[data-hero-motion]');
+  if (hero && window.matchMedia('(prefers-reduced-motion: no-preference)').matches) {
+    hero.classList.add('is-drawing');
+  }
+
   const yandexConsentKey = 'oknotika_yandex_embed_consent_v1';
   const readYandexConsent = () => {
     try {

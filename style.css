@@ -291,6 +291,63 @@ dd { margin: 0; font-weight: 850; }
 
 /* V2.25 multipage */
 .hub-hero h1 { max-width: 980px; font-size: clamp(42px, 5.7vw, 78px); }
+
+/* One homepage opening; the photograph and content are the static default. */
+.hub-hero .hero__drawing {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  mask-image: linear-gradient(90deg, rgba(0,0,0,.12), #000 72%);
+}
+.hub-hero .hero__drawing-shade { fill: var(--bg); }
+.hub-hero .hero__drawing-panes { fill: var(--cyan); opacity: 0; }
+.hub-hero .hero__drawing-lines {
+  fill: none;
+  stroke: var(--paper);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.hub-hero .hero__drawing-secondary { stroke: var(--cyan); stroke-width: 1; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .hub-hero.is-drawing { --hero-opening-duration: 4.2s; }
+  .hub-hero.is-drawing .hero__drawing { animation: hero-drawing-out var(--hero-opening-duration) ease-out; }
+  .hub-hero.is-drawing .hero__drawing-lines path {
+    stroke-dasharray: 1;
+    animation: hero-structure-in var(--hero-opening-duration) ease-in-out;
+  }
+  .hub-hero.is-drawing .hero__drawing-panes { animation: hero-glass-in var(--hero-opening-duration) ease-in-out; }
+  .hub-hero.is-drawing .hero__drawing-shade { animation: hero-photo-in var(--hero-opening-duration) ease-in-out; }
+
+  @keyframes hero-structure-in {
+    0% { stroke-dashoffset: 1; }
+    38%, 100% { stroke-dashoffset: 0; }
+  }
+  @keyframes hero-glass-in {
+    0%, 28% { opacity: 0; }
+    48%, 62% { opacity: .24; }
+    88%, 100% { opacity: 0; }
+  }
+  @keyframes hero-photo-in {
+    0%, 45% { opacity: .8; }
+    88%, 100% { opacity: 0; }
+  }
+  @keyframes hero-drawing-out {
+    0%, 64% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
+  @media (max-width: 760px) {
+    .hub-hero.is-drawing { --hero-opening-duration: 2.6s; }
+    .hub-hero .hero__drawing-secondary { display: none; }
+  }
+}
+
 .weekly-fact { padding: 28px; border: 1px solid var(--line); border-radius: var(--radius); background: rgba(255,255,255,.075); backdrop-filter: blur(18px); box-shadow: var(--shadow); }
 .weekly-fact h2 { font-size: clamp(28px, 3vw, 42px); }
 .weekly-fact p:not(.eyebrow) { color: var(--paper-2); }
